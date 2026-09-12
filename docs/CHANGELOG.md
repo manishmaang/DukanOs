@@ -58,3 +58,9 @@
 - Both PostgreSQL integration suites passed (23 scenarios), including local owner recovery and concurrent password changes/resets.
 - Manually verified hidden terminal password entry and safe confirmation-mismatch failure without changing an account.
 - Applied migration 003 to local development PostgreSQL.
+
+### Changed — Module branching workflow
+
+- Require a separate branch from updated main for every new module or independently scoped milestone.
+- Push intermediate achievements to the work branch and merge completed, verified modules back into main with a merge commit.
+- Persisted the workflow and standing merge authorization in AGENTS.md and SYSTEM.md.
