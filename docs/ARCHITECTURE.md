@@ -2,7 +2,7 @@
 
 ## Repository
 
-- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
+- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
 - `apps/web`: one React application, with hash routes for POS, kitchen, dispatch, and administration.
 - `packages/shared-types`: compile-time public contracts only; no runtime database models or business logic.
 - `database/migrations`: ordered, immutable SQL migrations.
@@ -17,7 +17,7 @@ Frontend → API contracts → controllers → application/domain logic → Post
 
 ## HTTP and environment
 
-All HTTP endpoints use `/api`. Global validation rejects unknown properties on authentication and staff DTOs. A global exception filter emits code/message responses and hides internal error details. Startup validates port and PostgreSQL URL. Environment files are ignored, with a committed development-only example. No wildcard CORS is enabled: development uses Vite's proxy, and production serves built static assets from NestJS.
+All HTTP endpoints use `/api`. Global validation rejects unknown properties on authentication, staff and menu DTOs. A global exception filter emits code/message responses and hides internal error details. Startup validates port and PostgreSQL URL. Environment files are ignored, with a committed development-only example. No wildcard CORS is enabled: development uses Vite's proxy, and production serves built static assets from NestJS.
 
 ## Deployment
 
@@ -44,3 +44,7 @@ AuthModule imports UsersModule; both depend on shared DatabaseModule. Users owns
 ## Password management boundary
 
 UsersModule exports PasswordManagementService for AuthController's self-service endpoint and owns a separate password-reset controller that does not inherit the users.manage requirement. Administrative resets require users.password.reset plus domain-specific actor/target checks. Local owner recovery invokes this service directly from a CLI, with no public recovery route or network identity provider. The recovery CLI accepts only loopback PostgreSQL URLs; application HTTP workflows use the configured restaurant database as before.
+
+## Menu boundary
+
+MenuModule owns catalog writes, exact price validation, availability and menu audit. Its repository constructs public aggregates defined in shared-types; persistence rows are not HTTP contracts. Admin loads one catalog aggregate; POS consumes a filtered channel read model and performs no order writes. Menu depends on DatabaseModule and shared auth request/permission metadata. All runtime calls remain same-origin/local PostgreSQL. No Zomato/Swiggy client exists: provider mappings belong to future adapters. Modifiers are deferred (see Menu).

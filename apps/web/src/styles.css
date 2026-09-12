@@ -165,3 +165,36 @@ small {
   margin-top: 12px;
   line-height: 1.6;
 }
+
+.menu-admin {
+  margin-top: 2rem;
+}
+.menu-admin details {
+  margin: 1rem 0;
+}
+.menu-admin summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.menu-admin fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.menu-table {
+  overflow-x: auto;
+}
+.menu-table th,
+.menu-table td {
+  padding: 0.75rem;
+  min-width: 180px;
+  vertical-align: top;
+  border-bottom: 1px solid #ddd;
+}
+.menu-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.menu-table form {
+  margin-bottom: 0.75rem;
+}

@@ -6,13 +6,13 @@ DukanOS will replace paper tokens with one digital restaurant order record share
 
 ## Current implementation
 
-The repository contains an npm workspace monorepo, NestJS API, React application, PostgreSQL migrations, shared contracts, and automated checks. Staff authentication, many-to-many RBAC, owner bootstrap/recovery, self-service password changes, delegated password resets, audited staff creation/access editing, and permission-filtered navigation are implemented. Order entry, kitchen actions, dispatch actions, menu management, reports, payments, printing, and integrations remain unimplemented.
+The repository contains an npm workspace monorepo, NestJS API, React application, PostgreSQL migrations, shared contracts, and automated checks. Staff authentication, many-to-many RBAC, owner bootstrap/recovery, self-service password changes, delegated password resets, audited staff creation/access editing, and permission-filtered navigation are implemented. Menu categories, items, flexible variants, channel prices/availability, audited administration and operational reads are implemented. Order entry, kitchen actions, dispatch actions, reports, payments, printing, and integrations remain unimplemented.
 
-`GET /api/health` checks process liveness; `/api/health/ready` checks database connectivity, not migration readiness. The production API serves the compiled frontend from the same origin. The frontend uses hash routes, session restoration and context refresh on focus/every 30 seconds. Staff creation/access editing requires users.manage; password-reset administration requires users.password.reset and role-specific target checks. All authenticated staff have a Change Password screen. Operational workspaces remain placeholders.
+`GET /api/health` checks process liveness; `/api/health/ready` checks database connectivity, not migration readiness. The production API serves the compiled frontend from the same origin. The frontend uses hash routes, session restoration and context refresh on focus/every 30 seconds. Staff creation/access editing requires users.manage; password-reset administration requires users.password.reset and role-specific target checks. All authenticated staff have a Change Password screen. POS displays a read-only channel menu; kitchen and dispatch remain placeholders. Admin includes menu management for menu.manage.
 
 ## Technology and architecture
 
-Node.js (development verified with 24.13.1), NestJS 11, TypeScript, React 19, Vite 7, PostgreSQL 16. One modular monolith and one web application. SQL migrations use node-postgres; no ORM is selected. Money will use PostgreSQL numeric values and decimal strings at API boundaries; money arithmetic has not been implemented.
+Node.js (development verified with 24.13.1), NestJS 11, TypeScript, React 19, Vite 7, PostgreSQL 16. One modular monolith and one web application. SQL migrations use node-postgres; no ORM is selected. Menu INR prices use checked PostgreSQL numeric values and decimal strings at API boundaries; money arithmetic has not been implemented.
 
 ## Deployment and continuity
 
@@ -37,9 +37,9 @@ Counter or provider → normalized order → queued → preparing → ready → 
 
 ## Pending work and questions
 
-Next: implement Menu variants and channel pricing with migrations and tests. Then follow the bootstrap phases: POS, Kitchen, Amendments, Customers, Credit, Reports, Integrations.
+Next proposed milestone: POS ordering with immutable name/price snapshots, after resolving tax and total rules. Do not begin automatically. Later phases: Kitchen, Amendments, Customers, Credit, Reports, Integrations. Menu modifiers remain deferred.
 
-Resolve before relevant feature implementation: tax/discount/rounding rules, cancellation/amendment cutoffs once cooking starts, receipt hardware, provider API access, shop hardware and backup budget. Currency INR and timezone Asia/Kolkata are provisional business defaults, not implemented settings.
+Resolve before relevant feature implementation: tax/discount/rounding rules, cancellation/amendment cutoffs once cooking starts, receipt hardware, provider API access, shop hardware and backup budget. Menu prices use INR; currency configuration and timezone settings remain unimplemented.
 
 ## Terminology
 
@@ -54,3 +54,7 @@ The workspace is initialized as a Git repository. The GitHub remote is `git@gith
 DukanOS uses multi-role operational staff because one employee may serve as cashier, kitchen worker, and dispatcher during the same shift. OWNER and MANAGER are exclusive privileged roles and cannot be combined with operational roles or each other. Every user must have exactly one privileged role OR one or more operational roles.
 
 Use users/roles/user_roles and roles/permissions/role_permissions. Never put a single role on users. Effective permissions are the distinct union across assigned roles. Authenticated context exposes roles[] and permissions[]. Capability checks govern APIs and visible POS/Kitchen/Dispatch navigation; screen switching does not require logout. Backend validation and PostgreSQL constraints reject invalid assignments with INVALID_ROLE_COMBINATION. Implemented in migration 002 and Auth/Users modules. Initial OWNER gets users.manage; OWNER and MANAGER get users.password.reset with restricted targets. MANAGER has no account-creation or role-editing access. Sessions use local passwords and PostgreSQL-backed cookies, expire in 12 hours, and are revoked on target access or password changes. Owner recovery runs locally with hidden input and an exact active OWNER username; no email/SMS/internet service is involved.
+
+## Menu rules
+
+Category → item → data-driven variants → channel settings. COUNTER, ZOMATO and SWIGGY are configuration rows, with independent prices and availability. Effective sellability requires active category/item/variant/channel, a configured price and channel availability enabled. Prices alone never enable sales. Deactivation preserves configuration. OWNER/MANAGER manage; CASHIER/KITCHEN read; DISPATCH receives no menu capability. Menu operations depend only on the restaurant API/PostgreSQL, with no provider calls. Item aggregate versions reject conflicting edits; audit records retain configuration changes. See [Menu](modules/menu.md).

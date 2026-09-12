@@ -1,6 +1,6 @@
 # DukanOS
 
-Single-location restaurant POS and kitchen system, with **staff authentication and multi-role access management** implemented. Operational ordering, payments, and kitchen workflows remain pending.
+Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access management and menu management** implemented. Operational ordering, payments, and kitchen workflows remain pending.
 
 ## Requirements
 
@@ -50,7 +50,7 @@ Liveness does not require DB availability. Readiness checks connectivity only. S
 
 `apps/api` — NestJS; `apps/web` — React POS/kitchen/dispatch/admin routes; `packages/shared-types` — public contracts; `database/migrations` — SQL; `docs` — persistent project context.
 
-Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, and backend RBAC are implemented; next implement menu variants and channel prices. Follow the bootstrap phases rather than implementing all domains simultaneously.
+Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC and menu foundation are implemented; the next proposed milestone is POS ordering. Follow the bootstrap phases rather than implementing all domains simultaneously.
 
 ## Internet outages and hosting
 
@@ -74,7 +74,7 @@ Production must use `NODE_ENV=production` behind HTTPS so Secure session cookies
 npm run test:integration
 ```
 
-Requires the configured local PostgreSQL connection and permission to create a schema. The suite creates a unique `rbac_test_*` schema, applies migrations twice, tests real HTTP sessions/permissions and concurrent SQL enforcement, then drops only its own schema. It does not modify operational application tables. Normal `npm test` does not require PostgreSQL but its HTTP tests need local socket permission.
+Requires the configured local PostgreSQL connection and permission to create a schema. The suites create unique `rbac_test_*`, `password_test_*` and `menu_test_*` schemas, applies migrations twice, tests real HTTP sessions/permissions and concurrent SQL enforcement, then drops only its own schema. It does not modify operational application tables. Normal `npm test` does not require PostgreSQL but its HTTP tests need local socket permission.
 
 ## Password changes and local owner recovery
 
@@ -94,3 +94,17 @@ For noninteractive local tooling, provide JSON `{username,newPassword,confirmPas
 Recovery requires trusted local filesystem and database access. Ordinary staff should not have OS access to the server or its database credentials. For an inactive owner, recovery reports OWNER_INACTIVE and leaves activation unchanged.
 
 `npm run check` and `npm run test:integration` cover password policy, delegated authorization, session revocation, concurrent changes, audit constraints, and local recovery success/failure. Integration suites use unique temporary schemas (`rbac_test_*` / `password_test_*`) and remove their own test data afterward.
+
+## Create a sample menu
+
+1. Run `npm run db:migrate`, build/start (or use development mode), and sign in as OWNER or MANAGER.
+2. Under **Admin → Menu management → Categories**, create **Chinese**.
+3. Under **Create menu item**, choose Chinese, enter **Veg Noodles**, and first variant **Regular**. Select the created item if necessary.
+4. Use **Add variant** to add **Half** and **Full**. Variant names are arbitrary; other products can use **500 ml**, **Large**, or any suitable name.
+5. In the pricing table, save Regular prices **80 / 95 / 95**, Half **120 / 140 / 145**, and Full **180 / 210 / 215** for Counter / Zomato / Swiggy. Enter decimals as text with at most two decimal places. For each priced cell, check **Available** and save it separately.
+6. Open **POS** to view the read-only menu for each channel. A CASHIER can view this menu but cannot edit prices; KITCHEN has API read permission only.
+7. To hide Veg Noodles only on Swiggy, uncheck Available and save for every Swiggy variant. Counter remains available. Uncheck Active item and save to hide the item everywhere. Deactivated data and prices remain saved.
+
+Refresh after another administrator changes the menu. Stale saves return a conflict; review the refreshed values before retrying. No fake menu data is automatically seeded. Categories/items/variants support display order, activation and name editing. Channel configuration is managed through explicit migrations, not provider APIs. Modifiers are deferred; no orders, payments or kitchen tickets are created by the preview.
+
+See [Menu APIs and rules](docs/modules/menu.md) and [database schema](docs/DATABASE.md). Menu read/write operations use the restaurant server and PostgreSQL only; no internet service is required at runtime.

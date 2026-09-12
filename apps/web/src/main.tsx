@@ -1,3 +1,4 @@
+import { MenuAdmin, MenuPreview } from './Menu';
 import { ChangePassword, StaffPasswordResets } from './PasswordManagement';
 import {
   StrictMode,
@@ -188,9 +189,13 @@ function App() {
                   element={
                     <section>
                       <h1>{link.label}</h1>
-                      {link.path === '/admin' &&
-                      (user.permissions.includes('users.manage') ||
-                        user.permissions.includes('users.password.reset')) ? (
+                      {link.path === '/pos' &&
+                      user.permissions.includes('menu.read') ? (
+                        <MenuPreview />
+                      ) : link.path === '/admin' &&
+                        (user.permissions.includes('users.manage') ||
+                          user.permissions.includes('menu.manage') ||
+                          user.permissions.includes('users.password.reset')) ? (
                         <>
                           {user.permissions.includes('users.manage') && (
                             <StaffAdmin refreshSession={refreshSession} />
@@ -198,6 +203,9 @@ function App() {
                           {user.permissions.includes(
                             'users.password.reset',
                           ) && <StaffPasswordResets />}
+                          {user.permissions.includes('menu.manage') && (
+                            <MenuAdmin />
+                          )}
                         </>
                       ) : (
                         <p className="notice">
