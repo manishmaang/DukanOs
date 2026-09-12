@@ -1,0 +1,167 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #f4f5f1;
+  color: #20382d;
+  font-family: system-ui, sans-serif;
+}
+.layout {
+  max-width: 1100px;
+  margin: auto;
+  padding: 28px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 0;
+}
+header strong {
+  font-size: 28px;
+}
+header span,
+footer {
+  color: #526457;
+  font-size: 14px;
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 25px 0;
+}
+nav a {
+  color: inherit;
+  text-decoration: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+}
+nav a.active {
+  background: #20382d;
+  color: white;
+}
+a:focus-visible {
+  outline: 3px solid #bd6709;
+  outline-offset: 3px;
+}
+section {
+  background: white;
+  padding: clamp(24px, 6vw, 70px);
+  border: 1px solid #dce3da;
+  border-radius: 16px;
+  min-height: 360px;
+}
+h1 {
+  font-size: clamp(28px, 5vw, 48px);
+  max-width: 650px;
+  line-height: 1.15;
+}
+p {
+  line-height: 1.7;
+  max-width: 680px;
+}
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+.notice {
+  background: #fff4df;
+  padding: 16px;
+  border-radius: 8px;
+  color: #72501d;
+}
+footer {
+  padding-top: 28px;
+}
+@media (max-width: 500px) {
+  .layout {
+    padding: 16px;
+  }
+  header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  nav {
+    gap: 4px;
+  }
+  nav a {
+    padding: 10px 14px;
+  }
+}
+
+form {
+  display: grid;
+  gap: 16px;
+  max-width: 520px;
+  margin: 24px 0;
+}
+label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+input,
+select,
+button {
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #a8b8aa;
+}
+input:not([type='checkbox']),
+select {
+  width: 100%;
+  background: white;
+}
+button {
+  background: #20382d;
+  color: white;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 3px solid #bd6709;
+  outline-offset: 2px;
+}
+fieldset {
+  border: 1px solid #a8b8aa;
+  border-radius: 6px;
+  padding: 16px;
+  min-width: 0;
+}
+.role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 16px 0;
+}
+.role-options label,
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+[role='alert'] {
+  color: #a12222;
+}
+details {
+  border-top: 1px solid #dce3da;
+  padding: 20px 0;
+}
+summary {
+  cursor: pointer;
+  line-height: 1.6;
+}
+small {
+  display: block;
+  margin-top: 12px;
+  line-height: 1.6;
+}

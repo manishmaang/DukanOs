@@ -1,0 +1,551 @@
+# DukanOS Agent Instructions
+
+This repository contains **DukanOS**, a restaurant POS, kitchen, order, customer, credit, reporting, and online-order management system.
+
+This file defines the mandatory working rules for AI coding agents working in this repository.
+
+---
+
+## 1. Primary Rule
+
+Do not begin coding immediately.
+
+Before making changes, understand the current system using the repository documentation and existing implementation.
+
+Repository documentation is persistent project memory and must be kept synchronized with the code.
+
+---
+
+## 2. Mandatory Context Loading
+
+Before starting ANY task:
+
+1. Read `docs/SYSTEM.md`.
+2. Identify which module or modules are affected.
+3. Read the corresponding files from:
+
+```text
+docs/modules/
+```
+
+4. Read `docs/ARCHITECTURE.md` when the task affects:
+   - architecture
+   - module boundaries
+   - infrastructure
+   - communication between modules
+   - application structure
+
+5. Read `docs/DATABASE.md` when the task affects:
+   - database tables
+   - columns
+   - relationships
+   - indexes
+   - constraints
+   - transactions
+   - migrations
+
+6. Read `docs/DECISIONS.md` before making significant architectural or domain-design decisions.
+
+7. Inspect the actual existing code related to the task.
+
+Do not rely only on conversation history.
+
+Do not assume documentation is enough without inspecting the implementation.
+
+---
+
+## 3. Source of Truth Priority
+
+When information conflicts, use this order:
+
+```text
+1. Explicit current user requirement
+2. Existing working implementation
+3. docs/SYSTEM.md
+4. Relevant module documentation
+5. docs/ARCHITECTURE.md / docs/DATABASE.md
+6. docs/DECISIONS.md
+7. Previous conversation context
+```
+
+If code and documentation disagree, investigate why.
+
+Do not silently choose one.
+
+Correct the inconsistency as part of the task when appropriate.
+
+---
+
+## 4. Documentation Is Part of the Task
+
+A development task is NOT complete until the relevant documentation is updated.
+
+After implementation:
+
+### Always consider updating
+
+```text
+docs/SYSTEM.md
+docs/modules/<affected-module>.md
+docs/CHANGELOG.md
+```
+
+### Update when relevant
+
+```text
+docs/ARCHITECTURE.md
+docs/DATABASE.md
+docs/DECISIONS.md
+```
+
+---
+
+## 5. SYSTEM.md Rules
+
+`docs/SYSTEM.md` describes the CURRENT system.
+
+It should contain:
+
+- system purpose
+- current modules
+- major workflows
+- major business rules
+- system relationships
+- technology stack
+- important constraints
+- implementation status
+- known limitations
+- pending major work
+
+Do not turn `SYSTEM.md` into a historical log.
+
+Remove obsolete information when the system changes.
+
+Historical changes belong in `CHANGELOG.md`.
+
+Architectural reasoning belongs in `DECISIONS.md`.
+
+---
+
+## 6. Module Documentation
+
+Each substantial module should have its own file:
+
+```text
+docs/modules/
+```
+
+Examples:
+
+```text
+auth.md
+users.md
+menu.md
+orders.md
+payments.md
+kitchen.md
+customers.md
+credit.md
+reports.md
+integrations.md
+```
+
+Create a new module document when a meaningful new domain module is introduced.
+
+Each module document should normally contain:
+
+```text
+# Module Name
+
+## Purpose
+## Responsibilities
+## Entities
+## Database Tables
+## APIs
+## Business Rules
+## State / Lifecycle
+## Dependencies
+## Events Produced
+## Events Consumed
+## Permissions
+## Important Edge Cases
+## Current Implementation
+## Pending Work
+## Important Decisions
+```
+
+Only include sections that provide useful information.
+
+Avoid meaningless boilerplate.
+
+---
+
+## 7. Implementation Principles
+
+DukanOS should remain a **modular monolith** unless there is a documented reason to change that architecture.
+
+Prefer:
+
+- simple designs
+- explicit business logic
+- strong typing
+- database integrity
+- transactions
+- proper constraints
+- auditability
+- testability
+- maintainability
+
+Avoid unnecessary:
+
+- microservices
+- Kafka
+- distributed systems
+- abstraction layers
+- premature optimization
+- generic frameworks built before they are required
+
+---
+
+## 8. Business Logic Placement
+
+Business rules must live in backend/domain/application logic.
+
+Do not rely on frontend-only validation for important rules.
+
+Examples:
+
+- payment calculations
+- refund calculations
+- credit limits
+- order status transitions
+- amendments
+- queue prioritization
+- inventory rules
+- permissions
+
+Frontend validation may improve UX but must not be the only protection.
+
+---
+
+## 9. Database Rules
+
+Use PostgreSQL as the source of persistent truth.
+
+Always use migrations for schema changes.
+
+Never modify production database structures manually.
+
+Use appropriate:
+
+- foreign keys
+- unique constraints
+- check constraints
+- indexes
+- transactions
+- row locking when required
+- idempotency protections where required
+
+Financial values must use precise decimal/numeric types.
+
+Never use floating-point values for money.
+
+---
+
+## 10. Financial Integrity
+
+Financial operations require special care.
+
+Never silently overwrite financial history.
+
+Changes such as:
+
+- additional payments
+- refunds
+- credit purchases
+- credit settlements
+- order amendments
+- cancellations
+
+must remain auditable.
+
+Reports must reflect the final business result while preserving transaction history.
+
+Critical financial logic must have tests.
+
+---
+
+## 11. Order Integrity
+
+Orders are the core operational record.
+
+Do not destroy historical order information when orders are modified.
+
+Important actions should maintain history, including:
+
+- item replacement
+- quantity changes
+- item removal
+- price adjustments
+- cancellation
+- refund
+- queue priority changes
+- payment changes
+
+---
+
+## 12. Kitchen Rules
+
+The digital system is the kitchen's source of truth.
+
+Paper tokens are optional output only.
+
+Kitchen logic should support:
+
+- FIFO queueing
+- explicit prioritization
+- preparation status
+- ready status
+- real-time updates
+- aggregated production requirements
+
+Production aggregation must never remove the relationship between quantities and their originating orders.
+
+---
+
+## 13. Concurrency
+
+Assume multiple devices operate at the same time.
+
+Possible actors include:
+
+- cashier
+- kitchen
+- dispatch
+- manager
+- owner
+
+Protect against:
+
+- duplicate payments
+- duplicate status transitions
+- simultaneous conflicting edits
+- duplicate order acceptance
+- multiple workers processing the same operation
+
+Use backend and database-level protections.
+
+Do not rely only on UI state.
+
+---
+
+## 14. External Integrations
+
+Zomato, Swiggy, and future integrations must be isolated behind provider-specific adapters.
+
+External provider models must not leak throughout the core domain.
+
+Normalize external orders into the DukanOS internal order model.
+
+Example:
+
+```text
+External Provider
+        ↓
+Provider Adapter
+        ↓
+Normalized Order
+        ↓
+DukanOS Order System
+```
+
+---
+
+## 15. Testing Expectations
+
+Prioritize testing of business-critical behavior.
+
+Especially test:
+
+- totals
+- channel pricing
+- amendments
+- refunds
+- additional payments
+- credit ledger
+- status transitions
+- queue ordering
+- kitchen aggregation
+- permission boundaries
+- concurrency-sensitive operations
+
+Do not prioritize trivial tests while financial or order-state logic remains untested.
+
+---
+
+## 16. Scope Discipline
+
+When implementing a requested task:
+
+- change only what is necessary
+- avoid unrelated refactors
+- do not rewrite working modules without reason
+- do not introduce new architecture casually
+- reuse existing project patterns where appropriate
+
+If a larger refactor is genuinely necessary, explain why before performing it.
+
+---
+
+## 17. Architectural Decisions
+
+Record significant decisions in:
+
+```text
+docs/DECISIONS.md
+```
+
+Examples:
+
+- changing module boundaries
+- selecting a new persistence strategy
+- introducing Redis
+- changing authentication strategy
+- introducing background jobs
+- introducing an event bus
+- changing order amendment semantics
+
+Include:
+
+```text
+Decision
+Context
+Options considered
+Chosen approach
+Reason
+Consequences
+Date
+```
+
+Do not record trivial implementation details as architectural decisions.
+
+---
+
+## 18. Changelog
+
+Update:
+
+```text
+docs/CHANGELOG.md
+```
+
+after meaningful changes.
+
+Entries should be concise.
+
+Example:
+
+```text
+## 2026-09-12
+
+### Added
+- Kitchen production aggregation endpoint.
+- Real-time kitchen queue updates.
+
+### Changed
+- Order amendments now preserve original item history.
+
+### Fixed
+- Duplicate READY transitions under concurrent requests.
+```
+
+---
+
+## 19. Before Completing Any Task
+
+Verify:
+
+```text
+[ ] Relevant context files were read
+[ ] Existing code was inspected
+[ ] Implementation matches existing architecture
+[ ] Business rules are enforced server-side
+[ ] Database integrity is preserved
+[ ] Critical logic has tests
+[ ] Existing tests pass
+[ ] New migrations are valid
+[ ] Relevant module docs are updated
+[ ] SYSTEM.md is updated if necessary
+[ ] DATABASE.md is updated if necessary
+[ ] ARCHITECTURE.md is updated if necessary
+[ ] DECISIONS.md is updated if necessary
+[ ] CHANGELOG.md is updated
+[ ] No obsolete documentation remains
+```
+
+---
+
+## 20. Session Continuity
+
+Assume every new coding session may start with zero conversational memory.
+
+Therefore:
+
+```text
+Repository documentation = persistent memory.
+```
+
+At the beginning of every task:
+
+```text
+Read context
+    ↓
+Inspect implementation
+    ↓
+Understand affected modules
+    ↓
+Implement
+    ↓
+Test
+    ↓
+Update documentation
+    ↓
+Verify consistency
+```
+
+Do not skip this workflow even for apparently small changes if they affect domain behavior.
+
+---
+
+## 21. Final Response After a Coding Task
+
+When finishing a task, summarize:
+
+1. What changed.
+2. Which files were changed.
+3. Which database changes/migrations were introduced.
+4. Which tests were added or run.
+5. Which documentation files were updated.
+6. Any remaining limitations or follow-up work.
+
+Keep the summary concise and factual.
+
+---
+
+## 22. GitHub Delivery After Every Completed Change
+
+The user has authorized committing and pushing every completed major or minor achievement to:
+
+```text
+git@github.com:manishmaang/DukanOs.git
+```
+
+After each completed change:
+
+1. Run checks appropriate to the change and synchronize documentation.
+2. Review the diff and staged files; never commit secrets, local environment files, database data, dependencies, or generated build output.
+3. Commit the completed work with a descriptive message.
+4. Push to the configured upstream branch and verify the remote commit.
+5. Report the commit and any push failure in the final response.
+
+This is standing authorization; do not request permission again for routine commits and pushes. Preserve remote history and reconcile concurrent changes before pushing. Never force-push or discard someone else's work without explicit authorization. If authentication, connectivity, or branch protection blocks delivery, retain the local commit and report the concrete blocker.
