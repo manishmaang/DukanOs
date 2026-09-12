@@ -64,3 +64,12 @@
 - Require a separate branch from updated main for every new module or independently scoped milestone.
 - Push intermediate achievements to the work branch and merge completed, verified modules back into main with a merge commit.
 - Persisted the workflow and standing merge authorization in AGENTS.md and SYSTEM.md.
+
+## 2026-09-12 — Menu foundation
+
+### Added
+
+- Migration 004: categories, items, flexible variants, configured channels, exact INR prices, separate availability and immutable menu audit.
+- Capability-protected menu administration and operational read APIs, aggregate version conflicts and PostgreSQL integrity tests.
+- Admin category/item/variant editing with channel pricing table; read-only POS menu preview.
+- menu.read for OWNER/MANAGER/CASHIER/KITCHEN; modifier design documented as deferred.

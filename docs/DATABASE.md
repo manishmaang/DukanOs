@@ -2,7 +2,7 @@
 
 ## Implemented schema
 
-Scaffold infrastructure and Auth/Users tables are implemented. Other domain entities below remain a proposed model, **not migrated tables**.
+Scaffold infrastructure, Auth/Users and Menu tables are implemented. Other domain entities below remain proposed, **not migrated tables**.
 
 ### schema_migrations
 
@@ -22,7 +22,6 @@ Use UUID primary keys, timestamptz timestamps, explicit FKs and restrictive dele
 
 | Module       | Proposed entities and integrity                                                                                                                                                                                                                                                    |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Menu         | categories, menu_items (category FK), item_variants (item FK, unique item/variant code), channel_prices (variant FK, unique variant/channel, numeric(14,2) nonnegative amount), modifiers and item_modifier mappings                                                               |
 | Orders       | orders (unique internal number, channel, status, customer FK optional, version, timestamps), order_items and immutable item revisions (order/variant FKs, positive integer quantities, price/name/instruction snapshots), amendment records and status history (actor/reason/time) |
 | Payments     | payment_transactions (order FK, tender, positive numeric amount, idempotency key), refunds (original payment FK, positive numeric amount, actor/reason), no destructive updates to posted entries                                                                                  |
 | Kitchen      | order-owned queue timestamps and audited priority records; derive aggregation from active item revisions without losing order linkage                                                                                                                                              |
@@ -31,7 +30,7 @@ Use UUID primary keys, timestamptz timestamps, explicit FKs and restrictive dele
 | Integrations | provider_orders (unique provider/external ID, internal order FK), external item/modifier mappings, processing records for deduplication                                                                                                                                            |
 | Reports      | initially queries/projections over source records; no independent sales ledger or duplicate financial authority                                                                                                                                                                    |
 
-Monetary values remain numeric(14,2) in PostgreSQL and strings in JSON. Application arithmetic needs an exact decimal implementation before financial features ship. Provisional currency is INR; tax precision/rounding must be decided before totals implementation. Credit entries increase debt for purchases and decrease it for repayments/reversals. Posted transactions are append-only, with linked reversals. Do not count repayments as sales.
+Future financial values are proposed as numeric(14,2) in PostgreSQL and strings in JSON. Menu uses checked numeric instead, to reject excessive scale without silent rounding. Application arithmetic needs an exact decimal implementation before financial features ship. Provisional currency is INR; tax precision/rounding must be decided before totals implementation. Credit entries increase debt for purchases and decrease it for repayments/reversals. Posted transactions are append-only, with linked reversals. Do not count repayments as sales.
 
 ## Planned transactional boundaries
 
@@ -76,3 +75,22 @@ No new tables. The migration adds users.password.reset and grants it to OWNER an
 `password_audit_safe_payload` requires credential events to have null old_value and exactly `{passwordChanged:true,sessionsRevoked:true}` as new_value. `password_audit_actor` requires self-change actor=target, administrative reset actor≠target with a nonnull actor, and local recovery actor=null. Existing audit immutability and reason/timestamp/FK rules remain intact.
 
 Password mutations use staff advisory lock 742019322 and ordered row locks. They recheck the live session, current permissions/roles and version as appropriate, update users.password_hash and version, delete auth_sessions for the target, clear account-specific login_attempts counters, and insert audit in one transaction. New hashes are computed before acquiring locks. Login's existing version recheck rejects passwords verified against an earlier credential version. No financial/menu schema changes are included.
+
+## Menu — 004_menu_foundation.sql
+
+| Table                    | Columns and integrity                                                                                                                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| menu_categories          | UUID PK, trimmed name (1–100), description, nonnegative sort_order, active, positive version, created_at/updated_at; unique lower(name).                                                              |
+| menu_items               | UUID PK, restrictive category FK, trimmed name (1–120), description, optional kitchen_name, sort_order, active, version, timestamps; unique category/lower(name), category/sort index. No item price. |
+| item_variants            | UUID PK, restrictive menu_item_id FK, trimmed name (1–80), optional display_label, sort_order, active, timestamps; unique item/lower(name), item/sort index. Parent is immutable.                     |
+| sales_channels           | Stable code PK with uppercase format check, name, active, sort_order, timestamps. Initial COUNTER/ZOMATO/SWIGGY rows; additional channels use explicit migrations.                                    |
+| variant_channel_settings | Composite PK (variant_id, channel_code), restrictive FKs, exact price, independent available flag default false, timestamps; available-channel index. Keys immutable.                                 |
+| menu_audit               | UUID PK, actor user FK, exactly one category/item FK, CREATED/UPDATED action, before/after JSON snapshots, created_at; target/time indexes. UPDATE/DELETE rejected.                                   |
+
+Prices are INR decimal strings in JSON. PostgreSQL `numeric` with `price >= 0 AND price < 1000000000000 AND scale(price) <= 2` provides up to 12 integral digits and 2 fractional digits (₹999999999999.99 maximum). Unconstrained numeric with checks deliberately avoids numeric(14,2) silently rounding an overprecision input. API accepts plain decimal strings and normalizes two fractional digits without floating-point conversion. No totals/tax arithmetic exists.
+
+Deferred constraints require each item to retain at least one variant at commit. Categories/items have version/timestamp triggers; variant and price/availability writes update the parent item's version and acquire its row lock. API menu writes use advisory lock 742019323, recheck the actor session/capability inside the transaction and compare expected category/item aggregate versions. A concurrent stale edit returns MENU_VERSION_CONFLICT rather than overwriting. Operational catalog reads use a repeatable-read snapshot. The broad write lock is appropriate for this single small restaurant; no distributed locks are used.
+
+Availability is computed from active category/item/variant/channel plus configured price and available=true. Database constraints protect references, unique records and price precision; the service checks reference activation before pricing/enabling. Disabling remains allowed when parents are inactive. No physical-delete endpoints exist. Changing a category does not bump child item versions, but writes recheck current category activation under the common lock.
+
+Menu audit is configuration history, not an order ledger. Future order items must snapshot item/variant names, channel, sold unit price and later modifier selections; current menu rows cannot reconstruct historical sales. No modifier or order tables are introduced.

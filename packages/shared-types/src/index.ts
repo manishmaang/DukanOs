@@ -22,6 +22,7 @@ export type PermissionCode =
   | 'users.manage'
   | 'users.password.reset'
   | 'menu.manage'
+  | 'menu.read'
   | 'reports.read'
   | 'payments.refund'
   | 'orders.cancel'
@@ -47,3 +48,5 @@ export interface PasswordResetTarget {
   active: boolean;
   version: number;
 }
+
+export type * from './menu';

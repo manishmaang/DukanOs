@@ -14,8 +14,8 @@ Every user has exactly one privileged role (OWNER or MANAGER) OR a nonempty subs
 
 | Role     | Capabilities                                                                                                                                        |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CASHIER  | orders.create, orders.read, payments.collect                                                                                                        |
-| KITCHEN  | kitchen.read, kitchen.update                                                                                                                        |
+| CASHIER  | orders.create, orders.read, payments.collect, menu.read                                                                                             |
+| KITCHEN  | kitchen.read, kitchen.update, menu.read                                                                                                             |
 | DISPATCH | dispatch.read, dispatch.complete                                                                                                                    |
 | MANAGER  | All operational capabilities plus menu.manage, reports.read, payments.refund, orders.cancel, orders.prioritize, credit.adjust, users.password.reset |
 | OWNER    | All MANAGER capabilities plus users.manage                                                                                                          |
@@ -48,7 +48,7 @@ users, roles, user_roles, permissions, role_permissions, user_audit. Users depen
 
 ## Pending work
 
-Name/profile editing, staff search/pagination, and a configurable permission editor if needed. Operational and financial APIs are future modules.
+Name/profile editing, staff search/pagination, and a configurable permission editor if needed. Ordering and financial APIs are future modules.
 
 ## Delegated password reset
 
@@ -68,3 +68,7 @@ Self-reset is rejected; use Change Password. No OWNER account is eligible for th
 The backend checks the capability and exact actor/target role rule, including inside the mutation transaction after locks are acquired. It rechecks actor session validity and target version. Permission/session changes or target promotion cannot authorize a stale reset. Forbidden targets return PASSWORD_RESET_FORBIDDEN; stale versions return USER_VERSION_CONFLICT. The UI uses the server-filtered target list, and its visibility is never the authorization boundary.
 
 Password hash replacement, user version increment, all target-session deletion, account throttle cleanup and PASSWORD_RESET audit insertion commit atomically. PASSWORD_CHANGED records the same user as actor/target; PASSWORD_RESET records the administrator and target; OWNER_RECOVERED records a null local-system actor and exact target. All include time/reason. Credential events use only `{passwordChanged:true,sessionsRevoked:true}` as their JSON payload—no password or hash snapshots.
+
+## Menu capabilities
+
+Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS read-only menu rendering requires menu.read.

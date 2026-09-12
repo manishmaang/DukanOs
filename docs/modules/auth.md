@@ -51,3 +51,7 @@ The current-password check is limited to 10 attempts per user per 15 minutes usi
 Errors include CURRENT_PASSWORD_INCORRECT (400), INVALID_PASSWORD (400), PASSWORD_CHANGE_RATE_LIMITED (429), PASSWORD_CHANGE_CONFLICT (409), and AUTHENTICATION_REQUIRED (401). Administrative resets are described in [Users](users.md).
 
 `npm run auth:reset-owner` recovers an exact active OWNER username using local PostgreSQL, the existing scrypt implementation, and hidden prompts or JSON stdin. It does not create accounts, change roles, or reactivate users. See README for use and the local operator trust boundary. No HTTP recovery endpoint is exposed. Terminal input uses [Node readline](https://nodejs.org/api/readline.html) with password echo suppressed and history disabled.
+
+## Menu capabilities
+
+Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS read-only menu rendering requires menu.read.

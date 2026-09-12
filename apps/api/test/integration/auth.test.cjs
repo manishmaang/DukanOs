@@ -166,6 +166,7 @@ test(
           assert.deepEqual(employee.permissions, [
             'kitchen.read',
             'kitchen.update',
+            'menu.read',
             'orders.create',
             'orders.read',
             'payments.collect',

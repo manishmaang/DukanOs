@@ -143,3 +143,27 @@ Allows delegated password support without expanding role-management privileges a
 ### Consequences
 
 All target sessions are revoked on a successful password mutation. Recovery preserves roles and activation; inactive owners require a separately authorized activation procedure. Repeated recovery is safe but intentionally records each successful recovery and increments version. Anyone with local application/database administration access can perform recovery; filesystem/database access must therefore remain restricted to trusted operators. No email/SMS, MFA, default credentials or public recovery tokens are introduced.
+
+## 007 — Menu aggregate, exact prices and persistent availability
+
+Date: 2026-09-12
+
+### Context
+
+One restaurant needs arbitrary portions, different channel prices, quick disable controls and concurrent administrative editing.
+
+### Options considered
+
+Fixed portion enums and item prices; normalized variants/channels. Rounded numeric typmod; numeric with explicit scale checks. Inventory/scheduled availability; simple persistent flags. Full modifier selection/pricing; deferred modifier definition model.
+
+### Decision
+
+Use data-driven variants and sales channels, one checked numeric price and separate availability flag per variant/channel, and category/item/variant activation. Item aggregate versions cover child edits; serialize menu API writes using a transaction advisory lock and preserve audit snapshots. Operational reads return only sellable variants. Defer modifiers with a documented future group/option/assignment model.
+
+### Reason
+
+Meets the current menu needs while preventing silent price rounding and stale overwrites. Modifier selection, exclusions and pricing need order semantics that are outside this milestone.
+
+### Consequences
+
+An unpriced variant is not sellable; saving a price does not enable it. All variants of an item must be disabled on a channel to hide that item there. No inventory, time windows, provider integration or order writes exist. Future orders must store sold names/prices independently. The catalog and its audit snapshots are sized for a small single-location menu; pagination and finer write locking may be introduced if measured demand requires them.
