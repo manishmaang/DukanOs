@@ -2,7 +2,7 @@
 
 ## Purpose and current implementation
 
-Staff creation, multi-role assignment, activation/deactivation, optimistic concurrency, and append-only access audit records are implemented. The Admin workspace provides staff creation and access editing to users with users.manage.
+Staff creation, multi-role assignment, activation/deactivation, optimistic concurrency, and append-only access audit records are implemented. The Admin workspace provides staff creation/access editing to users with users.manage and a separate delegated password-reset section to users with users.password.reset.
 
 ## Role model
 
@@ -12,19 +12,19 @@ Every user has exactly one privileged role (OWNER or MANAGER) OR a nonempty subs
 
 ## Initial permission matrix
 
-| Role     | Capabilities                                                                                                                  |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| CASHIER  | orders.create, orders.read, payments.collect                                                                                  |
-| KITCHEN  | kitchen.read, kitchen.update                                                                                                  |
-| DISPATCH | dispatch.read, dispatch.complete                                                                                              |
-| MANAGER  | All operational capabilities plus menu.manage, reports.read, payments.refund, orders.cancel, orders.prioritize, credit.adjust |
-| OWNER    | All MANAGER capabilities plus users.manage                                                                                    |
+| Role     | Capabilities                                                                                                                                        |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CASHIER  | orders.create, orders.read, payments.collect                                                                                                        |
+| KITCHEN  | kitchen.read, kitchen.update                                                                                                                        |
+| DISPATCH | dispatch.read, dispatch.complete                                                                                                                    |
+| MANAGER  | All operational capabilities plus menu.manage, reports.read, payments.refund, orders.cancel, orders.prioritize, credit.adjust, users.password.reset |
+| OWNER    | All MANAGER capabilities plus users.manage                                                                                                          |
 
 Permission grants are explicit rows, not a hard-coded privileged bypass. Capability names for future business modules are seeded contracts; those business actions are not yet implemented. Role/permission administration APIs are not exposed; future matrix changes require reviewed migrations.
 
 ## APIs
 
-All require users.manage:
+The following require users.manage:
 
 - `GET /api/users`: staff list including roles, permissions, active status and version; never password hashes.
 - `POST /api/users`: username, name, password, roles[]. Creates and audits atomically. Normalized usernames are unique; collisions return USERNAME_TAKEN.
@@ -48,4 +48,23 @@ users, roles, user_roles, permissions, role_permissions, user_audit. Users depen
 
 ## Pending work
 
-Password change/recovery, name/profile editing, staff search/pagination, and a configurable permission editor if needed. Operational and financial APIs are future modules.
+Name/profile editing, staff search/pagination, and a configurable permission editor if needed. Operational and financial APIs are future modules.
+
+## Delegated password reset
+
+`users.password.reset` is granted to OWNER and MANAGER. It is independent of users.manage; managers cannot list the complete staff directory, create users, or edit roles/status through this capability.
+
+- `GET /api/users/password-reset-targets`: returns only eligible targets with id, username, name, roles, active, and version. No hashes, passwords, or permissions are returned.
+- `POST /api/users/:id/password-reset`: `{newPassword,version,reason}`; returns 204. A nonblank 1–500 character administrative reason and the current target version are required.
+
+| Actor                         | Allowed targets                                                  |
+| ----------------------------- | ---------------------------------------------------------------- |
+| OWNER with reset capability   | MANAGER and operational staff, including multi-role combinations |
+| MANAGER with reset capability | Operational staff only                                           |
+| Operational staff             | None, even if the reset capability is accidentally granted       |
+
+Self-reset is rejected; use Change Password. No OWNER account is eligible for the staff-reset workflow, including another owner; owners use self-service or local recovery. Inactive operational/manager accounts may have passwords reset, but remain inactive.
+
+The backend checks the capability and exact actor/target role rule, including inside the mutation transaction after locks are acquired. It rechecks actor session validity and target version. Permission/session changes or target promotion cannot authorize a stale reset. Forbidden targets return PASSWORD_RESET_FORBIDDEN; stale versions return USER_VERSION_CONFLICT. The UI uses the server-filtered target list, and its visibility is never the authorization boundary.
+
+Password hash replacement, user version increment, all target-session deletion, account throttle cleanup and PASSWORD_RESET audit insertion commit atomically. PASSWORD_CHANGED records the same user as actor/target; PASSWORD_RESET records the administrator and target; OWNER_RECOVERED records a null local-system actor and exact target. All include time/reason. Credential events use only `{passwordChanged:true,sessionsRevoked:true}` as their JSON payload—no password or hash snapshots.

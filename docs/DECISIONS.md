@@ -118,4 +118,28 @@ No cloud dependency and no stale role claims in long-lived tokens.
 
 ### Consequences
 
-PostgreSQL is required for authentication. Sessions expire after 12 hours; logout revokes the current token, and staff access changes revoke all target sessions. Reverse proxy/TLS remains deployment configuration. Password recovery and MFA are future work.
+PostgreSQL is required for authentication. Sessions expire after 12 hours; logout revokes the current token, and staff access changes revoke all target sessions. Reverse proxy/TLS remains deployment configuration. Local password recovery is implemented by decision 006; MFA remains future work.
+
+## 006 — Delegated password reset and local owner recovery
+
+Date: 2026-09-12
+
+### Context
+
+Staff require self-service password changes and restricted owner/manager resets. Owner recovery must work without email, SMS or internet.
+
+### Options considered
+
+Reuse broad users.manage for managers; use a separate capability with target-role policy. Public recovery endpoint; explicit local operator command.
+
+### Decision
+
+Grant users.password.reset to OWNER and MANAGER, enforce target-role restrictions in the domain transaction, and expose a filtered reset-target API. Owners reset managers/operational staff; managers reset operational staff only. All OWNER accounts are excluded from staff reset. Authenticated staff use current-password verification for self-change. A loopback-only CLI recovers an exact active OWNER account with hidden input, a reason and system-attributed audit.
+
+### Reason
+
+Allows delegated password support without expanding role-management privileges and preserves independent owner control. Local recovery depends on trusted OS/database access, not an unavailable external service.
+
+### Consequences
+
+All target sessions are revoked on a successful password mutation. Recovery preserves roles and activation; inactive owners require a separately authorized activation procedure. Repeated recovery is safe but intentionally records each successful recovery and increments version. Anyone with local application/database administration access can perform recovery; filesystem/database access must therefore remain restricted to trusted operators. No email/SMS, MFA, default credentials or public recovery tokens are introduced.

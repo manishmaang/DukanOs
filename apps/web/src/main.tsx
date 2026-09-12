@@ -1,3 +1,4 @@
+import { ChangePassword, StaffPasswordResets } from './PasswordManagement';
 import {
   StrictMode,
   useCallback,
@@ -69,6 +70,7 @@ function App() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const sessionRequest = useRef(0);
   const refreshSession = useCallback(async () => {
     const request = ++sessionRequest.current;
@@ -124,6 +126,7 @@ function App() {
         )}
       </header>
       {error && <p role="alert">{error}</p>}
+      {notice && <p role="status">{notice}</p>}
       {loading ? (
         <p role="status">Checking your session…</p>
       ) : !user ? (
@@ -131,6 +134,7 @@ function App() {
           onLogin={(current) => {
             sessionRequest.current++;
             setError('');
+            setNotice('');
             setUser(current);
           }}
         />
@@ -145,9 +149,26 @@ function App() {
                 {link.label}
               </NavLink>
             ))}
+            <NavLink to="/account/password">Change Password</NavLink>
           </nav>
           <main>
             <Routes>
+              <Route
+                path="/account/password"
+                element={
+                  <ChangePassword
+                    onChanged={() => {
+                      sessionRequest.current++;
+                      setUser(null);
+                      setError('');
+                      setNotice(
+                        'Password changed. Sign in again with your new password.',
+                      );
+                    }}
+                  />
+                }
+              />
+
               <Route
                 path="/"
                 element={
@@ -168,8 +189,16 @@ function App() {
                     <section>
                       <h1>{link.label}</h1>
                       {link.path === '/admin' &&
-                      user.permissions.includes('users.manage') ? (
-                        <StaffAdmin refreshSession={refreshSession} />
+                      (user.permissions.includes('users.manage') ||
+                        user.permissions.includes('users.password.reset')) ? (
+                        <>
+                          {user.permissions.includes('users.manage') && (
+                            <StaffAdmin refreshSession={refreshSession} />
+                          )}
+                          {user.permissions.includes(
+                            'users.password.reset',
+                          ) && <StaffPasswordResets />}
+                        </>
                       ) : (
                         <p className="notice">
                           This workspace is under construction. Operational

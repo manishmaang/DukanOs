@@ -1,3 +1,4 @@
+import { validateNewPassword } from './password-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -66,14 +67,13 @@ export class UsersService {
     actor?: AuthenticatedUser,
   ): Promise<StaffUser> {
     validateRoles(input.roles);
+    validateNewPassword(input.password);
     const username = input.username.trim().toLowerCase();
     const name = input.name.trim();
     if (
       !/^[a-z0-9][a-z0-9._-]{2,63}$/.test(username) ||
       !name ||
-      name.length > 100 ||
-      input.password.length < 12 ||
-      input.password.length > 128
+      name.length > 100
     )
       throw new BadRequestException({
         code: 'INVALID_USER',

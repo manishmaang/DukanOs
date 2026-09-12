@@ -20,6 +20,7 @@ export type PermissionCode =
   | 'dispatch.read'
   | 'dispatch.complete'
   | 'users.manage'
+  | 'users.password.reset'
   | 'menu.manage'
   | 'reports.read'
   | 'payments.refund'
@@ -34,6 +35,15 @@ export interface AuthenticatedUser {
   permissions: PermissionCode[];
 }
 export interface StaffUser extends AuthenticatedUser {
+  active: boolean;
+  version: number;
+}
+
+export interface PasswordResetTarget {
+  id: string;
+  username: string;
+  name: string;
+  roles: RoleCode[];
   active: boolean;
   version: number;
 }

@@ -68,3 +68,11 @@ All FKs use restrictive deletion; historical user references must not be removed
 Role replacement, account status/version, session revocation and user audit insertion share one transaction. Staff mutations take advisory lock 742019322 before checking actor authority or last active owner. Login locks/rechecks user version after hashing before inserting a session. Migration runner uses a distinct advisory lock 742019321. Permission union/session lookup is one SQL snapshot; requests already authorized before a revocation may finish, so future sensitive mutations must recheck permission within their transactional boundary as Users does.
 
 The initial role grant matrix is recorded in [Users](modules/users.md). No financial tables or money calculations are introduced by this migration.
+
+## Password management — 003_password_management.sql
+
+No new tables. The migration adds users.password.reset and grants it to OWNER and MANAGER. The existing user_audit action constraint is extended with PASSWORD_CHANGED, PASSWORD_RESET, OWNER_RECOVERED; existing migrations are unchanged.
+
+`password_audit_safe_payload` requires credential events to have null old_value and exactly `{passwordChanged:true,sessionsRevoked:true}` as new_value. `password_audit_actor` requires self-change actor=target, administrative reset actor≠target with a nonnull actor, and local recovery actor=null. Existing audit immutability and reason/timestamp/FK rules remain intact.
+
+Password mutations use staff advisory lock 742019322 and ordered row locks. They recheck the live session, current permissions/roles and version as appropriate, update users.password_hash and version, delete auth_sessions for the target, clear account-specific login_attempts counters, and insert audit in one transaction. New hashes are computed before acquiring locks. Login's existing version recheck rejects passwords verified against an earlier credential version. No financial/menu schema changes are included.

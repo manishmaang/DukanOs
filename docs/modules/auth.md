@@ -15,13 +15,14 @@ Authenticated context exposes `id`, `username`, `name`, `roles[]`, and `permissi
 - `POST /api/auth/login`: public; username/password; returns current user and sets session cookie.
 - `GET /api/auth/me`: current authenticated context from the database.
 - `POST /api/auth/logout`: revokes current session and clears cookie (204).
+- `POST /api/auth/change-password`: authenticated; `{currentPassword,newPassword}`; validates current password and strength, returns 204, revokes all sessions and clears the current cookie.
 - Health routes remain public. Future controllers are authenticated by default and must declare capabilities for sensitive actions.
 
 ## Sessions and security
 
 32-byte cryptographically random tokens; only SHA-256 token hashes are stored. Cookies are HttpOnly, SameSite=Strict, scoped to `/api`, and Secure when NODE_ENV=production. Session lifetime is 12 hours, with no sliding refresh. Production therefore requires HTTPS. Development HTTP is for a trusted local environment; LAN HTTP does not encrypt credentials. Browser storage never receives tokens or passwords.
 
-Roles, permissions, active status, and session expiry are loaded together on every authenticated request. Role/status changes revoke all target sessions; logout revokes only the current session. A login rechecks the locked user version after password verification, preventing a concurrent access change from issuing a stale session.
+Roles, permissions, active status, and session expiry are loaded together on every authenticated request. Role/status and password changes revoke all target sessions; logout revokes only the current session. A login rechecks the locked user version after password verification, preventing a concurrent access or password change from issuing a stale session.
 
 All non-safe HTTP methods—including login—require `X-DukanOS-Request: 1`. Same-origin requests and disabled cross-origin CORS prevent other websites from supplying this header with cookies. Do not enable permissive credentialed CORS. Authenticated responses have Cache-Control: no-store. Missing/expired sessions return AUTHENTICATION_REQUIRED; insufficient capability returns PERMISSION_DENIED; missing mutation header returns CSRF_CHECK_FAILED.
 
@@ -39,4 +40,14 @@ Users module supplies staff context. Shared DatabaseModule owns the connection p
 
 ## Pending work
 
-Password changes/recovery, MFA, session/device management UI, and deployment TLS/proxy configuration. No public registration or cloud identity provider. Add authorization declarations and tests as each business API is implemented.
+MFA, session/device management UI, and deployment TLS/proxy configuration. No public registration, email/SMS recovery, or cloud identity provider. Add authorization declarations and tests as each business API is implemented.
+
+## Password management
+
+Every active authenticated staff member may change their own password. The current password must verify, and the new password follows the shared 12–128 character rule. Passwords are neither trimmed nor returned. The UI requires confirmation and clears password fields on submission, including failed requests. Success signs out all devices; no replacement session is issued. Invalid current passwords leave the existing password and sessions unchanged.
+
+The current-password check is limited to 10 attempts per user per 15 minutes using PostgreSQL counters. Hash verification and new hashing occur before the mutation transaction; the transaction locks the account, rechecks the session and account version, updates the hash/version, revokes sessions and inserts a credential-free audit event. Concurrent changes cannot both overwrite an obsolete password. A successful change/reset clears the target's account-login and password-change counters; source-IP login limits remain in effect.
+
+Errors include CURRENT_PASSWORD_INCORRECT (400), INVALID_PASSWORD (400), PASSWORD_CHANGE_RATE_LIMITED (429), PASSWORD_CHANGE_CONFLICT (409), and AUTHENTICATION_REQUIRED (401). Administrative resets are described in [Users](users.md).
+
+`npm run auth:reset-owner` recovers an exact active OWNER username using local PostgreSQL, the existing scrypt implementation, and hidden prompts or JSON stdin. It does not create accounts, change roles, or reactivate users. See README for use and the local operator trust boundary. No HTTP recovery endpoint is exposed. Terminal input uses [Node readline](https://nodejs.org/api/readline.html) with password echo suppressed and history disabled.

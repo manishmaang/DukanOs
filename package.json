@@ -23,7 +23,8 @@
     "db:migrate": "node --env-file=.env scripts/migrate.mjs",
     "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run format:check",
     "auth:bootstrap": "npm run build -w @dukanos/api && node --env-file=.env scripts/bootstrap-owner.cjs",
-    "test:integration": "npm run build -w @dukanos/api && node --env-file=.env --test apps/api/test/integration/*.test.cjs"
+    "test:integration": "npm run build -w @dukanos/api && node --env-file=.env --test apps/api/test/integration/*.test.cjs",
+    "auth:reset-owner": "npm run build -w @dukanos/api && node --env-file=.env scripts/reset-owner.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

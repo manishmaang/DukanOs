@@ -11,7 +11,12 @@ export const workspaces: WorkspaceLink[] = [
   {
     path: '/admin',
     label: 'Admin',
-    permissions: ['users.manage', 'menu.manage', 'reports.read'],
+    permissions: [
+      'users.manage',
+      'users.password.reset',
+      'menu.manage',
+      'reports.read',
+    ],
   },
 ];
 export function allowedWorkspaces(user: AuthenticatedUser): WorkspaceLink[] {

@@ -64,7 +64,7 @@ Apply migrations before signing in. No default staff account or password is seed
 python3 -c 'import getpass,json,sys; username=getpass.getpass("Username (hidden): "); name=getpass.getpass("Name (hidden): "); password=getpass.getpass("Password (12–128 characters): "); print(json.dumps(dict(username=username,name=name,password=password)))' | npm run auth:bootstrap
 ```
 
-Then sign in at the application URL. OWNER can create staff and edit roles/status under Admin. CASHIER/KITCHEN/DISPATCH can be combined freely; OWNER and MANAGER must each stand alone. Effective permissions determine visible workspaces. Access changes require a reason and sign the affected user out across devices. Password recovery/change screens are not yet available.
+Then sign in at the application URL. OWNER can create staff and edit roles/status under Admin. CASHIER/KITCHEN/DISPATCH can be combined freely; OWNER and MANAGER must each stand alone. Effective permissions determine visible workspaces. Access changes require a reason and sign the affected user out across devices. All authenticated staff can use Change Password. OWNER and MANAGER have a restricted Staff password resets section in Admin; successful changes sign out all target sessions.
 
 Production must use `NODE_ENV=production` behind HTTPS so Secure session cookies work; development HTTP is not encrypted. Requests that mutate state must send `X-DukanOS-Request: 1`, including login/logout. The web application does this automatically.
 
@@ -75,3 +75,22 @@ npm run test:integration
 ```
 
 Requires the configured local PostgreSQL connection and permission to create a schema. The suite creates a unique `rbac_test_*` schema, applies migrations twice, tests real HTTP sessions/permissions and concurrent SQL enforcement, then drops only its own schema. It does not modify operational application tables. Normal `npm test` does not require PostgreSQL but its HTTP tests need local socket permission.
+
+## Password changes and local owner recovery
+
+- **Own password:** choose Change Password, enter the current password and the new password twice (12–128 characters). On success, sign in again on every device.
+- **Staff reset:** under Admin → Staff password resets, select an eligible account, enter and confirm its new password, and record a reason. OWNER can reset MANAGER/operational staff; MANAGER can reset operational staff only. Self-reset and all OWNER targets are excluded from this workflow. Resetting an inactive account does not activate it.
+- **Owner cannot sign in:** on the trusted restaurant server, run:
+
+```sh
+npm run db:migrate
+npm run auth:reset-owner
+```
+
+The command asks for the exact owner username, new password, confirmation, and reason. Password input is hidden and terminal history is disabled. It connects only to a loopback PostgreSQL host (`localhost`, `127.0.0.1`, or `::1`), uses the existing password hasher, revokes all owner sessions and records local-system recovery. No HTTP server, internet, email or SMS is needed. It does not create an owner or activate an inactive account. There are no default credentials.
+
+For noninteractive local tooling, provide JSON `{username,newPassword,confirmPassword,reason}` on stdin from a trusted secret source. Do not put passwords in command-line arguments, shell history, source-controlled files, or an audit reason. The CLI rejects command-line arguments and never echoes supplied values. A failed validation changes nothing. Repeating valid recovery safely updates the same account and records another recovery; it does not duplicate users or roles. Account-specific sign-in throttles are cleared; IP-based login limits are unaffected.
+
+Recovery requires trusted local filesystem and database access. Ordinary staff should not have OS access to the server or its database credentials. For an inactive owner, recovery reports OWNER_INACTIVE and leaves activation unchanged.
+
+`npm run check` and `npm run test:integration` cover password policy, delegated authorization, session revocation, concurrent changes, audit constraints, and local recovery success/failure. Integration suites use unique temporary schemas (`rbac_test_*` / `password_test_*`) and remove their own test data afterward.

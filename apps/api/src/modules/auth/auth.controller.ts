@@ -1,3 +1,4 @@
+import { PasswordManagementService } from '../users/password-management.service';
 import {
   Body,
   Controller,
@@ -16,9 +17,16 @@ class LoginDto {
   @IsString() @Length(3, 64) username!: string;
   @IsString() @Length(1, 128) @MaxLength(128) password!: string;
 }
+class ChangePasswordDto {
+  @IsString() @Length(1, 128) currentPassword!: string;
+  @IsString() @Length(12, 128) newPassword!: string;
+}
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly passwords: PasswordManagementService,
+  ) {}
   @Public()
   @Post('login')
   @HttpCode(200)
@@ -41,6 +49,26 @@ export class AuthController {
       maxAge: 12 * 60 * 60 * 1000,
     });
     return user;
+  }
+  @Post('change-password')
+  @HttpCode(204)
+  async changePassword(
+    @Body() input: ChangePasswordDto,
+    @Req() request: AuthRequest,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.passwords.changeOwn(
+      request.user.id,
+      request.sessionHash,
+      input.currentPassword,
+      input.newPassword,
+    );
+    response.clearCookie('dukanos_session', {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/api',
+    });
   }
   @Get('me') me(@Req() request: AuthRequest) {
     return request.user;

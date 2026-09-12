@@ -17,7 +17,7 @@ Frontend → API contracts → controllers → application/domain logic → Post
 
 ## HTTP and environment
 
-All HTTP endpoints use `/api`. Global validation rejects unknown DTO properties once DTOs are added. A global exception filter emits code/message responses and hides internal error details. Startup validates port and PostgreSQL URL. Environment files are ignored, with a committed development-only example. No wildcard CORS is enabled: development uses Vite's proxy, and production serves built static assets from NestJS.
+All HTTP endpoints use `/api`. Global validation rejects unknown properties on authentication and staff DTOs. A global exception filter emits code/message responses and hides internal error details. Startup validates port and PostgreSQL URL. Environment files are ignored, with a committed development-only example. No wildcard CORS is enabled: development uses Vite's proxy, and production serves built static assets from NestJS.
 
 ## Deployment
 
@@ -40,3 +40,7 @@ The root npm override selects Multer 2.3+ to replace the vulnerable transitive v
 ## Auth and staff dependencies
 
 AuthModule imports UsersModule; both depend on shared DatabaseModule. Users owns staff SQL, access policy and audit writes. Auth owns sessions, hashing helpers, CSRF and capability guards. Lightweight transport metadata and request types are shared between the modules; no circular Nest provider dependency exists. No self-contained token role claims are trusted. See [Auth](modules/auth.md), [Users](modules/users.md), and decisions 004/005.
+
+## Password management boundary
+
+UsersModule exports PasswordManagementService for AuthController's self-service endpoint and owns a separate password-reset controller that does not inherit the users.manage requirement. Administrative resets require users.password.reset plus domain-specific actor/target checks. Local owner recovery invokes this service directly from a CLI, with no public recovery route or network identity provider. The recovery CLI accepts only loopback PostgreSQL URLs; application HTTP workflows use the configured restaurant database as before.

@@ -42,3 +42,19 @@
 
 - Recorded standing authorization in AGENTS.md to commit and push every completed major or minor achievement to manishmaang/DukanOs.
 - GitHub delivery includes reviewing staged files, preserving remote history, and verifying the pushed commit.
+
+### Added — Password management
+
+- Authenticated current-password changes with confirmation UI, shared strength validation, verification rate limits, and revocation of all sessions.
+- OWNER/MANAGER staff password resets with a separate capability, restricted target lists, administrative reasons, version checks and transactional permission/session rechecks.
+- Local owner-recovery CLI with hidden input/stdin, exact owner selection, loopback-only database connection and repeat-safe audited recovery.
+- Migration 003 adds reset grants and credential-safe audit action/payload/actor constraints.
+- Password-policy tests and real PostgreSQL/HTTP/CLI integration coverage for successful, forbidden and concurrent operations.
+- Menu development remains pending; no operational restaurant modules were added.
+
+### Verified — Password management
+
+- Full check suite passed: lint, type checks, six API/domain tests, one workspace test, production builds, and formatting.
+- Both PostgreSQL integration suites passed (23 scenarios), including local owner recovery and concurrent password changes/resets.
+- Manually verified hidden terminal password entry and safe confirmation-mismatch failure without changing an account.
+- Applied migration 003 to local development PostgreSQL.
