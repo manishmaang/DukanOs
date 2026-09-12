@@ -545,7 +545,30 @@ After each completed change:
 1. Run checks appropriate to the change and synchronize documentation.
 2. Review the diff and staged files; never commit secrets, local environment files, database data, dependencies, or generated build output.
 3. Commit the completed work with a descriptive message.
-4. Push to the configured upstream branch and verify the remote commit.
+4. Push to the current module/work branch and verify the remote commit; follow section 23 before merging completed work into main.
 5. Report the commit and any push failure in the final response.
 
 This is standing authorization; do not request permission again for routine commits and pushes. Preserve remote history and reconcile concurrent changes before pushing. Never force-push or discard someone else's work without explicit authorization. If authentication, connectivity, or branch protection blocks delivery, retain the local commit and report the concrete blocker.
+
+---
+
+## 23. Separate Branch for Every Module
+
+Every new module or separately scoped module milestone must use its own branch, always created from updated main. Do not start new module implementation directly on main or branch from another unfinished module. Use descriptive names such as `feature/menu-management`; use `fix/<scope>` or `chore/<scope>` for independently scoped fixes or workflow changes.
+
+Before creating a new work branch:
+
+1. Inspect Git status and preserve any unrelated/uncommitted work. Never discard it to switch branches.
+2. Fetch origin, switch to main, and update it with a fast-forward-only pull. If local main has diverged, reconcile the history without force-pushing or discarding commits.
+3. Create the new branch from that updated main, then perform the documentation/context-loading workflow before implementation.
+4. Push the branch with an upstream. Commit and push each completed major or minor achievement to that branch under section 22.
+
+When the module/milestone is complete:
+
+1. Finish relevant tests, documentation, and diff review. Do not merge unfinished module work merely because an intermediate achievement was pushed.
+2. Fetch the latest main and reconcile any changes into the work branch; resolve conflicts and rerun affected checks when necessary.
+3. Push the verified work branch, update local main, and merge the completed branch using a merge commit (`--no-ff`) so module boundaries remain visible in history.
+4. Push main and verify the remote commit. If branch protection requires a PR, follow that workflow instead of bypassing protection.
+5. Always create the next module branch afresh from updated main, never by reusing the previous module branch.
+
+The user has given standing authorization for this branch, commit, push, and completed-module merge workflow. No additional routine confirmation is required. Report authentication, connectivity, conflicts needing user input, or branch-protection blockers accurately.

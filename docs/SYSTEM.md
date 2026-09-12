@@ -47,7 +47,7 @@ Channel: source of an order and pricing context. Variant: portion of a menu prod
 
 ## Version control and delivery
 
-The workspace is initialized as a Git repository. The GitHub remote is `git@github.com:manishmaang/DukanOs.git`. The user has authorized committing and pushing every completed major or minor achievement after relevant checks and documentation updates. See AGENTS.md section 22 for the persistent delivery workflow. Never commit local environment secrets or generated/dependency files.
+The workspace is initialized as a Git repository. The GitHub remote is `git@github.com:manishmaang/DukanOs.git`. The user has authorized committing and pushing every completed major or minor achievement after relevant checks and documentation updates. Every new module/milestone uses a separate branch created from freshly updated main. Intermediate achievements are pushed to that work branch; completed and verified work is merged back into main with a merge commit and pushed. See AGENTS.md sections 22–23 for the persistent delivery workflow. Never commit local environment secrets or generated/dependency files.
 
 ## Multi-role RBAC requirement (2026-09-12)
 
