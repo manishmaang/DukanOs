@@ -32,7 +32,7 @@ Persistent atomic login counters allow 10 attempts per normalized username and 6
 
 ## Frontend
 
-Sign-in/session restoration, sign-out, and capability-filtered POS/Kitchen/Dispatch/Admin navigation are implemented. A single session permits switching all allowed workspaces without logout. Direct navigation to an unauthorized workspace renders unavailable. Context refreshes on focus and every 30 seconds; backend checks are authoritative between refreshes. Operational workspaces remain placeholders.
+Sign-in/session restoration, sign-out, and capability-filtered POS/Kitchen/Dispatch/Admin navigation are implemented. A single session permits switching all allowed workspaces without logout. Direct navigation to an unauthorized workspace renders unavailable. Context refreshes on focus and every 30 seconds; backend checks are authoritative between refreshes. POS provides a read-only menu preview; kitchen and dispatch remain placeholders. Menu management has its own permission-filtered workspace.
 
 ## Dependencies / tables
 

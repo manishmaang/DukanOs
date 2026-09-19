@@ -15,22 +15,26 @@ function dates<T extends Dates>(row: T) {
     updatedAt: row.updatedAt.toISOString(),
   };
 }
-export async function readCatalog(client: PoolClient): Promise<MenuCatalog> {
+export async function readCatalog(
+  client: PoolClient,
+  ordering: 'admin' | 'operational' = 'admin',
+): Promise<MenuCatalog> {
+  const direction = ordering === 'admin' ? 'DESC' : 'ASC';
   const categories = (
     await client.query<Omit<MenuCategory, keyof Dates> & Dates>(
-      `SELECT id,name,description,sort_order AS "sortOrder",active,version,created_at AS "createdAt",updated_at AS "updatedAt" FROM menu_categories ORDER BY sort_order,lower(name),id`,
+      `SELECT id,name,description,active,version,created_at AS "createdAt",updated_at AS "updatedAt" FROM menu_categories ORDER BY created_at ${direction},id ${direction}`,
     )
   ).rows.map(dates);
   const items = (
     await client.query<Omit<MenuItem, keyof Dates | 'variants'> & Dates>(
-      `SELECT id,category_id AS "categoryId",name,description,kitchen_name AS "kitchenName",sort_order AS "sortOrder",active,version,created_at AS "createdAt",updated_at AS "updatedAt" FROM menu_items ORDER BY sort_order,lower(name),id`,
+      `SELECT id,category_id AS "categoryId",name,description,kitchen_name AS "kitchenName",active,version,created_at AS "createdAt",updated_at AS "updatedAt" FROM menu_items ORDER BY created_at ${direction},id ${direction}`,
     )
   ).rows;
   const variants = (
     await client.query<
       Omit<MenuVariant, keyof Dates | 'channels'> & Dates & { itemId: string }
     >(
-      `SELECT id,menu_item_id AS "itemId",name,display_label AS "displayLabel",sort_order AS "sortOrder",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM item_variants ORDER BY sort_order,lower(name),id`,
+      `SELECT id,menu_item_id AS "itemId",name,display_label AS "displayLabel",active,created_at AS "createdAt",updated_at AS "updatedAt" FROM item_variants ORDER BY created_at,id`,
     )
   ).rows;
   const settings = (
@@ -40,7 +44,7 @@ export async function readCatalog(client: PoolClient): Promise<MenuCatalog> {
   ).rows;
   const channels = (
     await client.query<SalesChannel>(
-      'SELECT code,name,active,sort_order AS "sortOrder" FROM sales_channels ORDER BY sort_order,code',
+      'SELECT code,name,active FROM sales_channels ORDER BY created_at,code',
     )
   ).rows;
   return {

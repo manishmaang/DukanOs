@@ -124,10 +124,9 @@ test(
             await call('patch', '/categories/' + category.id, {
               version: category.version,
               name: 'Chinese food',
-              sortOrder: 2,
             }).expect(200)
           ).body;
-          assert.equal(category.sortOrder, 2);
+          assert.equal(category.name, 'Chinese food');
           await call('post', '/categories', {}).expect(400);
           await call('post', '/categories', { name: '  ' }).expect(400);
           await call('post', '/categories', { name: 'CHINESE FOOD' }).expect(
@@ -187,7 +186,6 @@ test(
             await call('post', '/items/' + id + '/variants', {
               itemVersion: item.version,
               name: '500 ml',
-              sortOrder: 9,
             }).expect(201)
           ).body;
           const other = item.variants.find((v) => v.name === '500 ml');
@@ -195,7 +193,6 @@ test(
             await call('patch', '/variants/' + other.id, {
               itemVersion: item.version,
               name: 'Half',
-              sortOrder: 10,
             }).expect(200)
           ).body;
         },
@@ -410,6 +407,398 @@ test(
               [item.id],
             ),
             (e) => e.code === '23505',
+          );
+        },
+      );
+
+      await t.test(
+        'display ordering is rejected across public write contracts and absent in reads',
+        async () => {
+          for (const field of [
+            'sortOrder',
+            'displayOrder',
+            'display_order',
+            'sort_order',
+          ]) {
+            await call('post', '/categories', {
+              name: 'Bad category',
+              [field]: 1,
+            }).expect(400);
+            await call('patch', '/categories/' + category.id, {
+              version: category.version,
+              [field]: 1,
+            }).expect(400);
+            await call('post', '/items', {
+              categoryId: category.id,
+              name: 'Bad item',
+              variants: [{ name: 'Standard' }],
+              [field]: 1,
+            }).expect(400);
+            await call('post', '/items', {
+              categoryId: category.id,
+              name: 'Bad portion',
+              variants: [{ name: 'Standard', [field]: 1 }],
+            }).expect(400);
+            await call('patch', '/items/' + item.id, {
+              version: item.version,
+              [field]: 1,
+            }).expect(400);
+            await call('patch', '/variants/' + item.variants[0].id, {
+              itemVersion: item.version,
+              [field]: 1,
+            }).expect(400);
+            await call('post', '/items/' + item.id + '/variants', {
+              itemVersion: item.version,
+              name: 'Bad',
+              [field]: 1,
+            }).expect(400);
+          }
+          const catalog = (await call('get', '/admin').expect(200)).body;
+          assert.doesNotMatch(
+            JSON.stringify(catalog),
+            /sortOrder|displayOrder|sort_order|display_order/,
+          );
+        },
+      );
+      const payload = (i) => ({
+        version: i.version,
+        name: i.name,
+        categoryId: i.categoryId,
+        description: i.description,
+        kitchenName: i.kitchenName,
+        active: i.active,
+        variants: i.variants.map((v) => ({
+          id: v.id,
+          name: v.name,
+          displayLabel: v.displayLabel,
+          active: v.active,
+          channels: v.channels.map((c) => ({ ...c })),
+        })),
+      });
+      let dish;
+      await t.test(
+        'one save creates portions and channel prices; owner/manager edit in one atomic request',
+        async () => {
+          const input = {
+            name: 'Veg Noodles complete',
+            categoryId: category.id,
+            description: 'One save',
+            variants: ['Regular', 'Half', 'Full'].map((name, index) => ({
+              name,
+              channels: [
+                {
+                  channelCode: 'COUNTER',
+                  price: ['80', '120', '180'][index],
+                  available: true,
+                },
+                {
+                  channelCode: 'ZOMATO',
+                  price: ['95', '140', '210'][index],
+                  available: true,
+                },
+                {
+                  channelCode: 'SWIGGY',
+                  price: ['95', '145', '215'][index],
+                  available: true,
+                },
+              ],
+            })),
+          };
+          dish = (await call('post', '/items', input, 'MANAGER').expect(201))
+            .body;
+          assert.deepEqual(
+            dish.variants.map((v) => v.name),
+            ['Regular', 'Half', 'Full'],
+          );
+          assert.equal(
+            dish.variants[0].channels.find((c) => c.channelCode === 'COUNTER')
+              .price,
+            '80.00',
+          );
+          const originalIds = dish.variants.map((v) => v.id);
+          const update = payload(dish);
+          update.name = 'Veg Noodles edited';
+          update.description = 'All together';
+          update.variants[0].displayLabel = 'R';
+          update.variants[0].channels.find(
+            (c) => c.channelCode === 'COUNTER',
+          ).price = '85.50';
+          for (const v of update.variants)
+            v.channels.find((c) => c.channelCode === 'SWIGGY').available =
+              false;
+          dish = (await call('put', '/items/' + dish.id, update).expect(200))
+            .body;
+          assert.deepEqual(
+            dish.variants.map((v) => v.id),
+            originalIds,
+          );
+          assert.equal(dish.description, 'All together');
+          assert.equal(dish.variants[0].displayLabel, 'R');
+          assert.ok(
+            !(await menu('SWIGGY')).categories
+              .flatMap((c) => c.items)
+              .some((i) => i.id === dish.id),
+          );
+          assert.ok(
+            (await menu()).categories
+              .flatMap((c) => c.items)
+              .some((i) => i.id === dish.id),
+          );
+          for (const role of ['CASHIER', 'KITCHEN', 'DISPATCH']) {
+            await call('put', '/items/' + dish.id, payload(dish), role).expect(
+              403,
+            );
+            await call('post', '/items', input, role).expect(403);
+          }
+        },
+      );
+      await t.test(
+        'full-dish renaming can swap portion names without replacing identities',
+        async () => {
+          const change = payload(dish);
+          const originalIds = change.variants.map((v) => v.id);
+          [change.variants[0].name, change.variants[1].name] = [
+            change.variants[1].name,
+            change.variants[0].name,
+          ];
+          const swapped = (
+            await call('put', '/items/' + dish.id, change).expect(200)
+          ).body;
+          assert.deepEqual(
+            swapped.variants.map((v) => v.id),
+            originalIds,
+          );
+          assert.deepEqual(
+            swapped.variants.map((v) => v.name),
+            ['Half', 'Regular', 'Full'],
+          );
+          dish = (
+            await call('put', '/items/' + dish.id, {
+              ...payload(dish),
+              version: swapped.version,
+            }).expect(200)
+          ).body;
+        },
+      );
+      await t.test(
+        'invalid nested writes preserve names, variants, prices, versions and audit; no partial creation',
+        async () => {
+          const before = (await call('get', '/items/' + dish.id).expect(200))
+            .body;
+          const audits = (
+            await sql.query(
+              'SELECT count(*) FROM menu_audit WHERE item_id=$1',
+              [dish.id],
+            )
+          ).rows[0].count;
+          for (const kind of [
+            'negative',
+            'precision',
+            'duplicate',
+            'missing',
+            'foreign',
+            'channel',
+            'repeatedChannel',
+            'clearPrice',
+            'order',
+          ]) {
+            const change = payload(before);
+            change.name = 'Should never persist';
+            change.variants[0].channels[0].price = '81';
+            if (kind === 'negative')
+              change.variants[2].channels[0].price = '-1';
+            if (kind === 'precision')
+              change.variants[2].channels[0].price = '9.999';
+            if (kind === 'duplicate') change.variants[2].name = 'regular';
+            if (kind === 'missing') change.variants.pop();
+            if (kind === 'foreign') change.variants[2].id = item.variants[0].id;
+            if (kind === 'channel')
+              change.variants[2].channels[0].channelCode = 'UNKNOWN';
+            if (kind === 'repeatedChannel')
+              change.variants[2].channels.push({
+                ...change.variants[2].channels[0],
+              });
+            if (kind === 'clearPrice') change.variants[2].channels.pop();
+            if (kind === 'order') change.variants[2].sortOrder = 1;
+            await call('put', '/items/' + dish.id, change).expect(
+              ['duplicate', 'repeatedChannel'].includes(kind) ? 409 : 400,
+            );
+            assert.deepEqual(
+              (await call('get', '/items/' + dish.id)).body,
+              before,
+            );
+          }
+          assert.equal(
+            (
+              await sql.query(
+                'SELECT count(*) FROM menu_audit WHERE item_id=$1',
+                [dish.id],
+              )
+            ).rows[0].count,
+            audits,
+          );
+          await call('post', '/items', {
+            name: 'Should not exist',
+            categoryId: category.id,
+            variants: [
+              {
+                name: 'Good',
+                channels: [
+                  { channelCode: 'COUNTER', price: '80', available: true },
+                ],
+              },
+              {
+                name: 'Bad',
+                channels: [
+                  { channelCode: 'SWIGGY', price: '-10', available: true },
+                ],
+              },
+            ],
+          }).expect(400);
+          assert.equal(
+            (
+              await sql.query(
+                "SELECT count(*) FROM menu_items WHERE name='Should not exist'",
+              )
+            ).rows[0].count,
+            '0',
+          );
+          // Force a late database rejection after metadata/first portion writes to prove rollback.
+          await sql.query(
+            "CREATE FUNCTION reject_test_price() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.price=987.65 THEN RAISE EXCEPTION 'TEST_REJECTION' USING ERRCODE='23514'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_test_price BEFORE INSERT OR UPDATE ON variant_channel_settings FOR EACH ROW EXECUTE FUNCTION reject_test_price()",
+          );
+          try {
+            const change = payload(before);
+            change.name = 'Must rollback';
+            change.variants[0].name = 'Changed portion';
+            change.variants[2].channels[0].price = '987.65';
+            await call('put', '/items/' + dish.id, change).expect(500);
+            assert.deepEqual(
+              (await call('get', '/items/' + dish.id)).body,
+              before,
+            );
+          } finally {
+            await sql.query(
+              'DROP TRIGGER reject_test_price ON variant_channel_settings; DROP FUNCTION reject_test_price()',
+            );
+          }
+        },
+      );
+      await t.test(
+        'aggregate updates preserve activation and stale-write protections',
+        async () => {
+          let change = payload(dish);
+          change.active = false;
+          dish = (await call('put', '/items/' + dish.id, change).expect(200))
+            .body;
+          assert.ok(
+            !(await menu()).categories
+              .flatMap((c) => c.items)
+              .some((i) => i.id === dish.id),
+          );
+          assert.ok(
+            dish.variants[0].channels.find((c) => c.channelCode === 'COUNTER')
+              .available,
+          );
+          change = payload(dish);
+          change.variants[0].channels[0].price = '10';
+          await call('put', '/items/' + dish.id, change).expect(400);
+          change = payload(dish);
+          change.active = true;
+          change.variants[0].active = false;
+          dish = (await call('put', '/items/' + dish.id, change).expect(200))
+            .body;
+          assert.equal(
+            (await menu()).categories
+              .flatMap((c) => c.items)
+              .find((i) => i.id === dish.id).variants.length,
+            2,
+          );
+          const results = await Promise.all(
+            ['Edit A', 'Edit B'].map((description) =>
+              call('put', '/items/' + dish.id, {
+                ...payload(dish),
+                description,
+              }),
+            ),
+          );
+          assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+          dish = results.find((r) => r.status === 200).body;
+        },
+      );
+      await t.test(
+        'admin newest first; POS oldest first with deterministic timestamp ties and stable renames',
+        async () => {
+          const first = (
+            await call('post', '/categories', {
+              name: 'Ordering first',
+            }).expect(201)
+          ).body;
+          const second = (
+            await call('post', '/categories', {
+              name: 'Ordering second',
+            }).expect(201)
+          ).body;
+          let cats = (await call('get', '/categories')).body;
+          assert.deepEqual(
+            cats.slice(0, 2).map((c) => c.id),
+            [second.id, first.id],
+          );
+          const create = async (name) =>
+            (
+              await call('post', '/items', {
+                categoryId: first.id,
+                name,
+                variants: [
+                  {
+                    name: 'Standard',
+                    channels: [
+                      { channelCode: 'COUNTER', price: '10', available: true },
+                    ],
+                  },
+                ],
+              }).expect(201)
+            ).body;
+          let older = await create('Z oldest');
+          const newer = await create('A newest');
+          const adminIds = async () =>
+            (await call('get', '/items')).body
+              .filter((i) => i.categoryId === first.id)
+              .map((i) => i.id);
+          const posIds = async () =>
+            (await menu()).categories
+              .find((c) => c.id === first.id)
+              .items.map((i) => i.id);
+          assert.deepEqual(await adminIds(), [newer.id, older.id]);
+          assert.deepEqual(await posIds(), [older.id, newer.id]);
+          older = (
+            await call('patch', '/items/' + older.id, {
+              version: older.version,
+              name: 'Renamed',
+            }).expect(200)
+          ).body;
+          assert.deepEqual(await adminIds(), [newer.id, older.id]);
+          assert.deepEqual(await posIds(), [older.id, newer.id]);
+          const third = await create('Third');
+          assert.deepEqual(await adminIds(), [third.id, newer.id, older.id]);
+          assert.deepEqual(await posIds(), [older.id, newer.id, third.id]);
+          await sql.query(
+            "UPDATE menu_items SET created_at='2026-01-01T00:00:00Z' WHERE category_id=$1",
+            [first.id],
+          );
+          const sorted = [older.id, newer.id, third.id].sort();
+          assert.deepEqual(await adminIds(), [...sorted].reverse());
+          assert.deepEqual(await posIds(), sorted);
+          await sql.query(
+            "UPDATE menu_categories SET created_at='2026-01-01T00:00:00Z' WHERE id=ANY($1::uuid[])",
+            [[first.id, second.id]],
+          );
+          cats = (await call('get', '/categories')).body.filter((c) =>
+            [first.id, second.id].includes(c.id),
+          );
+          assert.deepEqual(
+            cats.map((c) => c.id),
+            [first.id, second.id].sort().reverse(),
           );
         },
       );

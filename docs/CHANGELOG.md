@@ -73,3 +73,16 @@
 - Capability-protected menu administration and operational read APIs, aggregate version conflicts and PostgreSQL integrity tests.
 - Admin category/item/variant editing with channel pricing table; read-only POS menu preview.
 - menu.read for OWNER/MANAGER/CASHIER/KITCHEN; modifier design documented as deferred.
+
+## 2026-09-19 — Menu management UX
+
+### Changed
+
+- Dedicated Menu workspace with grouped search, one dish editor, inline portions, side-by-side prices and a single Save action.
+- Added transactional nested item creation/full-dish PUT, preserving stored identities, availability, version checks and audit.
+- Migration 005 removes manual sort_order metadata while preserving all existing menu records and audit history. Admin is newest first; POS uses stable oldest-first creation order.
+- Inline category editing, channel-wide availability switches, editable Standard initial portion, immediate validation and tablet-friendly controls.
+
+### Tested
+
+- Nested-save rollback, authorization, obsolete-field rejection, deterministic ordering and a populated-database upgrade; desktop/tablet Chromium workflow with non-local requests blocked.

@@ -95,16 +95,19 @@ Recovery requires trusted local filesystem and database access. Ordinary staff s
 
 `npm run check` and `npm run test:integration` cover password policy, delegated authorization, session revocation, concurrent changes, audit constraints, and local recovery success/failure. Integration suites use unique temporary schemas (`rbac_test_*` / `password_test_*`) and remove their own test data afterward.
 
-## Create a sample menu
+## Create or edit a menu dish
 
-1. Run `npm run db:migrate`, build/start (or use development mode), and sign in as OWNER or MANAGER.
-2. Under **Admin → Menu management → Categories**, create **Chinese**.
-3. Under **Create menu item**, choose Chinese, enter **Veg Noodles**, and first variant **Regular**. Select the created item if necessary.
-4. Use **Add variant** to add **Half** and **Full**. Variant names are arbitrary; other products can use **500 ml**, **Large**, or any suitable name.
-5. In the pricing table, save Regular prices **80 / 95 / 95**, Half **120 / 140 / 145**, and Full **180 / 210 / 215** for Counter / Zomato / Swiggy. Enter decimals as text with at most two decimal places. For each priced cell, check **Available** and save it separately.
-6. Open **POS** to view the read-only menu for each channel. A CASHIER can view this menu but cannot edit prices; KITCHEN has API read permission only.
-7. To hide Veg Noodles only on Swiggy, uncheck Available and save for every Swiggy variant. Counter remains available. Uncheck Active item and save to hide the item everywhere. Deactivated data and prices remain saved.
+1. Apply migrations with `npm run db:migrate`, build/start (or use development mode), and sign in as OWNER or MANAGER. Migration 005 removes only ordering metadata; existing menu records, prices and availability are retained. Do not reset the database.
+2. Open **Menu** in the navigation (`/#/menu`). Click **+ Add Category**, enter **Chinese**, then **Save category**.
+3. Click **+ Add Item**, enter **Veg Noodles** and choose Chinese. Rename the default **Standard** portion to **Regular**. Click **+ Add variant** for **Half** and **Full**.
+4. Enter prices side-by-side: Regular **80 / 95 / 95**, Half **120 / 140 / 145**, Full **180 / 210 / 215** for Counter / Zomato / Swiggy. Channel headings identify each column. Enter at most two decimal places; leave new cells blank where a portion is not offered.
+5. Choose the channels under **Available on**, or use individual portion checkboxes. Click **Save Item** once. The whole dish saves together; a failed save changes nothing.
+6. Select Veg Noodles from the category list to edit all its details in the same form, then **Save Changes**. To pause Swiggy only, uncheck Swiggy under Available on and save. Counter remains available. To pause the dish everywhere, turn off **Item active** and save.
+7. Use search for a dish, category or portion. New categories and dishes appear first in management; POS uses oldest-created-first ordering so additions and renames leave familiar items in place. There are no manual display-order inputs or API fields.
+8. For a single-size product, keep Standard or rename it (for example **1 L**). Remove unsaved portion rows freely; deactivate stored portions to preserve their records. Optional kitchen names and short labels remain under secondary details.
 
-Refresh after another administrator changes the menu. Stale saves return a conflict; review the refreshed values before retrying. No fake menu data is automatically seeded. Categories/items/variants support display order, activation and name editing. Channel configuration is managed through explicit migrations, not provider APIs. Modifiers are deferred; no orders, payments or kitchen tickets are created by the preview.
+A CASHIER can view the read-only POS menu but cannot edit it. KITCHEN retains API read access and no administration. Editing category names/descriptions or activation uses the sidebar's Edit action. Inactive categories hide all their dishes. Saving a price does not silently enable sales. Reactivating a dish restores its saved channel flags; review them before saving.
 
-See [Menu APIs and rules](docs/modules/menu.md) and [database schema](docs/DATABASE.md). Menu read/write operations use the restaurant server and PostgreSQL only; no internet service is required at runtime.
+If another administrator changes the dish, your save is rejected without partial updates. Your draft remains visible; use Reload menu and review current values before retrying. Menu drafts are not stored across sessions. No fake menu data is seeded. Channel configuration still uses explicit migrations; no provider integration exists. Modifiers and ordering remain deferred.
+
+See [Menu APIs and rules](docs/modules/menu.md) and [database schema](docs/DATABASE.md). Menu read/write operations use the restaurant server and PostgreSQL only. `npm run check` and `npm run test:integration` cover nested saving, rollback, stable ordering, RBAC and migration preservation using isolated test schemas.

@@ -76,16 +76,16 @@ No new tables. The migration adds users.password.reset and grants it to OWNER an
 
 Password mutations use staff advisory lock 742019322 and ordered row locks. They recheck the live session, current permissions/roles and version as appropriate, update users.password_hash and version, delete auth_sessions for the target, clear account-specific login_attempts counters, and insert audit in one transaction. New hashes are computed before acquiring locks. Login's existing version recheck rejects passwords verified against an earlier credential version. No financial/menu schema changes are included.
 
-## Menu — 004_menu_foundation.sql
+## Menu — 004_menu_foundation.sql and 005_menu_automatic_ordering.sql
 
-| Table                    | Columns and integrity                                                                                                                                                                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| menu_categories          | UUID PK, trimmed name (1–100), description, nonnegative sort_order, active, positive version, created_at/updated_at; unique lower(name).                                                              |
-| menu_items               | UUID PK, restrictive category FK, trimmed name (1–120), description, optional kitchen_name, sort_order, active, version, timestamps; unique category/lower(name), category/sort index. No item price. |
-| item_variants            | UUID PK, restrictive menu_item_id FK, trimmed name (1–80), optional display_label, sort_order, active, timestamps; unique item/lower(name), item/sort index. Parent is immutable.                     |
-| sales_channels           | Stable code PK with uppercase format check, name, active, sort_order, timestamps. Initial COUNTER/ZOMATO/SWIGGY rows; additional channels use explicit migrations.                                    |
-| variant_channel_settings | Composite PK (variant_id, channel_code), restrictive FKs, exact price, independent available flag default false, timestamps; available-channel index. Keys immutable.                                 |
-| menu_audit               | UUID PK, actor user FK, exactly one category/item FK, CREATED/UPDATED action, before/after JSON snapshots, created_at; target/time indexes. UPDATE/DELETE rejected.                                   |
+| Table                    | Columns and integrity                                                                                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| menu_categories          | UUID PK, trimmed name (1–100), description, active, positive version, created_at/updated_at; unique lower(name).                                                                              |
+| menu_items               | UUID PK, restrictive category FK, trimmed name (1–120), description, optional kitchen_name, active, version, timestamps; unique category/lower(name), category/creation index. No item price. |
+| item_variants            | UUID PK, restrictive menu_item_id FK, trimmed name (1–80), optional display_label, active, timestamps; unique item/lower(name), item/creation index. Parent is immutable.                     |
+| sales_channels           | Stable code PK with uppercase format check, name, active, timestamps. Initial COUNTER/ZOMATO/SWIGGY rows; additional channels use explicit migrations.                                        |
+| variant_channel_settings | Composite PK (variant_id, channel_code), restrictive FKs, exact price, independent available flag default false, timestamps; available-channel index. Keys immutable.                         |
+| menu_audit               | UUID PK, actor user FK, exactly one category/item FK, CREATED/UPDATED action, before/after JSON snapshots, created_at; target/time indexes. UPDATE/DELETE rejected.                           |
 
 Prices are INR decimal strings in JSON. PostgreSQL `numeric` with `price >= 0 AND price < 1000000000000 AND scale(price) <= 2` provides up to 12 integral digits and 2 fractional digits (₹999999999999.99 maximum). Unconstrained numeric with checks deliberately avoids numeric(14,2) silently rounding an overprecision input. API accepts plain decimal strings and normalizes two fractional digits without floating-point conversion. No totals/tax arithmetic exists.
 
@@ -94,3 +94,11 @@ Deferred constraints require each item to retain at least one variant at commit.
 Availability is computed from active category/item/variant/channel plus configured price and available=true. Database constraints protect references, unique records and price precision; the service checks reference activation before pricing/enabling. Disabling remains allowed when parents are inactive. No physical-delete endpoints exist. Changing a category does not bump child item versions, but writes recheck current category activation under the common lock.
 
 Menu audit is configuration history, not an order ledger. Future order items must snapshot item/variant names, channel, sold unit price and later modifier selections; current menu rows cannot reconstruct historical sales. No modifier or order tables are introduced.
+
+## Menu UX migration and aggregate transactions — 005
+
+Migration 005 drops only obsolete `sort_order` columns from menu_categories, menu_items, item_variants and sales_channels. PostgreSQL drops the indexes depending on those columns; replacement indexes cover category/item creation order and variant parent/creation order. No category, item, variant, channel, price or availability rows are deleted, reset or seeded. Existing IDs, creation times, version values and all immutable audit snapshots are preserved; historical audit JSON may still contain the old sortOrder field and is intentionally not rewritten. No applied migration was edited.
+
+Admin categories/items: created_at DESC, id DESC. Operational categories/items: created_at ASC, id ASC. Variants: created_at ASC, id ASC. Sales channels: created_at ASC, code ASC. Variant created_at defaults to clock_timestamp() so multiple portions inserted in a single transaction follow their input sequence; existing timestamps are untouched. No ordering fields remain in current public contracts or UI.
+
+The complete-dish POST/PUT uses the same advisory lock, actor/session recheck and optimistic aggregate version. It validates all nested references/names/prices before writes, writes metadata and nested changes on one connection, and appends one final before/after audit record. Missing stored variants/channel settings are rejected; deactivation retains records. Failure at any point rolls back even already-written metadata/portions. Granular APIs continue to use the same transaction and version protections.

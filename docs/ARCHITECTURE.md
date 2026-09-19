@@ -47,4 +47,10 @@ UsersModule exports PasswordManagementService for AuthController's self-service 
 
 ## Menu boundary
 
-MenuModule owns catalog writes, exact price validation, availability and menu audit. Its repository constructs public aggregates defined in shared-types; persistence rows are not HTTP contracts. Admin loads one catalog aggregate; POS consumes a filtered channel read model and performs no order writes. Menu depends on DatabaseModule and shared auth request/permission metadata. All runtime calls remain same-origin/local PostgreSQL. No Zomato/Swiggy client exists: provider mappings belong to future adapters. Modifiers are deferred (see Menu).
+MenuModule owns catalog writes, exact price validation, availability and menu audit. Its repository constructs public aggregates defined in shared-types; persistence rows are not HTTP contracts. The Menu workspace loads one catalog aggregate; POS consumes a filtered channel read model and performs no order writes. Menu depends on DatabaseModule and shared auth request/permission metadata. All runtime calls remain same-origin/local PostgreSQL. No Zomato/Swiggy client exists: provider mappings belong to future adapters. Modifiers are deferred (see Menu).
+
+## Atomic dish editor
+
+The Menu workspace (`/#/menu`) owns a local controlled draft, category-grouped client-side search, and one save action. POST /api/menu/items accepts nested channel configuration; PUT /api/menu/items/:id validates and saves the complete dish transactionally. This avoids frontend chains of granular writes that can partially succeed. The existing normalized schema, granular APIs, capability guards, transaction lock, aggregate versions and audit remain authoritative. No new state-management or UI framework is introduced. Shared types describe nested input as well as read models; frontend validation is only a convenience.
+
+ReadCatalog selects deterministic database ordering separately for admin and operational reads; clients do not configure positions. Migration 005 removes obsolete ordering columns without rebuilding or reseeding menu records. See decision 008 and Menu for contract details.

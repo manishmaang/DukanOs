@@ -167,3 +167,29 @@ Meets the current menu needs while preventing silent price rounding and stale ov
 ### Consequences
 
 An unpriced variant is not sellable; saving a price does not enable it. All variants of an item must be disabled on a channel to hide that item there. No inventory, time windows, provider integration or order writes exist. Future orders must store sold names/prices independently. The catalog and its audit snapshots are sized for a small single-location menu; pagination and finer write locking may be introduced if measured demand requires them.
+
+## 008 — One transactional dish save and automatic menu ordering
+
+Date: 2026-09-19
+
+### Context
+
+Manual testing found that separate item/variant/price/availability forms and numeric display-order inputs made ordinary dish maintenance cumbersome. Existing menu data must remain intact.
+
+### Options considered
+
+Coordinate several granular requests from the browser; add aggregate writes within the existing Menu service. Hide unused ordering fields; remove the ordering metadata with a new migration. Use name sorting; use creation order with stable tie-breakers.
+
+### Decision
+
+Keep the normalized domain and existing granular APIs, extend item creation with nested channel settings and add a full-dish PUT. Validate the whole configuration, then save all changes and audit in one existing transaction. Retain stored variant/channel identities; missing existing records are rejected and obsolete portions are deactivated. The UI uses one dish form with an editable Standard initial portion, channel-wide and per-portion availability, and one Save action.
+
+Remove sort_order from all menu configuration tables and public contracts using migration 005, leaving records and audit history intact. Admin categories/items use newest creation first; POS categories/items use oldest creation first. Stable ID tie-breakers handle equal timestamps. Variants use insertion time then ID; channels use creation time then code.
+
+### Reason
+
+The owner can maintain a whole dish without understanding normalized tables. Server transactions guarantee that a failed nested save cannot leave a partially changed dish. Creation order makes additions easy to find in management while preserving the cashier's familiar layout after additions and renames.
+
+### Consequences
+
+Old API clients that send ordering fields must be updated. Deployment applies migration 005 together with the new API/frontend. Old audit snapshots retain removed fields as historical evidence. Existing same-timestamp records use stable ID order, so the migration may change their previous manual layout once. No reorder UI exists. Full-dish requests include stored variants/channel settings; saves use a captured version and require reload after conflicts. No order, payment or kitchen workflow is introduced.

@@ -21,6 +21,7 @@ import {
   UpdateVariantDto,
   PriceDto,
   ChannelAvailabilityDto,
+  SaveItemDto,
 } from './menu.dto';
 @Controller('menu')
 export class MenuController {
@@ -65,6 +66,13 @@ export class MenuController {
     @Req() actor: AuthRequest,
   ) {
     return this.menu.createItem(input, actor);
+  }
+  @Put('items/:id') @RequirePermissions('menu.manage') saveItem(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() input: SaveItemDto,
+    @Req() actor: AuthRequest,
+  ) {
+    return this.menu.replaceItem(id, input, actor);
   }
   @Patch('items/:id') @RequirePermissions('menu.manage') updateItem(
     @Param('id', new ParseUUIDPipe()) id: string,
