@@ -10,7 +10,6 @@ import {
   IsString,
   IsUUID,
   Length,
-  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -23,7 +22,6 @@ export class CategoryFields {
   @Length(1, 100)
   name?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string | null;
-  @IsOptional() @IsInt() @Min(0) @Max(2147483647) sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
 }
 export class CreateCategoryDto extends CategoryFields {
@@ -40,7 +38,6 @@ export class VariantFields {
   @Length(1, 80)
   name?: string;
   @IsOptional() @IsString() @MaxLength(40) displayLabel?: string | null;
-  @IsOptional() @IsInt() @Min(0) @Max(2147483647) sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
 }
 export class InitialVariantDto extends VariantFields {
@@ -62,18 +59,30 @@ export class ItemFields {
   name?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string | null;
   @IsOptional() @IsString() @MaxLength(120) kitchenName?: string | null;
-  @IsOptional() @IsInt() @Min(0) @Max(2147483647) sortOrder?: number;
   @IsOptional() @IsBoolean() active?: boolean;
+}
+export class ItemChannelDto {
+  @IsString() @Length(2, 32) channelCode!: string;
+  @IsString() @MaxLength(32) price!: string;
+  @IsBoolean() available!: boolean;
+}
+export class ItemVariantDto extends InitialVariantDto {
+  @ValidateIf((_o, value) => value !== undefined) @IsUUID() id?: string;
+  @ValidateIf((_o, value) => value !== undefined)
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ItemChannelDto)
+  channels?: ItemChannelDto[];
 }
 export class CreateItemDto extends ItemFields {
   @IsUUID() declare categoryId: string;
   @IsString() @Length(1, 120) declare name: string;
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(30)
   @ValidateNested({ each: true })
-  @Type(() => InitialVariantDto)
-  variants!: InitialVariantDto[];
+  @Type(() => ItemVariantDto)
+  variants!: ItemVariantDto[];
 }
 export class UpdateItemDto extends ItemFields {
   @IsInt() @Min(1) version!: number;
@@ -85,4 +94,8 @@ export class PriceDto {
 export class ChannelAvailabilityDto {
   @IsBoolean() available!: boolean;
   @IsInt() @Min(1) itemVersion!: number;
+}
+
+export class SaveItemDto extends CreateItemDto {
+  @IsInt() @Min(1) version!: number;
 }

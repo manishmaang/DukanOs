@@ -7,16 +7,12 @@ export interface WorkspaceLink {
 export const workspaces: WorkspaceLink[] = [
   { path: '/pos', label: 'POS', permissions: ['orders.create'] },
   { path: '/kitchen', label: 'Kitchen', permissions: ['kitchen.read'] },
+  { path: '/menu', label: 'Menu', permissions: ['menu.manage'] },
   { path: '/dispatch', label: 'Dispatch', permissions: ['dispatch.read'] },
   {
     path: '/admin',
     label: 'Admin',
-    permissions: [
-      'users.manage',
-      'users.password.reset',
-      'menu.manage',
-      'reports.read',
-    ],
+    permissions: ['users.manage', 'users.password.reset', 'reports.read'],
   },
 ];
 export function allowedWorkspaces(user: AuthenticatedUser): WorkspaceLink[] {

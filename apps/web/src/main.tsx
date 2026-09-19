@@ -187,33 +187,42 @@ function App() {
                   key={link.path}
                   path={link.path}
                   element={
-                    <section>
-                      <h1>{link.label}</h1>
-                      {link.path === '/pos' &&
-                      user.permissions.includes('menu.read') ? (
-                        <MenuPreview />
-                      ) : link.path === '/admin' &&
-                        (user.permissions.includes('users.manage') ||
-                          user.permissions.includes('menu.manage') ||
-                          user.permissions.includes('users.password.reset')) ? (
-                        <>
-                          {user.permissions.includes('users.manage') && (
-                            <StaffAdmin refreshSession={refreshSession} />
-                          )}
-                          {user.permissions.includes(
-                            'users.password.reset',
-                          ) && <StaffPasswordResets />}
-                          {user.permissions.includes('menu.manage') && (
-                            <MenuAdmin />
-                          )}
-                        </>
-                      ) : (
-                        <p className="notice">
-                          This workspace is under construction. Operational
-                          features are not available yet.
-                        </p>
-                      )}
-                    </section>
+                    link.path === '/menu' ? (
+                      <MenuAdmin />
+                    ) : (
+                      <section>
+                        <h1>{link.label}</h1>
+                        {link.path === '/pos' &&
+                        user.permissions.includes('menu.read') ? (
+                          <MenuPreview />
+                        ) : link.path === '/admin' &&
+                          (user.permissions.includes('users.manage') ||
+                            user.permissions.includes('menu.manage') ||
+                            user.permissions.includes(
+                              'users.password.reset',
+                            )) ? (
+                          <>
+                            {user.permissions.includes('users.manage') && (
+                              <StaffAdmin refreshSession={refreshSession} />
+                            )}
+                            {user.permissions.includes(
+                              'users.password.reset',
+                            ) && <StaffPasswordResets />}
+                            {user.permissions.includes('menu.manage') && (
+                              <p>
+                                Manage dishes, prices and availability in the{' '}
+                                <NavLink to="/menu">Menu workspace</NavLink>.
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="notice">
+                            This workspace is under construction. Operational
+                            features are not available yet.
+                          </p>
+                        )}
+                      </section>
+                    )
                   }
                 />
               ))}

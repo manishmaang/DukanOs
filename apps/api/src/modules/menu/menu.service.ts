@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Injectable,
   NotFoundException,
@@ -14,6 +15,7 @@ import type {
 } from '@dukanos/shared-types';
 import type { AuthRequest } from '../auth/access';
 import { DatabaseService } from '../../database/database.service';
+import { prepareDish } from './menu-draft';
 import { readCatalog } from './menu.repository';
 import {
   checkVersion,
@@ -32,17 +34,20 @@ import type {
   UpdateVariantDto,
   PriceDto,
   ChannelAvailabilityDto,
+  SaveItemDto,
 } from './menu.dto';
 type Actor = Pick<AuthRequest, 'user' | 'sessionHash'>;
 @Injectable()
 export class MenuService {
   constructor(private readonly db: DatabaseService) {}
-  async catalog(): Promise<MenuCatalog> {
+  async catalog(
+    ordering: 'admin' | 'operational' = 'admin',
+  ): Promise<MenuCatalog> {
     return this.db.transaction(async (client) => {
       await client.query(
         'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY',
       );
-      return readCatalog(client);
+      return readCatalog(client, ordering);
     });
   }
   async item(id: string): Promise<MenuItem> {
@@ -153,11 +158,10 @@ export class MenuService {
     return this.write(actor, async (client) => {
       const id = (
         await client.query<{ id: string }>(
-          'INSERT INTO menu_categories(name,description,sort_order,active) VALUES ($1,$2,$3,$4) RETURNING id',
+          'INSERT INTO menu_categories(name,description,active) VALUES ($1,$2,$3) RETURNING id',
           [
             textName(input.name, 100),
             optionalText(input.description, 1000),
-            input.sortOrder ?? 0,
             input.active ?? true,
           ],
         )
@@ -172,14 +176,13 @@ export class MenuService {
       const old = this.category(catalog, id);
       checkVersion(old.version, input.version);
       await client.query(
-        'UPDATE menu_categories SET name=$2,description=$3,sort_order=$4,active=$5 WHERE id=$1',
+        'UPDATE menu_categories SET name=$2,description=$3,active=$4 WHERE id=$1',
         [
           id,
           textName(input.name ?? old.name, 100),
           input.description === undefined
             ? old.description
             : optionalText(input.description, 1000),
-          input.sortOrder ?? old.sortOrder,
           input.active ?? old.active,
         ],
       );
@@ -193,39 +196,96 @@ export class MenuService {
     itemId: string,
     input: InitialVariantDto,
   ) {
-    await client.query(
-      'INSERT INTO item_variants(menu_item_id,name,display_label,sort_order,active) VALUES ($1,$2,$3,$4,$5)',
+    const result = await client.query<{ id: string }>(
+      'INSERT INTO item_variants(menu_item_id,name,display_label,active) VALUES ($1,$2,$3,$4) RETURNING id',
       [
         itemId,
         textName(input.name, 80),
         optionalText(input.displayLabel, 40),
-        input.sortOrder ?? 0,
         input.active ?? true,
       ],
     );
+    return result.rows[0]!.id;
   }
   async createItem(input: CreateItemDto, actor: Actor) {
+    return this.write(actor, async (client, catalog) =>
+      this.writeDish(client, catalog, input, actor),
+    );
+  }
+  async replaceItem(id: string, input: SaveItemDto, actor: Actor) {
     return this.write(actor, async (client, catalog) => {
-      this.active(this.category(catalog, input.categoryId).active);
-      if (!input.variants?.length)
-        menuError('ITEM_REQUIRES_VARIANT', 'Create at least one variant.');
-      const id = (
+      const old = this.findItem(catalog, id);
+      checkVersion(old.version, input.version);
+      return this.writeDish(client, catalog, input, actor, old);
+    });
+  }
+  private async writeDish(
+    client: PoolClient,
+    catalog: MenuCatalog,
+    input: CreateItemDto,
+    actor: Actor,
+    old?: MenuItem,
+  ) {
+    // Validate the complete final configuration before the first write.
+    const dish = prepareDish(catalog, input, old);
+    let id = old?.id;
+    if (id) {
+      await client.query(
+        'UPDATE menu_items SET category_id=$2,name=$3,description=$4,kitchen_name=$5,active=$6 WHERE id=$1',
+        [
+          id,
+          dish.categoryId,
+          dish.name,
+          dish.description,
+          dish.kitchenName,
+          dish.active,
+        ],
+      );
+    } else {
+      id = (
         await client.query<{ id: string }>(
-          'INSERT INTO menu_items(category_id,name,description,kitchen_name,sort_order,active) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+          'INSERT INTO menu_items(category_id,name,description,kitchen_name,active) VALUES ($1,$2,$3,$4,$5) RETURNING id',
           [
-            input.categoryId,
-            textName(input.name, 120),
-            optionalText(input.description, 1000),
-            optionalText(input.kitchenName, 120),
-            input.sortOrder ?? 0,
-            input.active ?? true,
+            dish.categoryId,
+            dish.name,
+            dish.description,
+            dish.kitchenName,
+            dish.active,
           ],
         )
       ).rows[0]!.id;
-      for (const variant of input.variants)
-        await this.insertVariant(client, id, variant);
-      return this.saveItem(client, actor, id, null);
-    });
+    }
+    // Free names being changed so a valid full-dish save can swap portion names.
+    // Temporary names are transaction-local and never enter the public audit snapshot.
+    for (const variant of dish.variants) {
+      if (
+        variant.id &&
+        old?.variants.find((v) => v.id === variant.id)?.name !== variant.name
+      ) {
+        await client.query('UPDATE item_variants SET name=$2 WHERE id=$1', [
+          variant.id,
+          '__rename_' + randomUUID(),
+        ]);
+      }
+    }
+    for (const variant of dish.variants) {
+      let variantId = variant.id;
+      if (variantId) {
+        await client.query(
+          'UPDATE item_variants SET name=$2,display_label=$3,active=$4 WHERE id=$1',
+          [variantId, variant.name, variant.displayLabel, variant.active],
+        );
+      } else {
+        variantId = await this.insertVariant(client, id, variant);
+      }
+      for (const setting of variant.channels) {
+        await client.query(
+          'INSERT INTO variant_channel_settings(variant_id,channel_code,price,available) VALUES ($1,$2,$3,$4) ON CONFLICT(variant_id,channel_code) DO UPDATE SET price=EXCLUDED.price,available=EXCLUDED.available',
+          [variantId, setting.channelCode, setting.price, setting.available],
+        );
+      }
+    }
+    return this.saveItem(client, actor, id, old ?? null);
   }
   async updateItem(id: string, input: UpdateItemDto, actor: Actor) {
     return this.write(actor, async (client, catalog) => {
@@ -241,7 +301,7 @@ export class MenuService {
       )
         this.active(category.active);
       await client.query(
-        'UPDATE menu_items SET category_id=$2,name=$3,description=$4,kitchen_name=$5,sort_order=$6,active=$7 WHERE id=$1',
+        'UPDATE menu_items SET category_id=$2,name=$3,description=$4,kitchen_name=$5,active=$6 WHERE id=$1',
         [
           id,
           category.id,
@@ -252,7 +312,6 @@ export class MenuService {
           input.kitchenName === undefined
             ? old.kitchenName
             : optionalText(input.kitchenName, 120),
-          input.sortOrder ?? old.sortOrder,
           input.active ?? old.active,
         ],
       );
@@ -286,14 +345,13 @@ export class MenuService {
           item.active && this.category(catalog, item.categoryId).active,
         );
       await client.query(
-        'UPDATE item_variants SET name=$2,display_label=$3,sort_order=$4,active=$5 WHERE id=$1',
+        'UPDATE item_variants SET name=$2,display_label=$3,active=$4 WHERE id=$1',
         [
           id,
           textName(input.name ?? variant.name, 80),
           input.displayLabel === undefined
             ? variant.displayLabel
             : optionalText(input.displayLabel, 40),
-          input.sortOrder ?? variant.sortOrder,
           input.active ?? variant.active,
         ],
       );
@@ -353,7 +411,7 @@ export class MenuService {
     });
   }
   async operational(code: string): Promise<OperationalMenu> {
-    const catalog = await this.catalog();
+    const catalog = await this.catalog('operational');
     const channel = catalog.channels.find((c) => c.code === code);
     if (!channel)
       menuError('MENU_CHANNEL_INVALID', 'Choose a configured sales channel.');

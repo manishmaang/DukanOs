@@ -2,7 +2,6 @@ export interface MenuCategory {
   id: string;
   name: string;
   description: string | null;
-  sortOrder: number;
   active: boolean;
   version: number;
   createdAt: string;
@@ -12,7 +11,6 @@ export interface SalesChannel {
   code: string;
   name: string;
   active: boolean;
-  sortOrder: number;
 }
 export interface VariantChannel {
   channelCode: string;
@@ -23,7 +21,6 @@ export interface MenuVariant {
   id: string;
   name: string;
   displayLabel: string | null;
-  sortOrder: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -35,7 +32,6 @@ export interface MenuItem {
   name: string;
   description: string | null;
   kitchenName: string | null;
-  sortOrder: number;
   active: boolean;
   version: number;
   createdAt: string;
@@ -64,4 +60,23 @@ export interface OperationalMenu {
       }[];
     }[];
   }[];
+}
+
+export interface MenuVariantInput {
+  id?: string;
+  name: string;
+  displayLabel?: string | null;
+  active?: boolean;
+  channels?: VariantChannel[];
+}
+export interface MenuItemInput {
+  name: string;
+  categoryId: string;
+  description?: string | null;
+  kitchenName?: string | null;
+  active?: boolean;
+  variants: MenuVariantInput[];
+}
+export interface MenuItemSave extends MenuItemInput {
+  version: number;
 }
