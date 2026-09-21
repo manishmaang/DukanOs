@@ -1,3 +1,5 @@
+import { MenuMediaService, type PhotoUpload } from './menu-media.service';
+import { menuVisibility } from './menu-visibility';
 import { randomUUID } from 'node:crypto';
 import {
   Injectable,
@@ -39,7 +41,10 @@ import type {
 type Actor = Pick<AuthRequest, 'user' | 'sessionHash'>;
 @Injectable()
 export class MenuService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly media: MenuMediaService,
+  ) {}
   async catalog(
     ordering: 'admin' | 'operational' = 'admin',
   ): Promise<MenuCatalog> {
@@ -207,17 +212,53 @@ export class MenuService {
     );
     return result.rows[0]!.id;
   }
+  async uploadImage(file: PhotoUpload | undefined, actor: Actor) {
+    // Serialize staged writes with menu edits and bound unassigned files per manager.
+    return this.write(actor, async (client) => {
+      const staged = await client.query<{ count: string }>(
+        'SELECT count(*) FROM menu_images m WHERE uploaded_by=$1 AND NOT EXISTS(SELECT 1 FROM menu_items i WHERE i.image_key=m.key)',
+        [actor.user.id],
+      );
+      if (Number(staged.rows[0]!.count) >= 20)
+        menuError(
+          'MENU_IMAGE_LIMIT',
+          'Too many unsaved photos. Save an existing upload or ask the administrator to run media cleanup after 24 hours.',
+        );
+      const image = await this.media.prepare(file);
+      // Persist the file first. A crash can leave an orphan, never a committed missing photo.
+      await client.query(
+        'INSERT INTO menu_images(key,uploaded_by,width,height,byte_size) VALUES ($1,$2,$3,$4,$5)',
+        [image.key, actor.user.id, image.width, image.height, image.byteSize],
+      );
+      return {
+        key: image.key,
+        url: image.url,
+        width: image.width,
+        height: image.height,
+      };
+    });
+  }
+
+  async readImage(key: string, actor: AuthRequest) {
+    return this.media.read(key, actor);
+  }
   async createItem(input: CreateItemDto, actor: Actor) {
     return this.write(actor, async (client, catalog) =>
       this.writeDish(client, catalog, input, actor),
     );
   }
   async replaceItem(id: string, input: SaveItemDto, actor: Actor) {
-    return this.write(actor, async (client, catalog) => {
+    let obsolete: string | undefined;
+    const result = await this.write(actor, async (client, catalog) => {
       const old = this.findItem(catalog, id);
       checkVersion(old.version, input.version);
-      return this.writeDish(client, catalog, input, actor, old);
+      const saved = await this.writeDish(client, catalog, input, actor, old);
+      if (old.image?.key && old.image.key !== saved.image?.key)
+        obsolete = old.image.key;
+      return saved;
     });
+    if (obsolete) await this.media.discardUnused(obsolete);
+    return result;
   }
   private async writeDish(
     client: PoolClient,
@@ -228,6 +269,19 @@ export class MenuService {
   ) {
     // Validate the complete final configuration before the first write.
     const dish = prepareDish(catalog, input, old);
+    const imageKey =
+      input.imageKey === undefined ? (old?.image?.key ?? null) : input.imageKey;
+    if (imageKey && imageKey !== old?.image?.key) {
+      const image = await client.query(
+        'SELECT 1 FROM menu_images m WHERE key=$1 AND uploaded_by=$2 AND NOT EXISTS(SELECT 1 FROM menu_items i WHERE i.image_key=m.key)',
+        [imageKey, actor.user.id],
+      );
+      if (!image.rowCount || !(await this.media.exists(imageKey)))
+        menuError(
+          'MENU_IMAGE_INVALID',
+          'This photo is no longer available. Upload it again.',
+        );
+    }
     let id = old?.id;
     if (id) {
       await client.query(
@@ -255,6 +309,11 @@ export class MenuService {
         )
       ).rows[0]!.id;
     }
+    if (input.imageKey !== undefined)
+      await client.query('UPDATE menu_items SET image_key=$2 WHERE id=$1', [
+        id,
+        imageKey,
+      ]);
     // Free names being changed so a valid full-dish save can swap portion names.
     // Temporary names are transaction-local and never enter the public audit snapshot.
     for (const variant of dish.variants) {
@@ -433,8 +492,13 @@ export class MenuService {
               id: item.id,
               name: item.name,
               kitchenName: item.kitchenName,
+              image: item.image,
               variants: item.variants
-                .filter((v) => v.active)
+                .filter((v) =>
+                  menuVisibility(item, category.active, channel).variants.some(
+                    (p) => p.id === v.id && p.visible,
+                  ),
+                )
                 .flatMap((v) => {
                   const price = v.channels.find(
                     (c) => c.channelCode === code && c.available,

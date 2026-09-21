@@ -76,6 +76,7 @@ export class ItemVariantDto extends InitialVariantDto {
   channels?: ItemChannelDto[];
 }
 export class CreateItemDto extends ItemFields {
+  @IsOptional() @IsUUID('4') imageKey?: string | null;
   @IsUUID() declare categoryId: string;
   @IsString() @Length(1, 120) declare name: string;
   @IsArray()

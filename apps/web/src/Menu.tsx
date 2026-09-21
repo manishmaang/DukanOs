@@ -9,16 +9,16 @@ import type {
   MenuCatalog,
   MenuCategory,
   MenuItem,
-  OperationalMenu,
-  SalesChannel,
+  MenuImage,
 } from '@dukanos/shared-types';
 import { api, ApiFailure, errorMessage } from './api';
+import { MenuPhoto } from './MenuPhoto';
+import { notifyMenuChanged } from './menu-refresh';
 import {
   dishDraft,
   dishPayload,
   matchingItems,
   newPortion,
-  rupees,
   validateDish,
   type DishDraft,
   type DraftVariant,
@@ -159,6 +159,18 @@ function DishEditor({
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [photo, setPhoto] = useState<File>();
+  const [imageKey, setImageKey] = useState<string | null | undefined>();
+  const [preview, setPreview] = useState<string>();
+  useEffect(() => {
+    if (!photo) {
+      setPreview(undefined);
+      return;
+    }
+    const url = URL.createObjectURL(photo);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
   const errors = validateDish(draft, catalog, item);
   const category = catalog.categories.find((c) => c.id === draft.categoryId);
   function change(next: DishDraft) {
@@ -182,12 +194,25 @@ function DishEditor({
     setBusy(true);
     setError('');
     try {
+      let uploadedKey = imageKey;
+      if (photo && imageKey === undefined) {
+        const data = new FormData();
+        data.append('image', photo);
+        const uploaded = await api<MenuImage>('/menu/images', 'POST', data);
+        uploadedKey = uploaded.key;
+        setImageKey(uploaded.key);
+      }
       const saved = await api<MenuItem>(
         '/menu/items' + (item ? '/' + item.id : ''),
         item ? 'PUT' : 'POST',
-        { ...dishPayload(draft), ...(item ? { version: item.version } : {}) },
+        {
+          ...dishPayload(draft),
+          ...(uploadedKey !== undefined ? { imageKey: uploadedKey } : {}),
+          ...(item ? { version: item.version } : {}),
+        },
       );
       onDirty(false);
+      notifyMenuChanged();
       onSaved(saved);
     } catch (e) {
       setError(
@@ -212,6 +237,98 @@ function DishEditor({
             {unavailable ? 'Unavailable' : 'Active'}
           </span>
         </div>
+        <div className="dish-photo-editor">
+          <MenuPhoto
+            src={preview ?? (imageKey === null ? undefined : item?.image?.url)}
+            name={draft.name || 'Dish'}
+          />
+          <div>
+            <label>
+              Dish photo (optional)
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (
+                    !['image/jpeg', 'image/png', 'image/webp'].includes(
+                      file.type,
+                    ) ||
+                    file.size > 5 * 1024 * 1024
+                  ) {
+                    setError(
+                      'Choose a JPEG, PNG or WebP photo no larger than 5 MB.',
+                    );
+                    e.target.value = '';
+                    return;
+                  }
+                  e.target.value = '';
+                  setPhoto(file);
+                  setImageKey(undefined);
+                  change(draft);
+                }}
+              />
+            </label>
+            <p className="menu-muted">
+              JPEG, PNG or WebP, up to 5 MB. Photo changes apply when you save
+              this dish.
+            </p>
+            {(photo || (item?.image && imageKey !== null)) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPhoto(undefined);
+                  setImageKey(null);
+                  change(draft);
+                }}
+              >
+                Remove photo
+              </button>
+            )}
+          </div>
+        </div>
+        <aside className="counter-visibility" aria-label="Counter visibility">
+          <strong>Counter / POS visibility</strong>
+          {!category?.active ? (
+            <p>Activate the category to show this dish.</p>
+          ) : !draft.active ? (
+            <p>This item is paused. Turn on Item active to show it in POS.</p>
+          ) : !catalog.channels.find((c) => c.code === 'COUNTER')?.active ? (
+            <p>The Counter channel is inactive.</p>
+          ) : !draft.variants.some((v) => v.active) ? (
+            <p>All portions are inactive. Enable at least one portion.</p>
+          ) : !draft.variants.some(
+              (v) =>
+                v.active &&
+                v.channels.some(
+                  (c) =>
+                    c.channelCode === 'COUNTER' &&
+                    c.price.trim() &&
+                    c.available,
+                ),
+            ) ? (
+            <ul>
+              {draft.variants
+                .filter((v) => v.active)
+                .map((v) => {
+                  const counter = v.channels.find(
+                    (c) => c.channelCode === 'COUNTER',
+                  );
+                  return (
+                    <li key={v.key}>
+                      {v.name || 'Unnamed portion'}:{' '}
+                      {counter?.price.trim()
+                        ? 'Counter availability is off.'
+                        : 'No Counter price configured.'}
+                    </li>
+                  );
+                })}
+            </ul>
+          ) : (
+            <p>Available portions will appear in POS after saving.</p>
+          )}
+        </aside>
         <div className="dish-fields">
           <label>
             Item name
@@ -578,6 +695,7 @@ export function MenuAdmin() {
   const item = catalog?.items.find((i) => i.id === selected);
   const matches = catalog ? matchingItems(catalog, query) : [];
   function saved(savedItem: MenuItem) {
+    notifyMenuChanged();
     setCatalog((c) =>
       c
         ? {
@@ -740,6 +858,7 @@ export function MenuAdmin() {
                 category={categoryEditor === 'new' ? undefined : categoryEditor}
                 onCancel={() => setCategoryEditor(null)}
                 onSaved={(category) => {
+                  notifyMenuChanged();
                   setCatalog((c) =>
                     c
                       ? {
@@ -789,82 +908,4 @@ export function MenuAdmin() {
     </section>
   );
 }
-export function MenuPreview() {
-  const [channels, setChannels] = useState<SalesChannel[]>([]);
-  const [channel, setChannel] = useState('');
-  const [menu, setMenu] = useState<OperationalMenu>();
-  const [error, setError] = useState('');
-  const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    let current = true;
-    void api<SalesChannel[]>('/menu/channels')
-      .then((rows) => {
-        if (current) {
-          setChannels(rows.filter((c) => c.active));
-          setChannel(rows.find((c) => c.active)?.code ?? '');
-        }
-      })
-      .catch((e) => {
-        if (current) setError(errorMessage(e));
-      });
-    return () => {
-      current = false;
-    };
-  }, []);
-  useEffect(() => {
-    let current = true;
-    setMenu(undefined);
-    if (channel)
-      void api<OperationalMenu>('/menu?channel=' + encodeURIComponent(channel))
-        .then((result) => {
-          if (current) {
-            setMenu(result);
-            setError('');
-          }
-        })
-        .catch((e) => {
-          if (current) setError(errorMessage(e));
-        });
-    return () => {
-      current = false;
-    };
-  }, [channel, revision]);
-  return (
-    <section>
-      <h2>Menu preview</h2>
-      <p>Read-only menu. Ordering is not available yet.</p>
-      <label>
-        Sales channel
-        <select value={channel} onChange={(e) => setChannel(e.target.value)}>
-          {channels.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button onClick={() => setRevision((r) => r + 1)}>Refresh menu</button>
-      {error && <p role="alert">{error}</p>}
-      {menu?.categories.length === 0 && (
-        <p>No available products for this channel.</p>
-      )}
-      {menu?.categories.map((c) => (
-        <section key={c.id}>
-          <h3>{c.name}</h3>
-          {c.items.map((i) => (
-            <article key={i.id}>
-              <h4>{i.name}</h4>
-              <ul>
-                {i.variants.map((v) => (
-                  <li key={v.id}>
-                    {v.name} — ₹{rupees(v.price)}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ))}
-        </section>
-      ))}
-    </section>
-  );
-}
+export { MenuPreview } from './MenuPreview';

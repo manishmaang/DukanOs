@@ -23,6 +23,15 @@ test(
     url.searchParams.set('options', `-csearch_path=${schema}`);
     process.env.DATABASE_URL = url.toString();
     const sql = new Client({ connectionString: url.toString() });
+    const fs = require('node:fs/promises');
+    const mediaRoot = await fs.mkdtemp(
+      require('node:path').join(
+        require('node:os').tmpdir(),
+        'dukanos-media-test-',
+      ),
+    );
+    const originalMedia = process.env.DUKANOS_DATA_DIR;
+    process.env.DUKANOS_DATA_DIR = mediaRoot;
     let app;
     try {
       for (let i = 0; i < 2; i++) {
@@ -802,12 +811,306 @@ test(
           );
         },
       );
+      await t.test(
+        'local menu photos validate content, enforce capabilities and survive atomic replacement/removal',
+        async () => {
+          const sharp = require('sharp');
+          const fs = require('node:fs/promises');
+          const {
+            MenuMediaService,
+          } = require('../../dist/modules/menu/menu-media.service');
+          const media = app.get(MenuMediaService);
+          const jpg = await sharp({
+            create: {
+              width: 1800,
+              height: 1200,
+              channels: 3,
+              background: '#aabb77',
+            },
+          })
+            .jpeg()
+            .toBuffer();
+          const upload = (
+            buffer,
+            contentType = 'image/jpeg',
+            role = 'OWNER',
+            filename = '../../unsafe.jpg',
+          ) =>
+            call('post', '/images', undefined, role).attach('image', buffer, {
+              filename,
+              contentType,
+            });
+          await request(server)
+            .post('/api/menu/images')
+            .set('X-DukanOS-Request', '1')
+            .attach('image', jpg, 'dish.jpg')
+            .expect(401);
+          for (const role of ['CASHIER', 'KITCHEN', 'DISPATCH'])
+            await upload(jpg, 'image/jpeg', role).expect(403);
+          await upload(Buffer.from('<svg></svg>'), 'image/svg+xml').expect(400);
+          await upload(Buffer.from('broken photo'), 'image/jpeg').expect(400);
+          await upload(jpg, 'image/png').expect(400);
+          await upload(Buffer.alloc(5 * 1024 * 1024 + 1), 'image/jpeg').expect(
+            413,
+          );
+          await call('post', '/images').expect(400);
+          const first = (await upload(jpg).expect(201)).body;
+          assert.match(first.key, /^[a-f0-9-]{36}$/);
+          assert.equal(first.url, '/api/menu/images/' + first.key);
+          assert.equal(first.width, 1024);
+          assert.ok(first.height <= 1024);
+          assert.equal(first.byteSize, undefined);
+          await call(
+            'get',
+            '/images/' + first.key,
+            undefined,
+            'CASHIER',
+          ).expect(404);
+          await call(
+            'get',
+            '/images/' + first.key,
+            undefined,
+            'MANAGER',
+          ).expect(404);
+          const input = {
+            name: 'Soya Chaap photo test',
+            categoryId: category.id,
+            imageKey: first.key,
+            variants: [
+              {
+                name: 'Half',
+                channels: [
+                  { channelCode: 'COUNTER', price: '200', available: true },
+                  { channelCode: 'SWIGGY', price: '350', available: true },
+                ],
+              },
+              {
+                name: 'Full',
+                channels: [
+                  { channelCode: 'COUNTER', price: '250', available: true },
+                ],
+              },
+            ],
+          };
+          let photoDish = (await call('post', '/items', input).expect(201))
+            .body;
+          assert.equal(photoDish.counterVisibility.visible, true);
+          assert.deepEqual(photoDish.image, first);
+          assert.deepEqual(
+            (await menu()).categories
+              .flatMap((c) => c.items)
+              .find((i) => i.id === photoDish.id).image,
+            first,
+          );
+          const served = await call(
+            'get',
+            '/images/' + first.key,
+            undefined,
+            'CASHIER',
+          )
+            .expect(200)
+            .expect('Content-Type', /image\/webp/);
+          const metadata = await sharp(served.body).metadata();
+          assert.equal(metadata.format, 'webp');
+          assert.equal(metadata.exif, undefined);
+          await call(
+            'get',
+            '/images/' + first.key,
+            undefined,
+            'KITCHEN',
+          ).expect(200);
+          await call(
+            'get',
+            '/images/' + first.key,
+            undefined,
+            'DISPATCH',
+          ).expect(403);
+          await call('get', '/images/not-a-key').expect(400);
+          await call('post', '/items', {
+            ...input,
+            name: 'Cannot share photo',
+          }).expect(400);
+          const png = await sharp(jpg).png().toBuffer();
+          const second = (await upload(png, 'image/png', 'MANAGER').expect(201))
+            .body;
+          await call('put', '/items/' + photoDish.id, {
+            ...payload(photoDish),
+            imageKey: second.key,
+          }).expect(400);
+          photoDish = (
+            await call(
+              'put',
+              '/items/' + photoDish.id,
+              { ...payload(photoDish), imageKey: second.key },
+              'MANAGER',
+            ).expect(200)
+          ).body;
+          assert.equal(photoDish.image.key, second.key);
+          assert.notEqual(second.url, first.url);
+          assert.equal(await media.exists(first.key), false);
+          const third = (
+            await upload(
+              await sharp(jpg).webp().toBuffer(),
+              'image/webp',
+            ).expect(201)
+          ).body;
+          await call('put', '/items/' + photoDish.id, {
+            ...payload(photoDish),
+            version: photoDish.version - 1,
+            imageKey: third.key,
+          }).expect(409);
+          assert.equal(
+            (await call('get', '/items/' + photoDish.id)).body.image.key,
+            second.key,
+          );
+          assert.equal(await media.exists(second.key), true);
+          photoDish = (
+            await call('put', '/items/' + photoDish.id, {
+              ...payload(photoDish),
+              imageKey: null,
+            }).expect(200)
+          ).body;
+          assert.equal(photoDish.image, null);
+          assert.equal(await media.exists(second.key), false);
+          assert.equal(
+            (await menu()).categories
+              .flatMap((c) => c.items)
+              .find((i) => i.id === photoDish.id).image,
+            null,
+          );
+          // Referenced files remain protected from cleanup, including while concurrently requested.
+          photoDish = (
+            await call('put', '/items/' + photoDish.id, {
+              ...payload(photoDish),
+              imageKey: third.key,
+            }).expect(200)
+          ).body;
+          await Promise.all([
+            media.discardUnused(third.key),
+            call('get', '/images/' + third.key).expect(200),
+          ]);
+          assert.equal(await media.exists(third.key), true);
+          const orphan = (await upload(jpg).expect(201)).body;
+          await sql.query(
+            "UPDATE menu_images SET created_at=now()-interval '25 hours'",
+          );
+          await media.cleanup();
+          assert.equal(await media.exists(orphan.key), false);
+          assert.equal(await media.exists(third.key), true);
+          // Physical loss is a clean 404; the UI supplies its placeholder.
+          await fs.unlink(
+            require('node:path').join(media.directory, third.key + '.webp'),
+          );
+          await call('get', '/images/' + third.key).expect(404);
+          await assert.rejects(
+            sql.query('UPDATE menu_items SET image_key=$1 WHERE id=$2', [
+              randomUUID(),
+              photoDish.id,
+            ]),
+            (e) => e.code === '23503',
+          );
+          await assert.rejects(
+            sql.query('UPDATE menu_images SET width=1025 WHERE key=$1', [
+              third.key,
+            ]),
+            (e) => e.code === '23514',
+          );
+        },
+      );
+      await t.test(
+        'Counter diagnostics explain each legitimate visibility blocker and newly configured dishes appear immediately',
+        async () => {
+          let cat = (
+            await call('post', '/categories', {
+              name: 'Visibility category',
+            }).expect(201)
+          ).body;
+          let visible = (
+            await call('post', '/items', {
+              categoryId: cat.id,
+              name: 'Fresh Counter dish',
+              variants: [{ name: 'Standard' }],
+            }).expect(201)
+          ).body;
+          const check = async (shown, reason) => {
+            visible = (await call('get', '/items/' + visible.id).expect(200))
+              .body;
+            assert.equal(visible.counterVisibility.visible, shown);
+            assert.equal(
+              (await menu()).categories
+                .flatMap((c) => c.items)
+                .some((i) => i.id === visible.id),
+              shown,
+            );
+            if (reason)
+              assert.match(
+                JSON.stringify(visible.counterVisibility.reasons),
+                reason,
+              );
+          };
+          await check(false, /price/i);
+          visible = (
+            await call('put', '/items/' + visible.id, {
+              ...payload(visible),
+              variants: [
+                {
+                  ...payload(visible).variants[0],
+                  channels: [
+                    { channelCode: 'COUNTER', price: '150', available: false },
+                  ],
+                },
+              ],
+            }).expect(200)
+          ).body;
+          await check(false, /availability|unavailable/i);
+          let update = payload(visible);
+          update.variants[0].channels[0].available = true;
+          visible = (
+            await call('put', '/items/' + visible.id, update).expect(200)
+          ).body;
+          await check(true);
+          visible = (
+            await call('put', '/items/' + visible.id, {
+              ...payload(visible),
+              active: false,
+            }).expect(200)
+          ).body;
+          await check(false, /paused/i);
+          update = payload(visible);
+          update.active = true;
+          update.variants[0].active = false;
+          visible = (
+            await call('put', '/items/' + visible.id, update).expect(200)
+          ).body;
+          await check(false, /inactive/i);
+          update = payload(visible);
+          update.variants[0].active = true;
+          visible = (
+            await call('put', '/items/' + visible.id, update).expect(200)
+          ).body;
+          cat = (
+            await call('patch', '/categories/' + cat.id, {
+              version: cat.version,
+              active: false,
+            }).expect(200)
+          ).body;
+          await check(false, /category/i);
+          await call('patch', '/categories/' + cat.id, {
+            version: cat.version,
+            active: true,
+          }).expect(200);
+          await check(true);
+        },
+      );
     } finally {
       if (app) await app.close();
       await sql.end();
       await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
       await admin.end();
       process.env.DATABASE_URL = original;
+      if (originalMedia === undefined) delete process.env.DUKANOS_DATA_DIR;
+      else process.env.DUKANOS_DATA_DIR = originalMedia;
+      await fs.rm(mediaRoot, { recursive: true, force: true });
     }
   },
 );

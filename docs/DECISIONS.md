@@ -193,3 +193,27 @@ The owner can maintain a whole dish without understanding normalized tables. Ser
 ### Consequences
 
 Old API clients that send ordering fields must be updated. Deployment applies migration 005 together with the new API/frontend. Old audit snapshots retain removed fields as historical evidence. Existing same-timestamp records use stable ID order, so the migration may change their previous manual layout once. No reorder UI exists. Full-dish requests include stored variants/channel settings; saves use a captured version and require reload after conflicts. No order, payment or kitchen workflow is introduced.
+
+## 009 — Local menu photos with staged attachment
+
+Date: 2026-09-21.
+
+### Context
+
+Visual POS must work during internet outages and preserve the existing single-save dish workflow. PostgreSQL and the filesystem cannot commit atomically.
+
+### Options considered
+
+External object hosting; binary database storage; immediate image attachment; staged local files with transactional reference attachment.
+
+### Decision
+
+Use configurable persistent local storage and Sharp-normalized UUID WebP files, a small metadata table and nullable item reference. Stage before the full-dish save; attach through the existing version/audit transaction. Reclaim unreferenced old assets under the menu lock with an explicit maintenance command. Return same-origin authenticated URLs and change the key on replacement.
+
+### Reason
+
+This keeps runtime fully local, avoids large database binaries and preserves atomic menu editing without a generic media platform or distributed transaction.
+
+### Consequences
+
+A crash may leave harmless unreferenced files until cleanup. Media must be backed up alongside the database. A missing physical file produces a placeholder; application restarts/builds retain files. POS refresh uses lightweight notifications and 15-second visible-tab polling; order-time validation is still future work.

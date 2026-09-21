@@ -1,3 +1,14 @@
+export interface MenuImage {
+  key: string;
+  url: string;
+  width: number;
+  height: number;
+}
+export interface MenuVisibility {
+  visible: boolean;
+  reasons: string[];
+  variants: { id: string; visible: boolean; reasons: string[] }[];
+}
 export interface MenuCategory {
   id: string;
   name: string;
@@ -27,6 +38,8 @@ export interface MenuVariant {
   channels: VariantChannel[];
 }
 export interface MenuItem {
+  image: MenuImage | null;
+  counterVisibility: MenuVisibility;
   id: string;
   categoryId: string;
   name: string;
@@ -52,6 +65,7 @@ export interface OperationalMenu {
       id: string;
       name: string;
       kitchenName: string | null;
+      image: MenuImage | null;
       variants: {
         id: string;
         name: string;
@@ -70,6 +84,7 @@ export interface MenuVariantInput {
   channels?: VariantChannel[];
 }
 export interface MenuItemInput {
+  imageKey?: string | null;
   name: string;
   categoryId: string;
   description?: string | null;

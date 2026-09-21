@@ -1,5 +1,17 @@
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import {
+  MAX_IMAGE_UPLOAD,
+  IMAGE_MIMES,
+  type PhotoUpload,
+} from './menu-media.service';
 import {
   Body,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  StreamableFile,
+  Res,
   Controller,
   Get,
   Param,
@@ -26,6 +38,47 @@ import {
 @Controller('menu')
 export class MenuController {
   constructor(private readonly menu: MenuService) {}
+  @Post('images')
+  @RequirePermissions('menu.manage')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: MAX_IMAGE_UPLOAD, files: 1, fields: 0, parts: 2 },
+      fileFilter: (_req, file, done) => {
+        if (!IMAGE_MIMES.includes(file.mimetype))
+          return done(
+            new BadRequestException({
+              code: 'INVALID_MENU_IMAGE',
+              message: 'Choose a JPEG, PNG or WebP photo.',
+            }),
+            false,
+          );
+        done(null, true);
+      },
+    }),
+  )
+  uploadImage(
+    @UploadedFile() file: PhotoUpload | undefined,
+    @Req() actor: AuthRequest,
+  ) {
+    return this.menu.uploadImage(file, actor);
+  }
+  @Get('images/:key')
+  @RequirePermissions('menu.read')
+  async image(
+    @Param('key', new ParseUUIDPipe({ version: '4' })) key: string,
+    @Req() actor: AuthRequest,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const image = await this.menu.readImage(key, actor);
+    response.setHeader('Cache-Control', 'private, max-age=3600, immutable');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Security-Policy', "default-src 'none'");
+    return new StreamableFile(image, {
+      type: 'image/webp',
+      disposition: 'inline',
+      length: image.length,
+    });
+  }
   @Get() @RequirePermissions('menu.read') operational(
     @Query('channel') channel: string,
   ) {

@@ -97,7 +97,7 @@ Recovery requires trusted local filesystem and database access. Ordinary staff s
 
 ## Create or edit a menu dish
 
-1. Apply migrations with `npm run db:migrate`, build/start (or use development mode), and sign in as OWNER or MANAGER. Migration 005 removes only ordering metadata; existing menu records, prices and availability are retained. Do not reset the database.
+1. Apply migrations with `npm run db:migrate`, build/start (or use development mode), and sign in as OWNER or MANAGER. Migration 006 adds optional image metadata/references; migration 005 removes only ordering metadata; existing menu records, prices and availability are retained. Do not reset the database.
 2. Open **Menu** in the navigation (`/#/menu`). Click **+ Add Category**, enter **Chinese**, then **Save category**.
 3. Click **+ Add Item**, enter **Veg Noodles** and choose Chinese. Rename the default **Standard** portion to **Regular**. Click **+ Add variant** for **Half** and **Full**.
 4. Enter prices side-by-side: Regular **80 / 95 / 95**, Half **120 / 140 / 145**, Full **180 / 210 / 215** for Counter / Zomato / Swiggy. Channel headings identify each column. Enter at most two decimal places; leave new cells blank where a portion is not offered.
@@ -111,3 +111,15 @@ A CASHIER can view the read-only POS menu but cannot edit it. KITCHEN retains AP
 If another administrator changes the dish, your save is rejected without partial updates. Your draft remains visible; use Reload menu and review current values before retrying. Menu drafts are not stored across sessions. No fake menu data is seeded. Channel configuration still uses explicit migrations; no provider integration exists. Modifiers and ordering remain deferred.
 
 See [Menu APIs and rules](docs/modules/menu.md) and [database schema](docs/DATABASE.md). Menu read/write operations use the restaurant server and PostgreSQL only. `npm run check` and `npm run test:integration` cover nested saving, rollback, stable ordering, RBAC and migration preservation using isolated test schemas.
+
+## Menu photos and visual POS
+
+Set optional `DUKANOS_DATA_DIR` to an **absolute persistent path**, writable by the server account (default `~/.local/share/dukanos`). Photos live in `uploads/menu` beneath it. Do not place production uploads inside the repository or a disposable container layer. Apply `npm run db:migrate` before running the updated application.
+
+In Menu, open a dish, select its optional photo near the top, review the preview and Save Changes. JPEG/PNG/WebP up to 5 MiB and 24 megapixels are accepted, normalized into metadata-free WebP within 1024×1024. Replace by choosing a new file; Remove photo takes effect on save. No original file is retained. The same form explains why an item would be hidden from Counter: check category/item/portion activation, Counter price and availability. The existing `soya chap gravy` was saved inactive; turn **Item active** on and save to make its configured Counter portions visible.
+
+POS is read-only and fixed to Counter. Use category buttons and search, then tap a photo card for portion prices. Missing photos use a local placeholder. Updates refresh on entry/focus, menu-save notifications and every 15 seconds while POS is visible. No restart/cache clearing is required, and no internet image service is used.
+
+Run `npm run media:cleanup` with the same `.env` and service account to remove unused images older than 24 hours and retry obsolete-file cleanup. Each manager may stage at most 20 unattached photos. Save attaches the selected stage; abandoned uploads expire through cleanup. Back up **PostgreSQL plus DUKANOS_DATA_DIR/uploads/menu** consistently, preferably with writes paused; restore both. Backup automation and disconnected-browser editing are not implemented.
+
+Optional real-browser regression: set `CHROME_BINARY` to an installed local Chromium/Chrome executable and run `npm run test:menu-browser`. It builds the application, creates a disposable PostgreSQL schema and temporary media/profile directories, blocks external browser requests, exercises the photo/POS workflow, and removes its fixtures. Requires local socket/process and schema-creation permissions. It uses generated test images, not photos attached to your real dishes. Screenshots are written to `/tmp/dukanos-visual-pos-desktop.png` and `/tmp/dukanos-visual-pos-tablet.png`.

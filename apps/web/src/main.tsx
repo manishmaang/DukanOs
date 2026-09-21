@@ -189,18 +189,16 @@ function App() {
                   element={
                     link.path === '/menu' ? (
                       <MenuAdmin />
+                    ) : link.path === '/pos' &&
+                      user.permissions.includes('menu.read') ? (
+                      <MenuPreview />
                     ) : (
                       <section>
                         <h1>{link.label}</h1>
-                        {link.path === '/pos' &&
-                        user.permissions.includes('menu.read') ? (
-                          <MenuPreview />
-                        ) : link.path === '/admin' &&
-                          (user.permissions.includes('users.manage') ||
-                            user.permissions.includes('menu.manage') ||
-                            user.permissions.includes(
-                              'users.password.reset',
-                            )) ? (
+                        {link.path === '/admin' &&
+                        (user.permissions.includes('users.manage') ||
+                          user.permissions.includes('menu.manage') ||
+                          user.permissions.includes('users.password.reset')) ? (
                           <>
                             {user.permissions.includes('users.manage') && (
                               <StaffAdmin refreshSession={refreshSession} />
