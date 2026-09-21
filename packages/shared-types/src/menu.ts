@@ -62,6 +62,7 @@ export interface OperationalMenu {
     id: string;
     name: string;
     items: {
+      version: number;
       id: string;
       name: string;
       kitchenName: string | null;
@@ -71,6 +72,7 @@ export interface OperationalMenu {
         name: string;
         displayLabel: string | null;
         price: string;
+        available: boolean;
       }[];
     }[];
   }[];

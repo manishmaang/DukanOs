@@ -2,7 +2,7 @@
 
 ## Purpose and current implementation
 
-A single-restaurant catalog for future POS/Kitchen consumers: category → menu item → flexible sellable variants → channel price/availability. Backend APIs, a dedicated Menu workspace, and a read-only POS preview are implemented. Ordering is not implemented.
+A single-restaurant catalog for future POS/Kitchen consumers: category → menu item → flexible sellable variants → channel price/availability. Backend APIs, a dedicated Menu workspace, and a POS browsing and availability controls are implemented. Ordering is not implemented.
 
 ## Model and lifecycle
 
@@ -18,7 +18,7 @@ Category names are case-insensitively unique; item names are unique within categ
 
 INR prices are decimal strings, normalized to two fractional digits; PostgreSQL checked numeric rejects negative values, nonfinite values, excessive precision and values above ₹999999999999.99. JSON numbers/exponent notation are rejected. No floating-point conversion or financial arithmetic.
 
-A sellable variant requires: active category AND item AND variant AND sales channel AND a configured price AND channel available=true. Operational responses omit unavailable variants and then empty items/categories. Administrative aggregates retain inactive/unavailable configuration. Price changes and enabling availability reject inactive references. Disabling is permitted while ancestors are inactive. Reactivation restores saved availability flags; review them before reactivating.
+A sellable variant requires: active category AND item AND variant AND sales channel AND a configured price AND channel available=true. The default channel operational response omits unavailable variants and then empty items/categories. The POS Counter view additionally retains sold-out active priced portions. Administrative aggregates retain inactive/unavailable configuration. Price changes and enabling availability reject inactive references. Disabling is permitted while ancestors are inactive. Reactivation restores saved availability flags; review them before reactivating.
 
 To disable an entire item on one channel, disable that channel for each of its variants. Item/variant activation provides a quick global stop. No inventory, timed schedules, cloud sync or integration calls exist.
 
@@ -53,11 +53,11 @@ Item/variant/channel mutations return the updated item aggregate, including its 
 
 ## Permissions and concurrency
 
-OWNER/MANAGER: menu.read + menu.manage. CASHIER/KITCHEN: menu.read. DISPATCH: neither by default. These are database grants, not hard-coded role authorization. Current permissions are checked by guards and rechecked inside write transactions with session validity. Menu writes serialize under a PostgreSQL transaction advisory lock; expected aggregate versions prevent stale overwrites. Child database triggers increment parent versions. Repeatable-read catalog snapshots prevent mixed read models. Audit inserts are atomic with successful configuration mutations and record actor/time/before/after.
+OWNER/MANAGER: menu.read + menu.manage + menu.availability.manage. CASHIER: menu.read + menu.availability.manage. KITCHEN: menu.read. DISPATCH: neither by default. These are database grants, not hard-coded role authorization. Current permissions are checked by guards and rechecked inside write transactions with session validity. Menu writes serialize under a PostgreSQL transaction advisory lock; expected aggregate versions prevent stale overwrites. Child database triggers increment parent versions. Repeatable-read catalog snapshots prevent mixed read models. Audit inserts are atomic with successful configuration mutations and record actor/time/before/after.
 
 ## Database tables and dependencies
 
-menu_categories, menu_items, item_variants, sales_channels, variant_channel_settings, menu_audit, menu_images (migrations 004–006). Uses shared PostgreSQL infrastructure and local Auth capabilities. Public MenuCatalog/OperationalMenu contracts live in shared-types; repository rows are mapped explicitly. No backend domain events are emitted or consumed; frontend menu-change notifications trigger POS refetching.
+menu_categories, menu_items, item_variants, sales_channels, variant_channel_settings, menu_audit, menu_images (migrations 004–007). Uses shared PostgreSQL infrastructure and local Auth capabilities. Public MenuCatalog/OperationalMenu contracts live in shared-types; repository rows are mapped explicitly. No backend domain events are emitted or consumed; frontend menu-change notifications trigger POS refetching.
 
 ## Frontend
 
@@ -67,7 +67,7 @@ The same dish form handles creation and editing: name, category, optional descri
 
 One Save Item/Save Changes sends one aggregate write. Channel-wide switches apply to priced active portions; individual cell controls support differing availability. Mixed states are indicated. Newly entered prices do not silently enable availability. Item active=false pauses every channel while preserving channel flags. Prices display without unnecessary whole-rupee decimal zeros using string formatting, never floating-point conversion. Validation identifies the portion/channel and leaves edits intact on failure. Switching dishes or reloading prompts only when it would discard unsaved dish changes; full-page unload also warns. A conflict requires reloading and reviewing the newer version, not automatic overwrite. Drafts are not persisted across sessions.
 
-Desktop/tablet layout uses a menu list beside the editor, with a horizontally scrollable price matrix when needed. Controls have 44px touch targets; narrow screens stack the panels. The save action is below the form and does not obscure prices. POS remains read-only. No orders, payments or kitchen tickets are created.
+Desktop/tablet layout uses a menu list beside the editor, with a horizontally scrollable price matrix when needed. Controls have 44px touch targets; narrow screens stack the panels. The save action is below the form and does not obscure prices. POS permits Counter availability changes through a separate operational capability. No orders, payments or kitchen tickets are created.
 
 ## Modifiers deferred
 
@@ -92,7 +92,7 @@ Photos are optional. OWNER/MANAGER select JPEG, PNG or WebP near the top of the 
 - `GET /api/menu/images/:key`: menu.read; serves attached photos or the uploader's own stage with menu.manage. Invalid keys/unknown files are rejected. Image responses are WebP, inline, nosniff, CSP default-src none, private one-hour immutable cache. Replacement generates a different URL.
 - Admin and operational item contracts include `image: {key,url,width,height} | null`. No local paths or original filenames are returned.
 
-Input limit: 5 MiB, 24 million decoded pixels, a single still frame, actual decoded format matching the MIME. Sharp rejects corrupt/unsupported input, auto-orients, resizes within 1024×1024 without enlargement, strips metadata and encodes WebP quality 82. Processed files must be at most 2 MiB. Names are generated UUIDs and originals are not retained. Upload processing is serialized under the small-restaurant menu write lock; no external processing service exists.
+Input limit: 5 MiB, 24 million decoded pixels, a single still frame, actual decoded format matching the MIME. Sharp rejects corrupt/unsupported input, auto-orients, resizes within 1024×1024 without enlargement, strips metadata and encodes WebP quality 82, effort 4. Processed files must be at most 2 MiB. Names are generated UUIDs and originals are not retained. Upload processing is serialized under the small-restaurant menu write lock; no external processing service exists.
 
 Storage: `DUKANOS_DATA_DIR/uploads/menu`, default `~/.local/share/dukanos/uploads/menu`. Configure an absolute persistent directory writable by the API user. Run `npm run media:cleanup` for obsolete/unassigned files; stages are kept 24 hours for retry. Cleanup must run with the same database and data directory as the API. Backups require both PostgreSQL and local media. See Architecture for failure consistency.
 
@@ -100,10 +100,34 @@ Storage: `DUKANOS_DATA_DIR/uploads/menu`, default `~/.local/share/dukanos/upload
 
 The actual development data showed active Chinese/manchurian with active Half/Full portions and available Counter prices. The stored item `soya chap gravy` in active category `chap` had valid active FULL/HALF portions and available Counter prices ₹250/₹200, but **the item itself was inactive**. Audit recorded creation active at 2026-09-21 11:49:48.086 UTC and a save changing active true→false at 11:50:26.948 UTC. The operational response correctly omitted it. Migration 005 ordering and category rendering were not the cause. Existing operational data is preserved; reactivation is an explicit owner action, not a migration or automatic repair.
 
-Admin items now expose `counterVisibility` (visible, reasons and per-variant reasons) using the same backend predicate as operational filtering. The editor shows live draft guidance for paused items, inactive categories/channels/portions, missing Counter prices and disabled Counter availability. Valid Counter configuration appears after save; unsupported configurations are not made sellable merely to hide an error. A separate old-UI shortcoming was refresh only on entry/manual action; POS now refreshes automatically.
+Admin items now expose `counterVisibility` (visible, reasons and per-variant reasons) using the same backend predicate as sellable-only channel filtering. This legacy field describes sellability; it does not hide sold-out cards in the newer Counter view. The editor shows live draft guidance for paused items, inactive categories/channels/portions, missing Counter prices and disabled Counter availability. Valid Counter configuration appears after save; unsupported configurations are not made sellable merely to hide an error. A separate old-UI shortcoming was refresh only on entry/manual action; POS now refreshes automatically.
 
 ## Visual POS
 
-POS means Point of Sale; Kitchen/KDS remains separate. POS uses only `/api/menu?channel=COUNTER`. Large local photo cards retain written dish names, exact lowest price and portion count. Category buttons and case-insensitive dish/category/portion search work together. Oldest-created-first placement remains stable. Selecting a card opens a keyboard-dismissable, read-only portion/price dialog; there is no cart, quantity or order creation. Missing or failed images use a local plate illustration without remote requests. Inactive/unavailable products remain excluded by the server.
+POS means Point of Sale; Kitchen/KDS remains separate. POS uses `/api/menu/counter`, which includes temporarily sold-out active priced portions with available flags and item versions; `/api/menu?channel=COUNTER` remains sellable-only. Large local photo cards retain written dish names, exact lowest price and portion count. Category buttons and case-insensitive dish/category/portion search work together. Oldest-created-first placement remains stable. Selecting a card opens a keyboard-dismissable portion/price dialog with permission-gated availability controls; there is no cart, quantity or order creation. Missing or failed images use a local plate illustration without remote requests. Inactive categories/items/portions and unpriced Counter portions are excluded by the server. Active priced sold-out portions stay visible for restoration.
 
-Refresh occurs on entry, window focus, visibility return, menu-save notification within/across tabs and every 15 seconds while visible. Replacement URLs avoid stale image caches. Refresh errors clear the listing and show a retry message. This is bounded polling, not instantaneous cross-device push. Browser tests use isolated fixtures, block all non-local requests and exercise upload/replacement/removal, categories/search, Counter prices, automatic refresh and cashier read-only access. Existing business photos/data are not changed by automated tests.
+Refresh occurs on entry, window focus, visibility return, menu-save notification within/across tabs and every five seconds while visible. Replacement URLs avoid stale image caches. Refresh errors clear the listing and show a retry message. This is bounded polling, not instantaneous cross-device push. Browser tests use isolated fixtures, block all non-local requests and exercise upload/replacement/removal, categories/search, Counter prices, automatic refresh and cashier read access and narrow availability controls. Existing business photos/data are not changed by automated tests.
+
+## Operational Counter availability
+
+Migration 007 grants menu.availability.manage to OWNER, MANAGER and CASHIER. KITCHEN retains menu.read only: it has no cashier-facing POS workspace and kitchen workflows are not part of this milestone. DISPATCH gains nothing. Multi-role unions apply normally. The new permission never grants price, configuration, image or other-channel writes.
+
+`GET /api/menu/counter` (menu.read) returns active categories/dishes/portions with configured Counter prices, including available=false portions. Items include the current aggregate version. Other operational channel reads retain their sellable-only contract.
+
+`PATCH /api/menu/counter/items/:id/availability` (menu.availability.manage) accepts `{version,available,variantId?}`. Omit variantId to set every active priced Counter portion of the dish; specify it to change one. Invalid/foreign/inactive/unpriced targets are rejected. No channel selector is accepted. The transaction rechecks session/capability, locks through the existing menu lock, compares version, changes only Counter flags and appends an actor/time/before/after audit. Stale concurrent edits return MENU_VERSION_CONFLICT.
+
+Active/inactive is persistent **menu configuration** controlled in Menu. Available/sold out is persistent **channel sales state** controlled in POS. Sold-out changes do not alter activation, prices, Zomato or Swiggy. Whole-dish Make all available enables all eligible Counter portions; it does not restore a hidden historical subset. Individual controls preserve the other portions. No daily reset, inventory or schedule is implied.
+
+The approved photo-card/category/search layout is retained. Cards show Available, Some portions sold out or Sold out; tap a card for explicit whole-dish/portion buttons. No confirmation is needed. Pending buttons are disabled and success/error feedback is visible. Responses update the local menu immediately; other tabs receive notifications and independent devices refetch within about five seconds while visible, plus request time. Returning from a hidden tab refetches. Failed refreshes remove stale listings; old responses cannot overwrite a pending local mutation.
+
+## Media hardening
+
+Normal replace/remove already committed the new item reference before deleting the old unreferenced file; that behavior is retained and tested. WebP was already quality 82; effort 4 is now explicit. Orientation, maximum 1024 dimensions, metadata stripping, 24-megapixel input and 2-MiB processed limits remain unchanged.
+
+A failed file write/rename attempts immediate temporary-file cleanup. A failed upload metadata transaction now attempts to remove its generated file after rollback. A failed dish save keeps the old valid attachment and retains the staged new photo for retry (up to the existing 24-hour cleanup eligibility). Post-commit unlink failures leave the correct item reference intact and log deferred cleanup. Referenced files are never removed by maintenance.
+
+`npm run media:cleanup -- --dry-run` reports candidate counts without mutation; omit --dry-run to apply. Reports include candidates, removed and deferred; deferred failures give a nonzero CLI exit code. Only UUID-named media confirmed unreferenced under the menu lock are eligible. No startup cleanup or automatic removal of existing business images occurs.
+
+All Menu body/query/route/multipart boundaries are included in [the validation audit](../API_VALIDATION.md). Active flags reject null, full dishes allow at most 100 portions and 100 channel entries each, versions are positive PostgreSQL integers, and channel codes follow the configured grammar. Database uniqueness, FK, money and atomic-save protections remain unchanged.
+
+Verification uses PostgreSQL fault injection for failed file rename/unlink and metadata insertion, validates safe dry-run, and checks actual generated files before/after replacement. A deterministic 1600×1200 JPEG fixture reduced from 545,574 to 100,072 bytes (about 82%) after normalization; this illustrates existing quality-82 compression, not a guaranteed ratio for food photos. Two independent Chromium cookie jars verify cashier toggles and manager propagation without tab broadcasts; all browser traffic is restricted to the local installation.

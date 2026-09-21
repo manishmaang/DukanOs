@@ -217,3 +217,23 @@ This keeps runtime fully local, avoids large database binaries and preserves ato
 ### Consequences
 
 A crash may leave harmless unreferenced files until cleanup. Media must be backed up alongside the database. A missing physical file produces a placeholder; application restarts/builds retain files. POS refresh uses lightweight notifications and 15-second visible-tab polling; order-time validation is still future work.
+
+## 010 — Separate Counter operations from menu configuration
+
+Date: 2026-09-21.
+
+### Context
+
+Cashiers need quick sold-out controls without administrative access or changes to other channels. The sellable-only API hides items they must restore.
+
+### Options considered
+
+Grant menu.manage; toggle item.active; add a narrow Counter availability capability and a Counter read model retaining sold-out portions.
+
+### Decision
+
+Grant menu.availability.manage to OWNER/MANAGER/CASHIER. Reuse existing channel flags, aggregate versions and audit in a Counter-only mutation. Keep the default operational channel read sellable-only and provide /menu/counter for active priced portions including sold-out state. Refresh visible POS clients every five seconds with immediate local/tab notification.
+
+### Reason and consequences
+
+Configuration, prices and other channels retain their authorization boundary. Sold-out cards can be restored in place without a redesign. Whole-dish restoration enables all active priced Counter portions; precise partial availability uses individual controls. No automatic daily reset or instantaneous cross-device delivery is promised. Kitchen workflows remain deferred.

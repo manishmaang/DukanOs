@@ -191,7 +191,11 @@ function App() {
                       <MenuAdmin />
                     ) : link.path === '/pos' &&
                       user.permissions.includes('menu.read') ? (
-                      <MenuPreview />
+                      <MenuPreview
+                        canManageAvailability={user.permissions.includes(
+                          'menu.availability.manage',
+                        )}
+                      />
                     ) : (
                       <section>
                         <h1>{link.label}</h1>

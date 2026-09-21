@@ -11,7 +11,22 @@ export class HttpErrorFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpErrorFilter.name);
   catch(error: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
-    const status = error instanceof HttpException ? error.getStatus() : 500;
+    const parser = error as { type?: string; status?: number };
+    const parseStatus = [
+      'entity.parse.failed',
+      'request.aborted',
+      'request.size.invalid',
+    ].includes(parser?.type ?? '')
+      ? 400
+      : parser?.type === 'entity.too.large'
+        ? 413
+        : ['charset.unsupported', 'encoding.unsupported'].includes(
+              parser?.type ?? '',
+            )
+          ? 415
+          : undefined;
+    const status =
+      error instanceof HttpException ? error.getStatus() : (parseStatus ?? 500);
     const body =
       error instanceof HttpException ? error.getResponse() : undefined;
     const detail =
@@ -24,9 +39,11 @@ export class HttpErrorFilter implements ExceptionFilter {
       code:
         typeof detail?.code === 'string'
           ? detail.code
-          : status >= 500
-            ? 'INTERNAL_ERROR'
-            : `HTTP_${status}`,
+          : parseStatus
+            ? 'INVALID_INPUT'
+            : status >= 500
+              ? 'INTERNAL_ERROR'
+              : `HTTP_${status}`,
       message:
         status >= 500
           ? status === 503

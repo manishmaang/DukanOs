@@ -47,7 +47,7 @@ UsersModule exports PasswordManagementService for AuthController's self-service 
 
 ## Menu boundary
 
-MenuModule owns catalog writes, exact price validation, availability and menu audit. Its repository constructs public aggregates defined in shared-types; persistence rows are not HTTP contracts. The Menu workspace loads one catalog aggregate; POS consumes a filtered channel read model and performs no order writes. Menu depends on DatabaseModule and shared auth request/permission metadata. All runtime calls remain same-origin/local PostgreSQL. No Zomato/Swiggy client exists: provider mappings belong to future adapters. Modifiers are deferred (see Menu).
+MenuModule owns catalog writes, exact price validation, availability and menu audit. Its repository constructs public aggregates defined in shared-types; persistence rows are not HTTP contracts. The Menu workspace loads one catalog aggregate; POS consumes an active/priced Counter read model including sold-out portions and performs no order writes. Menu depends on DatabaseModule and shared auth request/permission metadata. All runtime calls remain same-origin/local PostgreSQL. No Zomato/Swiggy client exists: provider mappings belong to future adapters. Modifiers are deferred (see Menu).
 
 ## Atomic dish editor
 
@@ -63,4 +63,10 @@ Uploads stage a normalized file before metadata insertion. The existing dish POS
 
 Back up PostgreSQL **and** the persistent uploads directory together, preferably during a paused-write maintenance window. Restore both before starting the application. Database-only backups do not contain photo bytes. Backup automation remains future work.
 
-Visual POS is fixed to COUNTER and uses the existing operational read model. It refreshes on mount/focus/visibility return, same-tab menu events, cross-tab BroadcastChannel messages and a visible-tab 15-second interval. Request sequencing ignores old responses; failed refreshes replace stale listings with a connection error. Replacement keys create fresh image URLs; responses may be privately cached for one hour. No hard reload, cloud service, socket server or external asset is required. Future ordering must revalidate current menu configuration server-side.
+Visual POS is fixed to COUNTER and uses the existing operational read model. It refreshes on mount/focus/visibility return, same-tab menu events, cross-tab BroadcastChannel messages and a visible-tab five-second interval. Request sequencing ignores old responses; failed refreshes replace stale listings with a connection error. Replacement keys create fresh image URLs; responses may be privately cached for one hour. No hard reload, cloud service, socket server or external asset is required. Future ordering must revalidate current menu configuration server-side.
+
+## API input contracts and operational availability
+
+The central ValidationPipe remains class-validator/class-transformer based, with whitelist rejection, explicit transformation and no implicit type coercion. InputBoundary requires explicit JSON/multipart contracts, rejects bodies on bodyless routes and queries on non-query routes. Query-bearing actions bind DTOs; route pipes validate identifiers/channel grammar. Parser failures are sanitized by HttpErrorFilter. See [API_VALIDATION.md](API_VALIDATION.md) for the reviewed endpoint matrix.
+
+POS uses a Counter-specific read model including sold-out priced portions, keeping the existing sellable-only channel endpoint unchanged. A narrow availability capability grants cashiers operational flags without opening Menu configuration. Same menu transactions/versions/audit protect edits; simple five-second polling and tab notifications propagate state without new infrastructure. Media cleanup adds immediate failed-staging compensation, dry-run and failure counts; referenced files remain protected by the existing lock/FK strategy.

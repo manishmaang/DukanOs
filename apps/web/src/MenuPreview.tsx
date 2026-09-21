@@ -1,39 +1,51 @@
 import { useEffect, useRef, useState } from 'react';
 import type { OperationalMenu } from '@dukanos/shared-types';
-import { api, errorMessage } from './api';
+import { api, ApiFailure, errorMessage } from './api';
 import { rupees } from './menu-editor';
 import { MenuPhoto } from './MenuPhoto';
+import { notifyMenuChanged } from './menu-refresh';
 type Dish = OperationalMenu['categories'][number]['items'][number];
 export function lowestPrice(item: Dish) {
-  return item.variants.reduce(
+  const available = item.variants.filter((v) => v.available);
+  const portions = available.length ? available : item.variants;
+  return portions.reduce(
     (lowest, v) =>
       BigInt(v.price.replace('.', '')) < BigInt(lowest.replace('.', ''))
         ? v.price
         : lowest,
-    item.variants[0]!.price,
+    portions[0]!.price,
   );
 }
-export function MenuPreview() {
+export function MenuPreview({
+  canManageAvailability = false,
+}: {
+  canManageAvailability?: boolean;
+}) {
   const [menu, setMenu] = useState<OperationalMenu>();
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [selected, setSelected] = useState<string>();
   const [revision, setRevision] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [notice, setNotice] = useState('');
+  const changing = useRef(false);
+  const sequence = useRef(0);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     let alive = true;
-    let sequence = 0;
     const refresh = async () => {
-      const request = ++sequence;
+      if (changing.current) return;
+      const request = ++sequence.current;
       try {
-        const result = await api<OperationalMenu>('/menu?channel=COUNTER');
-        if (alive && request === sequence) {
+        const result = await api<OperationalMenu>('/menu/counter');
+        if (alive && request === sequence.current) {
           setMenu(result);
           setError('');
         }
       } catch (e) {
-        if (alive && request === sequence) {
+        if (alive && request === sequence.current) {
           setError(errorMessage(e));
           setMenu(undefined);
         }
@@ -43,7 +55,7 @@ export function MenuPreview() {
       if (!document.hidden) void refresh();
     };
     void refresh();
-    const interval = window.setInterval(visible, 15000);
+    const interval = window.setInterval(visible, 5000);
     const broadcast =
       'BroadcastChannel' in window
         ? new BroadcastChannel('dukanos-menu')
@@ -61,6 +73,45 @@ export function MenuPreview() {
       document.removeEventListener('visibilitychange', visible);
     };
   }, [revision]);
+  async function changeAvailability(
+    item: Dish,
+    available: boolean,
+    variantId?: string,
+  ) {
+    if (changing.current) return;
+    changing.current = true;
+    ++sequence.current;
+    setBusy(true);
+    setActionError('');
+    setNotice('');
+    try {
+      const result = await api<OperationalMenu>(
+        `/menu/counter/items/${item.id}/availability`,
+        'PATCH',
+        {
+          version: item.version,
+          available,
+          ...(variantId ? { variantId } : {}),
+        },
+      );
+      ++sequence.current;
+      setMenu(result);
+      setNotice(
+        `${item.name}${variantId ? ' / ' + item.variants.find((v) => v.id === variantId)?.name : ''}: ${available ? 'available at Counter' : 'sold out at Counter'}.`,
+      );
+      notifyMenuChanged();
+    } catch (e) {
+      setActionError(
+        e instanceof ApiFailure && e.status === 409
+          ? 'Availability changed on another device. The menu has refreshed; review it and try again.'
+          : errorMessage(e),
+      );
+      setRevision((r) => r + 1);
+    } finally {
+      changing.current = false;
+      setBusy(false);
+    }
+  }
   const dish = menu?.categories
     .flatMap((c) => c.items)
     .find((i) => i.id === selected);
@@ -91,8 +142,8 @@ export function MenuPreview() {
             POS <span className="pos-channel">Counter</span>
           </h1>
           <p className="menu-muted">
-            Tap a dish to view portions. Read-only; ordering is not available
-            yet.
+            Tap a dish for portions and Counter availability. Ordering is not
+            available yet.
           </p>
         </div>
         <button onClick={() => setRevision((r) => r + 1)}>Refresh menu</button>
@@ -120,6 +171,8 @@ export function MenuPreview() {
           </button>
         ))}
       </nav>
+      {notice && <p role="status">{notice}</p>}
+      {actionError && !dish && <p role="alert">{actionError}</p>}
       {error && (
         <p role="alert">
           {error} Menu is unavailable until the connection is restored.
@@ -139,13 +192,23 @@ export function MenuPreview() {
           <div className="pos-grid">
             {c.items.map((i) => (
               <button
-                className="pos-card"
+                className={
+                  'pos-card' +
+                  (i.variants.some((v) => v.available) ? '' : ' sold-out')
+                }
                 key={i.id}
                 onClick={() => setSelected(i.id)}
               >
                 <MenuPhoto src={i.image?.url} name={i.name} />
                 <span className="pos-card-info">
                   <strong>{i.name}</strong>
+                  <span className="pos-availability">
+                    {i.variants.every((v) => !v.available)
+                      ? 'Sold out'
+                      : i.variants.every((v) => v.available)
+                        ? 'Available'
+                        : 'Some portions sold out'}
+                  </span>
                   <span>
                     {i.variants.length > 1 ? 'From ' : ''}₹
                     {rupees(lowestPrice(i))}
@@ -180,12 +243,46 @@ export function MenuPreview() {
             </button>
             <MenuPhoto src={dish.image?.url} name={dish.name} />
             <h2>{dish.name}</h2>
-            <p>Counter prices · Read-only</p>
+            <p>Counter only · Other channels are unchanged</p>
+            {canManageAvailability && (
+              <button
+                className="pos-item-availability"
+                disabled={busy}
+                onClick={() =>
+                  void changeAvailability(
+                    dish,
+                    !dish.variants.some((v) => v.available),
+                  )
+                }
+              >
+                {busy
+                  ? 'Saving…'
+                  : dish.variants.some((v) => v.available)
+                    ? 'Mark all sold out'
+                    : 'Make all available'}
+              </button>
+            )}
+            {actionError && <p role="alert">{actionError}</p>}
+            {notice && <p role="status">{notice}</p>}
             <ul>
               {dish.variants.map((v) => (
                 <li key={v.id}>
                   <strong>{v.displayLabel || v.name}</strong>
                   <span>₹{rupees(v.price)}</span>
+                  <span className="pos-variant-availability">
+                    <small>{v.available ? 'Available' : 'Sold out'}</small>
+                    {canManageAvailability && (
+                      <button
+                        disabled={busy}
+                        aria-label={`${v.name}: ${v.available ? 'Mark sold out' : 'Make available'}`}
+                        onClick={() =>
+                          void changeAvailability(dish, !v.available, v.id)
+                        }
+                      >
+                        {v.available ? 'Mark sold out' : 'Make available'}
+                      </button>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>

@@ -21,6 +21,7 @@ export type PermissionCode =
   | 'dispatch.complete'
   | 'users.manage'
   | 'users.password.reset'
+  | 'menu.availability.manage'
   | 'menu.manage'
   | 'menu.read'
   | 'reports.read'

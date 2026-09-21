@@ -1,3 +1,4 @@
+import { JsonInput, MultipartInput, QueryInput } from '../../input-boundary';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import {
@@ -34,10 +35,14 @@ import {
   PriceDto,
   ChannelAvailabilityDto,
   SaveItemDto,
+  MenuQueryDto,
+  CounterAvailabilityDto,
+  ChannelCodePipe,
 } from './menu.dto';
 @Controller('menu')
 export class MenuController {
   constructor(private readonly menu: MenuService) {}
+  @MultipartInput()
   @Post('images')
   @RequirePermissions('menu.manage')
   @UseInterceptors(
@@ -79,10 +84,24 @@ export class MenuController {
       length: image.length,
     });
   }
-  @Get() @RequirePermissions('menu.read') operational(
-    @Query('channel') channel: string,
+  @QueryInput()
+  @Get()
+  @RequirePermissions('menu.read')
+  operational(@Query() query: MenuQueryDto) {
+    return this.menu.operational(query.channel);
+  }
+  @Get('counter') @RequirePermissions('menu.read') counter() {
+    return this.menu.counter();
+  }
+  @Patch('counter/items/:id/availability')
+  @RequirePermissions('menu.availability.manage')
+  @JsonInput()
+  counterAvailability(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() input: CounterAvailabilityDto,
+    @Req() actor: AuthRequest,
   ) {
-    return this.menu.operational(channel);
+    return this.menu.setCounterAvailability(id, input, actor);
   }
   @Get('channels') @RequirePermissions('menu.read') async channels() {
     return (await this.menu.catalog()).channels;
@@ -93,13 +112,16 @@ export class MenuController {
   @Get('categories') @RequirePermissions('menu.manage') async categories() {
     return (await this.menu.catalog()).categories;
   }
-  @Post('categories') @RequirePermissions('menu.manage') createCategory(
-    @Body() input: CreateCategoryDto,
-    @Req() actor: AuthRequest,
-  ) {
+  @Post('categories')
+  @RequirePermissions('menu.manage')
+  @JsonInput()
+  createCategory(@Body() input: CreateCategoryDto, @Req() actor: AuthRequest) {
     return this.menu.createCategory(input, actor);
   }
-  @Patch('categories/:id') @RequirePermissions('menu.manage') updateCategory(
+  @Patch('categories/:id')
+  @RequirePermissions('menu.manage')
+  @JsonInput()
+  updateCategory(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() input: UpdateCategoryDto,
     @Req() actor: AuthRequest,
@@ -114,34 +136,43 @@ export class MenuController {
   ) {
     return this.menu.item(id);
   }
-  @Post('items') @RequirePermissions('menu.manage') createItem(
+  @Post('items') @RequirePermissions('menu.manage') @JsonInput() createItem(
     @Body() input: CreateItemDto,
     @Req() actor: AuthRequest,
   ) {
     return this.menu.createItem(input, actor);
   }
-  @Put('items/:id') @RequirePermissions('menu.manage') saveItem(
+  @Put('items/:id') @RequirePermissions('menu.manage') @JsonInput() saveItem(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() input: SaveItemDto,
     @Req() actor: AuthRequest,
   ) {
     return this.menu.replaceItem(id, input, actor);
   }
-  @Patch('items/:id') @RequirePermissions('menu.manage') updateItem(
+  @Patch('items/:id')
+  @RequirePermissions('menu.manage')
+  @JsonInput()
+  updateItem(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() input: UpdateItemDto,
     @Req() actor: AuthRequest,
   ) {
     return this.menu.updateItem(id, input, actor);
   }
-  @Post('items/:id/variants') @RequirePermissions('menu.manage') createVariant(
+  @Post('items/:id/variants')
+  @RequirePermissions('menu.manage')
+  @JsonInput()
+  createVariant(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() input: CreateVariantDto,
     @Req() actor: AuthRequest,
   ) {
     return this.menu.createVariant(id, input, actor);
   }
-  @Patch('variants/:id') @RequirePermissions('menu.manage') updateVariant(
+  @Patch('variants/:id')
+  @RequirePermissions('menu.manage')
+  @JsonInput()
+  updateVariant(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() input: UpdateVariantDto,
     @Req() actor: AuthRequest,
@@ -150,9 +181,10 @@ export class MenuController {
   }
   @Put('variants/:id/channels/:code/price')
   @RequirePermissions('menu.manage')
+  @JsonInput()
   price(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Param('code') code: string,
+    @Param('code', new ChannelCodePipe()) code: string,
     @Body() input: PriceDto,
     @Req() actor: AuthRequest,
   ) {
@@ -160,9 +192,10 @@ export class MenuController {
   }
   @Patch('variants/:id/channels/:code/availability')
   @RequirePermissions('menu.manage')
+  @JsonInput()
   availability(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Param('code') code: string,
+    @Param('code', new ChannelCodePipe()) code: string,
     @Body() input: ChannelAvailabilityDto,
     @Req() actor: AuthRequest,
   ) {

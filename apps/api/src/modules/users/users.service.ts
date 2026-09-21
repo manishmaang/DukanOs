@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import type {
@@ -33,7 +34,27 @@ export class UsersService {
       await this.db.query<StaffUser>(USER_SELECT + ' ORDER BY u.username')
     ).rows;
   }
-  private async authorize(client: PoolClient, actor: AuthenticatedUser) {
+  private async authorize(
+    client: PoolClient,
+    actor: AuthenticatedUser,
+    sessionHash?: string,
+  ) {
+    await client.query('SELECT id FROM users WHERE id=$1 FOR SHARE', [
+      actor.id,
+    ]);
+    if (
+      sessionHash !== undefined &&
+      !(
+        await client.query(
+          'SELECT 1 FROM auth_sessions WHERE token_hash=$1 AND user_id=$2 AND expires_at>clock_timestamp()',
+          [sessionHash, actor.id],
+        )
+      ).rowCount
+    )
+      throw new UnauthorizedException({
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Please sign in again.',
+      });
     // Recheck authority inside the serialized mutation, not only in the HTTP guard.
     const allowed = await client.query(
       `SELECT 1 FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN role_permissions rp ON rp.role_code=ur.role_code WHERE u.id=$1 AND u.active AND rp.permission_code='users.manage'`,
@@ -65,6 +86,7 @@ export class UsersService {
       roles: string[];
     },
     actor?: AuthenticatedUser,
+    sessionHash?: string,
   ): Promise<StaffUser> {
     validateRoles(input.roles);
     validateNewPassword(input.password);
@@ -84,7 +106,7 @@ export class UsersService {
     try {
       return await this.db.transaction(async (client) => {
         await client.query('SELECT pg_advisory_xact_lock(742019322)');
-        if (actor) await this.authorize(client, actor);
+        if (actor) await this.authorize(client, actor, sessionHash);
         else {
           if (
             input.roles.length !== 1 ||
@@ -137,6 +159,7 @@ export class UsersService {
       reason: string;
     },
     actor: AuthenticatedUser,
+    sessionHash?: string,
   ): Promise<StaffUser> {
     validateRoles(input.roles);
     if (!input.reason.trim())
@@ -146,7 +169,7 @@ export class UsersService {
       });
     return this.db.transaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(742019322)');
-      await this.authorize(client, actor);
+      await this.authorize(client, actor, sessionHash);
       const current = (
         await client.query<StaffUser>(
           USER_SELECT + ' WHERE u.id=$1 FOR UPDATE OF u',

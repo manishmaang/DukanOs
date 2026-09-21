@@ -166,6 +166,7 @@ test(
           assert.deepEqual(employee.permissions, [
             'kitchen.read',
             'kitchen.update',
+            'menu.availability.manage',
             'menu.read',
             'orders.create',
             'orders.read',
@@ -479,6 +480,68 @@ test(
           } finally {
             await first.end();
             await second.end();
+          }
+        },
+      );
+      await t.test(
+        'queued staff writes reject a session revoked after the HTTP guard',
+        async () => {
+          // Use a fresh session so expiry/throttling fixtures above remain independent.
+          await sql.query('DELETE FROM login_attempts');
+          const fresh = (await login('owner')).cookie;
+          const hash = tokenHash(fresh.slice(fresh.indexOf('=') + 1));
+          const blocker = new Client({ connectionString: url.toString() });
+          await blocker.connect();
+          let pending;
+          try {
+            await blocker.query('BEGIN');
+            await blocker.query('SELECT pg_advisory_xact_lock(742019322)');
+            const pid = (await blocker.query('SELECT pg_backend_pid() AS pid'))
+              .rows[0].pid;
+            pending = request(server)
+              .post('/api/users')
+              .set(...header)
+              .set('Cookie', fresh)
+              .send({
+                username: 'revoked-request',
+                name: 'Should not exist',
+                password,
+                roles: ['CASHIER'],
+              })
+              .then((r) => r);
+            let waiting = false;
+            for (let i = 0; i < 100; i++) {
+              waiting =
+                (
+                  await sql.query(
+                    'SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))',
+                    [pid],
+                  )
+                ).rowCount > 0;
+              if (waiting) break;
+              await new Promise((r) => setTimeout(r, 30));
+            }
+            assert.ok(waiting, 'request reached the mutation lock');
+            await blocker.query(
+              'DELETE FROM auth_sessions WHERE token_hash=$1',
+              [hash],
+            );
+            await blocker.query('COMMIT');
+            const result = await pending;
+            assert.equal(result.status, 401);
+            assert.equal(result.body.code, 'AUTHENTICATION_REQUIRED');
+            assert.equal(
+              (
+                await sql.query(
+                  "SELECT count(*) FROM users WHERE username='revoked-request'",
+                )
+              ).rows[0].count,
+              '0',
+            );
+          } finally {
+            await blocker.query('ROLLBACK');
+            await blocker.end();
+            if (pending) await pending;
           }
         },
       );

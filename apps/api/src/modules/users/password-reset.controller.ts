@@ -1,3 +1,4 @@
+import { JsonInput } from '../../input-boundary';
 import {
   Body,
   Controller,
@@ -8,13 +9,13 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
-import { IsInt, IsString, Length, Min } from 'class-validator';
+import { IsInt, IsString, Length, Min, Max } from 'class-validator';
 import { RequirePermissions, type AuthRequest } from '../auth/access';
 import { PasswordManagementService } from './password-management.service';
 class ResetPasswordDto {
   @IsString() @Length(12, 128) newPassword!: string;
   @IsString() @Length(1, 500) reason!: string;
-  @IsInt() @Min(1) version!: number;
+  @IsInt() @Min(1) @Max(2147483647) version!: number;
 }
 @Controller('users')
 @RequirePermissions('users.password.reset')
@@ -25,6 +26,7 @@ export class PasswordResetController {
   }
   @Post(':id/password-reset')
   @HttpCode(204)
+  @JsonInput()
   reset(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() input: ResetPasswordDto,
