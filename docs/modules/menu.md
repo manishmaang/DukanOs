@@ -57,7 +57,7 @@ OWNER/MANAGER: menu.read + menu.manage. CASHIER/KITCHEN: menu.read. DISPATCH: ne
 
 ## Database tables and dependencies
 
-menu_categories, menu_items, item_variants, sales_channels, variant_channel_settings, menu_audit (migrations 004/005). Uses shared PostgreSQL infrastructure and local Auth capabilities. Public MenuCatalog/OperationalMenu contracts live in shared-types; repository rows are mapped explicitly. No events are emitted or consumed.
+menu_categories, menu_items, item_variants, sales_channels, variant_channel_settings, menu_audit, menu_images (migrations 004–006). Uses shared PostgreSQL infrastructure and local Auth capabilities. Public MenuCatalog/OperationalMenu contracts live in shared-types; repository rows are mapped explicitly. No backend domain events are emitted or consumed; frontend menu-change notifications trigger POS refetching.
 
 ## Frontend
 
@@ -82,3 +82,28 @@ Future order items must snapshot sold item/variant names, price, channel and ins
 `npm run check` and `npm run test:integration` cover HTTP validation, permissions, names, price precision, availability, activation, database constraints and concurrent price updates. Integration tests use an isolated menu_test_* PostgreSQL schema and remove only their own data. A local Chromium smoke check also verified OWNER form-based menu creation/pricing, MANAGER administration, CASHIER preview, KITCHEN administration denial and inactive filtering using an isolated test schema. Non-local browser requests were blocked; no external requests occurred. The UX regression checks additionally cover obsolete ordering-field rejection, deterministic admin/POS ordering, nested transaction rollback (including a late database failure), concurrency and migration of an existing populated catalog. A Chromium check exercised category creation, one-save Regular/Half/Full pricing, re-open/edit, channel-wide availability, search and tablet layout. See README for manual menu creation; no production menu seed exists.
 
 Remaining: modifiers, pagination if menu size requires it, and future order-time validation/snapshots. Hosting, TLS and backup readiness remain deployment work. No disconnected-browser writes or WAN/cloud synchronization exists; LAN/server/PostgreSQL must remain up.
+
+## Menu photos
+
+Photos are optional. OWNER/MANAGER select JPEG, PNG or WebP near the top of the dish editor, preview locally, replace or remove, then save the dish. Removing a photo is a draft change until Save. A staged upload is reused when a save fails so retrying does not keep uploading the same file. Switching away discards the browser draft; abandoned stages are reclaimed after 24 hours. No photo is required for item creation.
+
+- `POST /api/menu/images`: menu.manage; multipart one `image` file, no additional fields. Returns `{key,url,width,height}` for an unassigned upload. At most 20 unassigned images per uploader; further uploads return MENU_IMAGE_LIMIT until stages are attached or expired stages cleaned.
+- Existing full-dish POST/PUT accepts optional `imageKey`: omitted preserves, UUID attaches the caller's unassigned stage, null removes. Existing optimistic versions, transactions and audit apply. Granular PATCH does not accept imageKey.
+- `GET /api/menu/images/:key`: menu.read; serves attached photos or the uploader's own stage with menu.manage. Invalid keys/unknown files are rejected. Image responses are WebP, inline, nosniff, CSP default-src none, private one-hour immutable cache. Replacement generates a different URL.
+- Admin and operational item contracts include `image: {key,url,width,height} | null`. No local paths or original filenames are returned.
+
+Input limit: 5 MiB, 24 million decoded pixels, a single still frame, actual decoded format matching the MIME. Sharp rejects corrupt/unsupported input, auto-orients, resizes within 1024×1024 without enlargement, strips metadata and encodes WebP quality 82. Processed files must be at most 2 MiB. Names are generated UUIDs and originals are not retained. Upload processing is serialized under the small-restaurant menu write lock; no external processing service exists.
+
+Storage: `DUKANOS_DATA_DIR/uploads/menu`, default `~/.local/share/dukanos/uploads/menu`. Configure an absolute persistent directory writable by the API user. Run `npm run media:cleanup` for obsolete/unassigned files; stages are kept 24 hours for retry. Cleanup must run with the same database and data directory as the API. Backups require both PostgreSQL and local media. See Architecture for failure consistency.
+
+## Counter visibility investigation and diagnostics
+
+The actual development data showed active Chinese/manchurian with active Half/Full portions and available Counter prices. The stored item `soya chap gravy` in active category `chap` had valid active FULL/HALF portions and available Counter prices ₹250/₹200, but **the item itself was inactive**. Audit recorded creation active at 2026-09-21 11:49:48.086 UTC and a save changing active true→false at 11:50:26.948 UTC. The operational response correctly omitted it. Migration 005 ordering and category rendering were not the cause. Existing operational data is preserved; reactivation is an explicit owner action, not a migration or automatic repair.
+
+Admin items now expose `counterVisibility` (visible, reasons and per-variant reasons) using the same backend predicate as operational filtering. The editor shows live draft guidance for paused items, inactive categories/channels/portions, missing Counter prices and disabled Counter availability. Valid Counter configuration appears after save; unsupported configurations are not made sellable merely to hide an error. A separate old-UI shortcoming was refresh only on entry/manual action; POS now refreshes automatically.
+
+## Visual POS
+
+POS means Point of Sale; Kitchen/KDS remains separate. POS uses only `/api/menu?channel=COUNTER`. Large local photo cards retain written dish names, exact lowest price and portion count. Category buttons and case-insensitive dish/category/portion search work together. Oldest-created-first placement remains stable. Selecting a card opens a keyboard-dismissable, read-only portion/price dialog; there is no cart, quantity or order creation. Missing or failed images use a local plate illustration without remote requests. Inactive/unavailable products remain excluded by the server.
+
+Refresh occurs on entry, window focus, visibility return, menu-save notification within/across tabs and every 15 seconds while visible. Replacement URLs avoid stale image caches. Refresh errors clear the listing and show a retry message. This is bounded polling, not instantaneous cross-device push. Browser tests use isolated fixtures, block all non-local requests and exercise upload/replacement/removal, categories/search, Counter prices, automatic refresh and cashier read-only access. Existing business photos/data are not changed by automated tests.

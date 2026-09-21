@@ -1,3 +1,4 @@
+import { menuVisibility } from './menu-visibility';
 import type { PoolClient } from 'pg';
 import type {
   MenuCatalog,
@@ -26,8 +27,10 @@ export async function readCatalog(
     )
   ).rows.map(dates);
   const items = (
-    await client.query<Omit<MenuItem, keyof Dates | 'variants'> & Dates>(
-      `SELECT id,category_id AS "categoryId",name,description,kitchen_name AS "kitchenName",active,version,created_at AS "createdAt",updated_at AS "updatedAt" FROM menu_items ORDER BY created_at ${direction},id ${direction}`,
+    await client.query<
+      Omit<MenuItem, keyof Dates | 'variants' | 'counterVisibility'> & Dates
+    >(
+      `SELECT i.id,category_id AS "categoryId",name,description,kitchen_name AS "kitchenName",active,version,i.created_at AS "createdAt",updated_at AS "updatedAt",CASE WHEN m.key IS NULL THEN NULL ELSE jsonb_build_object('key',m.key,'url','/api/menu/images/'||m.key,'width',m.width,'height',m.height) END AS image FROM menu_items i LEFT JOIN menu_images m ON m.key=i.image_key ORDER BY i.created_at ${direction},i.id ${direction}`,
     )
   ).rows;
   const variants = (
@@ -50,24 +53,33 @@ export async function readCatalog(
   return {
     categories,
     channels,
-    items: items.map((item) => ({
-      ...dates(item),
-      variants: variants
-        .filter((v) => v.itemId === item.id)
-        .map((variant) => {
-          const { itemId: _itemId, ...fields } = dates(variant);
-          void _itemId;
-          return {
-            ...fields,
-            channels: settings
-              .filter((s) => s.variantId === variant.id)
-              .map(({ channelCode, price, available }) => ({
-                channelCode,
-                price,
-                available,
-              })),
-          };
-        }),
-    })),
+    items: items
+      .map((item) => ({
+        ...dates(item),
+        variants: variants
+          .filter((v) => v.itemId === item.id)
+          .map((variant) => {
+            const { itemId: _itemId, ...fields } = dates(variant);
+            void _itemId;
+            return {
+              ...fields,
+              channels: settings
+                .filter((s) => s.variantId === variant.id)
+                .map(({ channelCode, price, available }) => ({
+                  channelCode,
+                  price,
+                  available,
+                })),
+            };
+          }),
+      }))
+      .map((item) => ({
+        ...item,
+        counterVisibility: menuVisibility(
+          item,
+          !!categories.find((c) => c.id === item.categoryId)?.active,
+          channels.find((c) => c.code === 'COUNTER'),
+        ),
+      })),
   };
 }

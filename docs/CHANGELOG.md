@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-21 — Local menu photos and visual POS
+
+### Added
+
+- Migration 006: optional item photo references and local image metadata, preserving existing menu/history.
+- Permission-protected JPEG/PNG/WebP upload, orientation/resize/metadata stripping, local WebP serving, replacement/removal and explicit orphan cleanup.
+- Dish photo preview and Counter visibility guidance; visual Counter-only POS with category buttons, search, photo fallback and read-only portion dialog.
+- PostgreSQL image lifecycle/authorization/validation tests, visibility diagnostics and populated migration preservation coverage.
+
+### Fixed
+
+- POS now refreshes on focus, menu changes and every 15 seconds while visible. Replacement photos have fresh URLs.
+- Explained the actual missing Soya Chaap record: saved inactive after creation despite valid Counter prices. Activation rules and existing data remain intact.
+
+### Verified
+
+- `npm run check` and all 42 PostgreSQL integration tests pass. Chromium verifies upload/replace/remove, Counter-only portions, category/search filters, automatic refresh, fallback and cashier access with external requests blocked.
+- Migration 006 applied locally with before/after comparison: 2 categories, 2 dishes, 4 portions, 12 channel settings and 21 audit records preserved. Existing Soya Chaap activation was not changed. Browser scenarios use disposable fixtures and generated test images.
+
 ## 2026-09-12
 
 ### Added

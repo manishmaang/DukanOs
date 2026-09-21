@@ -35,7 +35,7 @@ Runtime compatibility was checked against [NestJS first steps](https://docs.nest
 
 ## Dependency maintenance
 
-The root npm override selects Multer 2.3+ to replace the vulnerable transitive version pinned by NestJS's Express adapter. A fresh lockfile installation applies the override; retain it until the upstream dependency is patched. No file-upload endpoints exist. Dependency versions are recorded in `package-lock.json`.
+The root npm override selects Multer 2.3+ to replace the vulnerable transitive version pinned by NestJS's Express adapter. A fresh lockfile installation applies the override; retain it until the upstream dependency is patched. The menu image endpoint uses the bounded Multer memory upload interceptor; only validated JPEG/PNG/WebP content reaches Sharp. Dependency versions are recorded in `package-lock.json`.
 
 ## Auth and staff dependencies
 
@@ -54,3 +54,13 @@ MenuModule owns catalog writes, exact price validation, availability and menu au
 The Menu workspace (`/#/menu`) owns a local controlled draft, category-grouped client-side search, and one save action. POST /api/menu/items accepts nested channel configuration; PUT /api/menu/items/:id validates and saves the complete dish transactionally. This avoids frontend chains of granular writes that can partially succeed. The existing normalized schema, granular APIs, capability guards, transaction lock, aggregate versions and audit remain authoritative. No new state-management or UI framework is introduced. Shared types describe nested input as well as read models; frontend validation is only a convenience.
 
 ReadCatalog selects deterministic database ordering separately for admin and operational reads; clients do not configure positions. Migration 005 removes obsolete ordering columns without rebuilding or reseeding menu records. See decision 008 and Menu for contract details.
+
+## Local menu media and POS freshness
+
+MenuMediaService owns local filesystem operations and Sharp processing inside MenuModule. Migration 006 stores small image metadata and an optional unique item reference; public URLs are same-origin authenticated `/api/menu/images/:key`, never filesystem paths. `DUKANOS_DATA_DIR` must be absolute; the default is `~/.local/share/dukanos`. The generated UUID.webp files live in its `uploads/menu` directory and survive builds/restarts. Production must provision a persistent writable volume/directory for the service account.
+
+Uploads stage a normalized file before metadata insertion. The existing dish POST/PUT attaches or removes a key in the same version-checked, audited transaction as the dish. Menu writes and cleanup share the menu advisory lock. Old files are unlinked only after the replacement/removal commits and only if no item references them. A crash can leave an unreferenced file/metadata row, reclaimed after 24 hours by explicit `npm run media:cleanup`; it cannot make a failed edit delete the currently committed photo. Filesystem failures during obsolete-file cleanup are logged without undoing a successful dish save. An externally deleted file returns 404 and the frontend renders a local placeholder. No distributed file/database transaction or background job is introduced.
+
+Back up PostgreSQL **and** the persistent uploads directory together, preferably during a paused-write maintenance window. Restore both before starting the application. Database-only backups do not contain photo bytes. Backup automation remains future work.
+
+Visual POS is fixed to COUNTER and uses the existing operational read model. It refreshes on mount/focus/visibility return, same-tab menu events, cross-tab BroadcastChannel messages and a visible-tab 15-second interval. Request sequencing ignores old responses; failed refreshes replace stale listings with a connection error. Replacement keys create fresh image URLs; responses may be privately cached for one hour. No hard reload, cloud service, socket server or external asset is required. Future ordering must revalidate current menu configuration server-side.

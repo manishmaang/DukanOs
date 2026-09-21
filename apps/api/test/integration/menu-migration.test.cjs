@@ -5,7 +5,7 @@ const { randomUUID, createHash } = require('node:crypto');
 const { readFileSync, readdirSync } = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
-test('menu ordering migration preserves an existing populated catalog and immutable history', async () => {
+test('menu ordering and image migrations preserve an existing populated catalog and immutable history', async () => {
   const admin = new Client({ connectionString: process.env.DATABASE_URL });
   await admin.connect();
   const schema = 'menu_upgrade_' + randomUUID().replaceAll('-', '');
@@ -80,7 +80,7 @@ test('menu ordering migration preserves an existing populated catalog and immuta
       for (const table of tables)
         values[table] = (
           await sql.query(
-            `SELECT to_jsonb(t)-'sort_order' AS value FROM ${table} t ORDER BY to_jsonb(t)::text`,
+            `SELECT to_jsonb(t)-'sort_order'-'image_key' AS value FROM ${table} t ORDER BY to_jsonb(t)::text`,
           )
         ).rows
           .map((r) => r.value)
@@ -97,6 +97,14 @@ test('menu ordering migration preserves an existing populated catalog and immuta
       assert.equal(result.status, 0, result.stdout + result.stderr);
     }
     assert.deepEqual(await snapshot(), before);
+    assert.equal(
+      (await sql.query('SELECT image_key FROM menu_items')).rows[0].image_key,
+      null,
+    );
+    assert.equal(
+      (await sql.query('SELECT count(*) FROM menu_images')).rows[0].count,
+      '0',
+    );
     assert.equal(
       (
         await sql.query(
