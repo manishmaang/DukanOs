@@ -853,7 +853,7 @@ test(
           await upload(Buffer.alloc(5 * 1024 * 1024 + 1), 'image/jpeg').expect(
             413,
           );
-          await call('post', '/images').expect(400);
+          await call('post', '/images').expect(415);
           const first = (await upload(jpg).expect(201)).body;
           assert.match(first.key, /^[a-f0-9-]{36}$/);
           assert.equal(first.url, '/api/menu/images/' + first.key);
@@ -1100,6 +1100,472 @@ test(
             active: true,
           }).expect(200);
           await check(true);
+        },
+      );
+      await t.test(
+        'Counter controls preserve activation and other channels, enforce capabilities and versions',
+        async () => {
+          let d = (
+            await call('post', '/items', {
+              name: 'Counter test',
+              categoryId: category.id,
+              variants: ['Half', 'Full'].map((name) => ({
+                name,
+                channels: ['COUNTER', 'ZOMATO', 'SWIGGY'].map(
+                  (channelCode) => ({
+                    channelCode,
+                    price: '180',
+                    available: true,
+                  }),
+                ),
+              })),
+            }).expect(201)
+          ).body;
+          const toggle = (available, role = 'CASHIER', variantId) =>
+            call(
+              'patch',
+              `/counter/items/${d.id}/availability`,
+              {
+                version: d.version,
+                available,
+                ...(variantId ? { variantId } : {}),
+              },
+              role,
+            );
+          const refresh = async () => {
+            d = (await call('get', '/items/' + d.id)).body;
+          };
+          const others = d.variants.map((v) =>
+            v.channels.filter((c) => c.channelCode !== 'COUNTER'),
+          );
+          for (const role of ['KITCHEN', 'DISPATCH'])
+            await toggle(false, role).expect(403);
+          const sold = (await toggle(false).expect(200)).body.categories
+            .flatMap((c) => c.items)
+            .find((i) => i.id === d.id);
+          assert.ok(sold.variants.every((v) => !v.available));
+          await refresh();
+          assert.equal(d.active, true);
+          assert.ok(d.variants.every((v) => v.active));
+          assert.deepEqual(
+            d.variants.map((v) =>
+              v.channels.filter((c) => c.channelCode !== 'COUNTER'),
+            ),
+            others,
+          );
+          assert.ok(
+            !(await menu()).categories
+              .flatMap((c) => c.items)
+              .some((i) => i.id === d.id),
+          );
+          await toggle(true, 'CASHIER', d.variants[0].id).expect(200);
+          await refresh();
+          assert.equal(
+            (await menu()).categories
+              .flatMap((c) => c.items)
+              .find((i) => i.id === d.id).variants.length,
+            1,
+          );
+          await toggle(true, 'MANAGER').expect(200);
+          await refresh();
+          await toggle(false, 'OWNER').expect(200);
+          await refresh();
+          assert.deepEqual(
+            (await Promise.all([toggle(true), toggle(true)]))
+              .map((r) => r.status)
+              .sort(),
+            [200, 409],
+          );
+          await refresh();
+          await toggle(false, 'CASHIER', randomUUID()).expect(400);
+          await call(
+            'patch',
+            `/counter/items/${d.id}/availability`,
+            { version: d.version, available: false, channel: 'SWIGGY' },
+            'CASHIER',
+          ).expect(400);
+          await call(
+            'put',
+            `/variants/${d.variants[0].id}/channels/COUNTER/price`,
+            { itemVersion: d.version, price: '1' },
+            'CASHIER',
+          ).expect(403);
+          d = (
+            await call('patch', '/items/' + d.id, {
+              version: d.version,
+              active: false,
+            }).expect(200)
+          ).body;
+          await toggle(true).expect(400);
+          assert.ok(
+            !(
+              await call('get', '/counter', undefined, 'CASHIER')
+            ).body.categories
+              .flatMap((c) => c.items)
+              .some((i) => i.id === d.id),
+          );
+          assert.ok(
+            Number(
+              (
+                await sql.query(
+                  'SELECT count(*) FROM menu_audit WHERE item_id=$1',
+                  [d.id],
+                )
+              ).rows[0].count,
+            ) >= 6,
+          );
+        },
+      );
+      await t.test(
+        'API validation rejects malformed inputs across every implemented family with safe errors',
+        async () => {
+          const http = (method, path, body) => {
+            const agent = request(server);
+            const r = agent[method]('/api' + path)
+              .set('Cookie', cookies.OWNER)
+              .set('X-DukanOS-Request', '1');
+            return body === undefined ? r : r.send(body);
+          };
+          const cases = [
+            ['get', '/health?extra=1'],
+            ['get', '/health/ready?extra=1'],
+            ['get', '/auth/me?role=OWNER'],
+            ['post', '/auth/logout', { extra: true }],
+            ['post', '/auth/login', { username: [], password: 'a' }],
+            ['post', '/auth/login', { username: 'owner', password: {} }],
+            [
+              'post',
+              '/auth/login',
+              { username: 'owner', password: 'a', role: 'OWNER' },
+            ],
+            [
+              'post',
+              '/auth/login',
+              { username: 'x'.repeat(65), password: 'a' },
+            ],
+            [
+              'post',
+              '/auth/change-password',
+              { currentPassword: null, newPassword: 'long enough password' },
+            ],
+            [
+              'post',
+              '/users',
+              {
+                username: 'invalid space',
+                name: 'Name',
+                password: 'long enough password',
+                roles: ['CASHIER'],
+              },
+            ],
+            [
+              'post',
+              '/users',
+              {
+                username: 'validuser',
+                name: 'Name',
+                password: [],
+                roles: ['CASHIER'],
+              },
+            ],
+            [
+              'post',
+              '/users',
+              {
+                username: 'validuser',
+                name: 'Name',
+                password: 'long enough password',
+                roles: [null],
+              },
+            ],
+            [
+              'patch',
+              '/users/not-id/access',
+              { roles: ['CASHIER'], active: true, version: 1, reason: 'test' },
+            ],
+            [
+              'post',
+              '/users/not-id/password-reset',
+              {
+                newPassword: 'long enough password',
+                version: 1,
+                reason: 'test',
+              },
+            ],
+            [
+              'post',
+              '/users/' + owner.id + '/password-reset',
+              { newPassword: 'long enough password', version: 1, reason: [] },
+            ],
+            ['get', '/users?search=ignored'],
+            ['get', '/users/password-reset-targets?all=true'],
+            ['post', '/menu/categories', { name: 'Null active', active: null }],
+            ['post', '/menu/categories', { name: 'x'.repeat(101) }],
+            ['patch', '/menu/categories/not-id', { version: 1, active: true }],
+            [
+              'post',
+              '/menu/items',
+              {
+                categoryId: category.id,
+                name: 'Bad portions',
+                variants: [null],
+              },
+            ],
+            [
+              'post',
+              '/menu/items',
+              {
+                categoryId: category.id,
+                name: 'Too many',
+                variants: Array.from({ length: 101 }, (_, i) => ({
+                  name: String(i),
+                })),
+              },
+            ],
+            [
+              'post',
+              '/menu/items',
+              {
+                categoryId: category.id,
+                name: 'Bad flag',
+                variants: [{ name: 'Regular', active: null }],
+              },
+            ],
+            [
+              'post',
+              '/menu/items',
+              {
+                categoryId: category.id,
+                name: 'Bad nested',
+                variants: [
+                  {
+                    name: 'Regular',
+                    channels: [
+                      {
+                        channelCode: 'COUNTER',
+                        price: '10',
+                        available: 'true',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+            ['get', '/menu/items/not-id'],
+            [
+              'patch',
+              '/menu/variants/not-id',
+              { itemVersion: 1, active: true },
+            ],
+            [
+              'put',
+              `/menu/variants/${item.variants[0].id}/channels/bad-code/price`,
+              { itemVersion: item.version, price: '1' },
+            ],
+            [
+              'put',
+              `/menu/variants/${item.variants[0].id}/channels/COUNTER/price`,
+              { itemVersion: item.version, price: '-1' },
+            ],
+            [
+              'patch',
+              `/menu/variants/${item.variants[0].id}/channels/COUNTER/availability`,
+              { itemVersion: item.version, available: 1 },
+            ],
+            ['get', '/menu?channel=COUNTER&channel=SWIGGY'],
+            ['get', '/menu?channel[bad]=COUNTER'],
+            ['get', '/menu?channel=COUNTER&includeInactive=true'],
+            ['get', '/menu?channel=counter'],
+            ['get', '/menu/channels?hidden=true'],
+            ['get', '/menu/admin?hidden=true'],
+            ['get', '/menu/counter?channel=SWIGGY'],
+            [
+              'patch',
+              `/menu/counter/items/${item.id}/availability`,
+              { version: 2147483648, available: true },
+            ],
+            [
+              'patch',
+              `/menu/counter/items/${item.id}/availability`,
+              { version: item.version, available: true, variantId: null },
+            ],
+          ];
+          for (const [method, path, body] of cases) {
+            const r = await http(method, path, body);
+            assert.equal(
+              r.status,
+              400,
+              method + ' ' + path + ' ' + JSON.stringify(r.body),
+            );
+            assert.deepEqual(Object.keys(r.body).sort(), ['code', 'message']);
+            assert.doesNotMatch(
+              JSON.stringify(r.body),
+              /password_hash|stack|postgres|\/home\//i,
+            );
+          }
+          await http('post', '/auth/login')
+            .type('text')
+            .send('username=owner')
+            .expect(415);
+          const broken = await request(server)
+            .post('/api/auth/login')
+            .set('X-DukanOS-Request', '1')
+            .type('json')
+            .send('{"password":"secret-marker"')
+            .expect(400);
+          assert.doesNotMatch(
+            JSON.stringify(broken.body),
+            /secret-marker|SyntaxError/,
+          );
+          await request(server)
+            .post('/api/auth/login')
+            .set('X-DukanOS-Request', '1')
+            .type('json')
+            .send(JSON.stringify({ password: 'x'.repeat(110000) }))
+            .expect(413);
+          await http('post', '/users', {
+            username: 'unknownroles',
+            name: 'Name',
+            password: 'long enough password',
+            roles: ['SUPERUSER'],
+          })
+            .expect(400)
+            .expect((r) =>
+              assert.equal(r.body.code, 'INVALID_ROLE_COMBINATION'),
+            );
+        },
+      );
+      await t.test(
+        'compression, upload rollback, file failures and dry-run cleanup preserve attachments',
+        async (t) => {
+          const sharp = require('sharp'),
+            fs = require('node:fs/promises'),
+            path = require('node:path');
+          const {
+            MenuMediaService,
+          } = require('../../dist/modules/menu/menu-media.service');
+          const media = app.get(MenuMediaService);
+          const raw = Buffer.alloc(1600 * 1200 * 3);
+          for (let y = 0; y < 1200; y++)
+            for (let x = 0; x < 1600; x++) {
+              const i = (y * 1600 + x) * 3;
+              raw[i] = (x + y) % 256;
+              raw[i + 1] = (x * 3 + y) % 256;
+              raw[i + 2] = (x + y * 2) % 256;
+            }
+          const originalPhoto = await sharp(raw, {
+            raw: { width: 1600, height: 1200, channels: 3 },
+          })
+            .withMetadata({ orientation: 6 })
+            .jpeg({ quality: 95 })
+            .toBuffer();
+          const upload = () =>
+            call('post', '/images').attach('image', originalPhoto, {
+              filename: 'dish.exe',
+              contentType: 'image/jpeg',
+            });
+          const photo = (await upload().expect(201)).body;
+          assert.ok(await media.exists(photo.key));
+          assert.ok(photo.height > photo.width);
+          assert.equal(photo.height, 1024);
+          const bytes = await fs.readFile(
+            path.join(media.directory, photo.key + '.webp'),
+          );
+          const meta = await sharp(bytes).metadata();
+          assert.equal(meta.format, 'webp');
+          assert.equal(meta.orientation, undefined);
+          assert.equal(meta.exif, undefined);
+          assert.ok(bytes.length < originalPhoto.length * 0.7);
+          console.log(
+            `Compression fixture: ${originalPhoto.length} -> ${bytes.length} bytes`,
+          );
+          let target = (
+            await call('post', '/items', {
+              name: 'Media failure fixture',
+              categoryId: category.id,
+              imageKey: photo.key,
+              variants: [{ name: 'Standard' }],
+            }).expect(201)
+          ).body;
+          await call('post', '/images')
+            .attach('image', Buffer.from('bad'), {
+              filename: 'dish.jpg',
+              contentType: 'image/jpeg',
+            })
+            .expect(400);
+          assert.equal(
+            (await call('get', '/items/' + target.id)).body.image.key,
+            photo.key,
+          );
+          assert.ok(await media.exists(photo.key));
+          await call('post', '/images')
+            .field('extra', 'bad')
+            .attach('image', originalPhoto, 'dish.jpg')
+            .expect(400);
+          await call('post', '/images')
+            .attach('image', originalPhoto, 'one.jpg')
+            .attach('image', originalPhoto, 'two.jpg')
+            .expect(400);
+          const before = (await fs.readdir(media.directory)).sort();
+          await sql.query(
+            "CREATE FUNCTION reject_media_test() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test rejected'; END $$; CREATE TRIGGER reject_media_test BEFORE INSERT ON menu_images FOR EACH ROW EXECUTE FUNCTION reject_media_test()",
+          );
+          try {
+            await upload().expect(500);
+            assert.deepEqual(
+              (await fs.readdir(media.directory)).sort(),
+              before,
+            );
+          } finally {
+            await sql.query(
+              'DROP TRIGGER reject_media_test ON menu_images; DROP FUNCTION reject_media_test()',
+            );
+          }
+          const rename = t.mock.method(fs, 'rename', async () => {
+            throw Object.assign(new Error('test disk failure'), {
+              code: 'EIO',
+            });
+          });
+          try {
+            await upload().expect(500);
+            assert.deepEqual(
+              (await fs.readdir(media.directory)).sort(),
+              before,
+            );
+          } finally {
+            rename.mock.restore();
+          }
+          const unlinkOriginal = fs.unlink;
+          const unlink = t.mock.method(fs, 'unlink', async (file) => {
+            if (file.endsWith(photo.key + '.webp'))
+              throw Object.assign(new Error('test permission failure'), {
+                code: 'EACCES',
+              });
+            return unlinkOriginal(file);
+          });
+          try {
+            target = (
+              await call('put', '/items/' + target.id, {
+                ...payload(target),
+                imageKey: null,
+              }).expect(200)
+            ).body;
+            assert.equal(target.image, null);
+            assert.ok(await media.exists(photo.key));
+          } finally {
+            unlink.mock.restore();
+          }
+          await sql.query(
+            "UPDATE menu_images SET created_at=now()-interval '25 hours' WHERE key=$1",
+            [photo.key],
+          );
+          const dry = await media.cleanup(true);
+          assert.ok(dry.candidates >= 1);
+          assert.equal(dry.removed, 0);
+          assert.ok(await media.exists(photo.key));
+          const cleaned = await media.cleanup();
+          assert.ok(cleaned.removed >= 1);
+          assert.equal(await media.exists(photo.key), false);
         },
       );
     } finally {

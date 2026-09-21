@@ -32,7 +32,7 @@ Persistent atomic login counters allow 10 attempts per normalized username and 6
 
 ## Frontend
 
-Sign-in/session restoration, sign-out, and capability-filtered POS/Kitchen/Dispatch/Admin navigation are implemented. A single session permits switching all allowed workspaces without logout. Direct navigation to an unauthorized workspace renders unavailable. Context refreshes on focus and every 30 seconds; backend checks are authoritative between refreshes. POS provides a read-only menu preview; kitchen and dispatch remain placeholders. Menu management has its own permission-filtered workspace.
+Sign-in/session restoration, sign-out, and capability-filtered POS/Kitchen/Dispatch/Admin navigation are implemented. A single session permits switching all allowed workspaces without logout. Direct navigation to an unauthorized workspace renders unavailable. Context refreshes on focus and every 30 seconds; backend checks are authoritative between refreshes. POS provides menu browsing with Counter availability controls for permitted staff; kitchen and dispatch remain placeholders. Menu management has its own permission-filtered workspace.
 
 ## Dependencies / tables
 
@@ -54,4 +54,8 @@ Errors include CURRENT_PASSWORD_INCORRECT (400), INVALID_PASSWORD (400), PASSWOR
 
 ## Menu capabilities
 
-Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS read-only menu rendering requires menu.read.
+Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS reading requires menu.read. Migration 007 adds menu.availability.manage to OWNER, MANAGER and CASHIER only; it permits Counter flags, not price/configuration writes.
+
+## Input hardening
+
+See [API validation audit](../API_VALIDATION.md). Transport bodies/queries are explicitly constrained, implicit scalar conversion is disabled, DTO errors omit submitted values, and parser failures remain client-safe. Staff mutations revalidate the HTTP session after acquiring the staff transaction lock. Existing password hashing, cookie, mutation-header, role-combination and database constraints remain intact.

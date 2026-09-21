@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-21 — Menu/POS and API hardening
+
+### Added
+
+- Counter-only whole-dish/portion sold-out controls and an explicit operational capability for OWNER/MANAGER/CASHIER (migration 007).
+- Counter read model retaining sold-out cards, immediate local feedback and five-second multi-device polling.
+- Repository-wide API validation audit and strict transport/query contracts, DTO bounds and safe parser errors.
+- Media-cleanup dry-run, removal/deferred counts and immediate compensation for failed upload/file staging.
+
+### Fixed
+
+- Staff create/access HTTP mutations now recheck session validity after transactional waiting.
+- Null active flags, unbounded portion arrays/versions, malformed channel inputs and ignored body/query fields are rejected.
+
+### Verified
+
+- `npm run check` and all 46 PostgreSQL tests pass, including cross-family malformed payloads, concurrent availability, upload/file failures and queued session revocation.
+- Two independent Chromium sessions verify sold-out/restoration propagation, unchanged other-channel prices, image replacement/removal and existing navigation with external requests blocked.
+- Local migration 007 preserved every menu row, all 25 audit entries and the existing uploaded image byte-for-byte. Cleanup dry-run reported zero candidates; no real media was removed.
+- Compression fixture: 545,574-byte JPEG became 100,072-byte normalized WebP (about 82% smaller); actual photo savings vary.
+
 ## 2026-09-21 — Local menu photos and visual POS
 
 ### Added

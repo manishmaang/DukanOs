@@ -37,6 +37,7 @@ import type {
   PriceDto,
   ChannelAvailabilityDto,
   SaveItemDto,
+  CounterAvailabilityDto,
 } from './menu.dto';
 type Actor = Pick<AuthRequest, 'user' | 'sessionHash'>;
 @Injectable()
@@ -86,6 +87,7 @@ export class MenuService {
   private async write<T>(
     actor: Actor,
     work: (client: PoolClient, before: MenuCatalog) => Promise<T>,
+    capability: 'menu.manage' | 'menu.availability.manage' = 'menu.manage',
   ): Promise<T> {
     try {
       return await this.db.transaction(async (client) => {
@@ -103,13 +105,13 @@ export class MenuService {
             message: 'Please sign in again.',
           });
         const permission = await client.query(
-          "SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.role_code=ur.role_code WHERE ur.user_id=$1 AND rp.permission_code='menu.manage'",
-          [actor.user.id],
+          'SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.role_code=ur.role_code WHERE ur.user_id=$1 AND rp.permission_code=$2',
+          [actor.user.id, capability],
         );
         if (!permission.rowCount)
           throw new ForbiddenException({
             code: 'PERMISSION_DENIED',
-            message: 'Menu management permission is required.',
+            message: 'Permission for this menu action is required.',
           });
         return work(client, await readCatalog(client));
       });
@@ -214,29 +216,37 @@ export class MenuService {
   }
   async uploadImage(file: PhotoUpload | undefined, actor: Actor) {
     // Serialize staged writes with menu edits and bound unassigned files per manager.
-    return this.write(actor, async (client) => {
-      const staged = await client.query<{ count: string }>(
-        'SELECT count(*) FROM menu_images m WHERE uploaded_by=$1 AND NOT EXISTS(SELECT 1 FROM menu_items i WHERE i.image_key=m.key)',
-        [actor.user.id],
-      );
-      if (Number(staged.rows[0]!.count) >= 20)
-        menuError(
-          'MENU_IMAGE_LIMIT',
-          'Too many unsaved photos. Save an existing upload or ask the administrator to run media cleanup after 24 hours.',
+    let stagedKey: string | undefined;
+    try {
+      return await this.write(actor, async (client) => {
+        const staged = await client.query<{ count: string }>(
+          'SELECT count(*) FROM menu_images m WHERE uploaded_by=$1 AND NOT EXISTS(SELECT 1 FROM menu_items i WHERE i.image_key=m.key)',
+          [actor.user.id],
         );
-      const image = await this.media.prepare(file);
-      // Persist the file first. A crash can leave an orphan, never a committed missing photo.
-      await client.query(
-        'INSERT INTO menu_images(key,uploaded_by,width,height,byte_size) VALUES ($1,$2,$3,$4,$5)',
-        [image.key, actor.user.id, image.width, image.height, image.byteSize],
-      );
-      return {
-        key: image.key,
-        url: image.url,
-        width: image.width,
-        height: image.height,
-      };
-    });
+        if (Number(staged.rows[0]!.count) >= 20)
+          menuError(
+            'MENU_IMAGE_LIMIT',
+            'Too many unsaved photos. Save an existing upload or ask the administrator to run media cleanup after 24 hours.',
+          );
+        const image = await this.media.prepare(file);
+        stagedKey = image.key;
+        // Persist the file first. A crash can leave an orphan, never a committed missing photo.
+        await client.query(
+          'INSERT INTO menu_images(key,uploaded_by,width,height,byte_size) VALUES ($1,$2,$3,$4,$5)',
+          [image.key, actor.user.id, image.width, image.height, image.byteSize],
+        );
+        return {
+          key: image.key,
+          url: image.url,
+          width: image.width,
+          height: image.height,
+        };
+      });
+    } catch (error) {
+      // Failed staging has no client-visible key; discard only after transaction rollback.
+      if (stagedKey) await this.media.discardUnused(stagedKey);
+      throw error;
+    }
   }
 
   async readImage(key: string, actor: AuthRequest) {
@@ -469,8 +479,69 @@ export class MenuService {
       return this.saveItem(client, actor, item.id, item);
     });
   }
+  async setCounterAvailability(
+    id: string,
+    input: CounterAvailabilityDto,
+    actor: Actor,
+  ) {
+    return this.write(
+      actor,
+      async (client, catalog) => {
+        const item = this.findItem(catalog, id);
+        checkVersion(item.version, input.version);
+        this.active(
+          item.active &&
+            this.category(catalog, item.categoryId).active &&
+            !!catalog.channels.find((c) => c.code === 'COUNTER')?.active,
+        );
+        const targets = input.variantId
+          ? item.variants.filter((v) => v.id === input.variantId)
+          : item.variants.filter(
+              (v) =>
+                v.active && v.channels.some((c) => c.channelCode === 'COUNTER'),
+            );
+        if (!targets.length)
+          menuError(
+            'MENU_VARIANT_INVALID',
+            'Choose an active Counter portion of this dish.',
+          );
+        for (const variant of targets) {
+          this.active(variant.active);
+          if (!variant.channels.some((c) => c.channelCode === 'COUNTER'))
+            menuError(
+              'MENU_PRICE_REQUIRED',
+              'Set a Counter price in Menu before changing availability.',
+            );
+        }
+        await client.query(
+          "UPDATE variant_channel_settings SET available=$2 WHERE channel_code='COUNTER' AND variant_id=ANY($1::uuid[]) AND available IS DISTINCT FROM $2",
+          [targets.map((v) => v.id), input.available],
+        );
+        await this.saveItem(client, actor, item.id, item);
+        return this.operationalCatalog(
+          await readCatalog(client, 'operational'),
+          'COUNTER',
+          true,
+        );
+      },
+      'menu.availability.manage',
+    );
+  }
+  async counter(): Promise<OperationalMenu> {
+    return this.operationalCatalog(
+      await this.catalog('operational'),
+      'COUNTER',
+      true,
+    );
+  }
   async operational(code: string): Promise<OperationalMenu> {
-    const catalog = await this.catalog('operational');
+    return this.operationalCatalog(await this.catalog('operational'), code);
+  }
+  private operationalCatalog(
+    catalog: MenuCatalog,
+    code: string,
+    includeUnavailable = false,
+  ): OperationalMenu {
     const channel = catalog.channels.find((c) => c.code === code);
     if (!channel)
       menuError('MENU_CHANNEL_INVALID', 'Choose a configured sales channel.');
@@ -490,18 +561,25 @@ export class MenuService {
             .filter((i) => i.categoryId === category.id && i.active)
             .map((item) => ({
               id: item.id,
+              version: item.version,
               name: item.name,
               kitchenName: item.kitchenName,
               image: item.image,
               variants: item.variants
                 .filter((v) =>
-                  menuVisibility(item, category.active, channel).variants.some(
-                    (p) => p.id === v.id && p.visible,
-                  ),
+                  includeUnavailable
+                    ? v.active
+                    : menuVisibility(
+                        item,
+                        category.active,
+                        channel,
+                      ).variants.some((p) => p.id === v.id && p.visible),
                 )
                 .flatMap((v) => {
                   const price = v.channels.find(
-                    (c) => c.channelCode === code && c.available,
+                    (c) =>
+                      c.channelCode === code &&
+                      (includeUnavailable || c.available),
                   );
                   return price
                     ? [
@@ -510,6 +588,7 @@ export class MenuService {
                           name: v.name,
                           displayLabel: v.displayLabel,
                           price: price.price,
+                          available: price.available,
                         },
                       ]
                     : [];

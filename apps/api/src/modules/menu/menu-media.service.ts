@@ -90,7 +90,7 @@ export class MenuMediaService {
           fit: 'inside',
           withoutEnlargement: true,
         })
-        .webp({ quality: 82 })
+        .webp({ quality: 82, effort: 4 })
         .toBuffer({ resolveWithObject: true });
       data = result.data;
       width = result.info.width;
@@ -107,8 +107,17 @@ export class MenuMediaService {
     const key = randomUUID();
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const temporary = join(this.directory, key + '.tmp');
-    await writeFile(temporary, data, { flag: 'wx', mode: 0o600 });
-    await rename(temporary, this.path(key));
+    try {
+      await writeFile(temporary, data, { flag: 'wx', mode: 0o600 });
+      await rename(temporary, this.path(key));
+    } catch (error) {
+      await unlink(temporary).catch(() =>
+        this.logger.warn(
+          'Temporary menu photo cleanup deferred; run media:cleanup.',
+        ),
+      );
+      throw error;
+    }
     return { key, url: imageUrl(key), width, height, byteSize: data.length };
   }
   async exists(key: string) {
@@ -139,10 +148,13 @@ export class MenuMediaService {
       });
     }
   }
-  /** The common menu lock and FK row lock prevent deletion while a photo is being attached. */
-  async discardUnused(key: string) {
+  /** The common menu lock and FK row lock prevent deletion while attaching. */
+  async discardUnused(
+    key: string,
+    dryRun = false,
+  ): Promise<'removed' | 'candidate' | 'referenced' | 'deferred'> {
     try {
-      await this.db.transaction(async (client) => {
+      return await this.db.transaction(async (client) => {
         await client.query('SELECT pg_advisory_xact_lock(742019323)');
         await client.query(
           'SELECT key FROM menu_images WHERE key=$1 FOR UPDATE',
@@ -155,25 +167,34 @@ export class MenuMediaService {
             ])
           ).rowCount
         )
-          return;
+          return 'referenced';
+        if (dryRun) return 'candidate';
         await unlink(this.path(key)).catch((e: NodeJS.ErrnoException) => {
           if (e.code !== 'ENOENT') throw e;
         });
         await client.query('DELETE FROM menu_images WHERE key=$1', [key]);
+        return 'removed';
       });
     } catch {
       this.logger.warn(
         'Unused menu photo cleanup deferred; run media:cleanup to retry.',
       );
+      return 'deferred';
     }
   }
-  async cleanup() {
-    // Keep staged uploads for 24 hours so interrupted edits may be retried.
+  async cleanup(dryRun = false) {
+    const report = { dryRun, candidates: 0, removed: 0, deferred: 0 };
+    // Stages remain available for retry for 24 hours. Nothing runs at startup.
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const rows = await this.db.query<{ key: string }>(
       "SELECT key FROM menu_images m WHERE created_at < now()-interval '24 hours' AND NOT EXISTS(SELECT 1 FROM menu_items i WHERE i.image_key=m.key)",
     );
-    for (const row of rows.rows) await this.discardUnused(row.key);
+    for (const row of rows.rows) {
+      const result = await this.discardUnused(row.key, dryRun);
+      if (result !== 'referenced') report.candidates++;
+      if (result === 'removed') report.removed++;
+      if (result === 'deferred') report.deferred++;
+    }
     const files = await readdir(this.directory).catch(
       (e: NodeJS.ErrnoException) => {
         if (e.code === 'ENOENT') return [];
@@ -183,19 +204,35 @@ export class MenuMediaService {
     for (const file of files) {
       const key = file.replace(/\.(webp|tmp)$/, '');
       if (!KEY.test(key) || !/\.(webp|tmp)$/.test(file)) continue;
+      // Avoid counting the same metadata-backed candidate again in a dry run.
+      if (rows.rows.some((row) => row.key === key) && file.endsWith('.webp'))
+        continue;
       const path = join(this.directory, file);
       const info = await stat(path).catch(() => null);
-      if (!info || info.mtimeMs >= cutoff) continue;
-      await this.db.transaction(async (client) => {
-        await client.query('SELECT pg_advisory_xact_lock(742019323)');
-        if (
-          !(await client.query('SELECT 1 FROM menu_images WHERE key=$1', [key]))
-            .rowCount
-        )
-          await unlink(path).catch((e: NodeJS.ErrnoException) => {
-            if (e.code !== 'ENOENT') throw e;
-          });
-      });
+      if (!info?.isFile() || info.mtimeMs >= cutoff) continue;
+      try {
+        await this.db.transaction(async (client) => {
+          await client.query('SELECT pg_advisory_xact_lock(742019323)');
+          if (
+            (
+              await client.query('SELECT 1 FROM menu_images WHERE key=$1', [
+                key,
+              ])
+            ).rowCount
+          )
+            return;
+          report.candidates++;
+          if (!dryRun) {
+            await unlink(path).catch((e: NodeJS.ErrnoException) => {
+              if (e.code !== 'ENOENT') throw e;
+            });
+            report.removed++;
+          }
+        });
+      } catch {
+        report.deferred++;
+      }
     }
+    return report;
   }
 }

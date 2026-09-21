@@ -288,8 +288,8 @@ function DishEditor({
             )}
           </div>
         </div>
-        <aside className="counter-visibility" aria-label="Counter visibility">
-          <strong>Counter / POS visibility</strong>
+        <aside className="counter-visibility" aria-label="Counter availability">
+          <strong>Counter availability</strong>
           {!category?.active ? (
             <p>Activate the category to show this dish.</p>
           ) : !draft.active ? (
@@ -319,7 +319,7 @@ function DishEditor({
                     <li key={v.key}>
                       {v.name || 'Unnamed portion'}:{' '}
                       {counter?.price.trim()
-                        ? 'Counter availability is off.'
+                        ? 'Sold out at Counter; stays visible in POS.'
                         : 'No Counter price configured.'}
                     </li>
                   );

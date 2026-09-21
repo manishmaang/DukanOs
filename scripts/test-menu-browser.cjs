@@ -393,10 +393,153 @@ const { UsersService } = require(
       (await http('POST', '/items', dishBody('Denied', chinese.id))).status,
       403,
     );
+    // Independent browser context: separate cookie jar and no cross-context BroadcastChannel.
+    const connect = async (address) => {
+      const socket = new globalThis.WebSocket(address);
+      await new Promise((r) =>
+        socket.addEventListener('open', r, { once: true }),
+      );
+      let id = 0;
+      const waiting = new Map();
+      const send = (method, params = {}) =>
+        new Promise((resolve, reject) => {
+          const key = ++id;
+          waiting.set(key, { resolve, reject });
+          socket.send(JSON.stringify({ id: key, method, params }));
+        });
+      socket.addEventListener('message', (e) => {
+        const m = JSON.parse(e.data);
+        if (m.id) {
+          const p = waiting.get(m.id);
+          waiting.delete(m.id);
+          if (m.error) p.reject(Error(JSON.stringify(m.error)));
+          else p.resolve(m.result);
+        } else if (m.method === 'Fetch.requestPaused') {
+          const local = m.params.request.url.startsWith(origin);
+          if (!local) external.push(m.params.request.url);
+          void send(
+            local ? 'Fetch.continueRequest' : 'Fetch.failRequest',
+            local
+              ? { requestId: m.params.requestId }
+              : {
+                  requestId: m.params.requestId,
+                  errorReason: 'InternetDisconnected',
+                },
+          );
+        }
+      });
+      return { socket, send };
+    };
+    const browser = await connect(endpoint);
+    let second;
+    let contextId;
+    try {
+      contextId = (await browser.send('Target.createBrowserContext'))
+        .browserContextId;
+      const id = (
+        await browser.send('Target.createTarget', {
+          url: 'about:blank',
+          browserContextId: contextId,
+        })
+      ).targetId;
+      second = await connect(
+        endpoint.replace(/\/devtools\/browser\/.*/, '/devtools/page/' + id),
+      );
+      const send = second.send;
+      const read = async (expression) => {
+        const result = await send('Runtime.evaluate', {
+          expression,
+          awaitPromise: true,
+          returnByValue: true,
+        });
+        if (result.exceptionDetails)
+          throw Error('Second browser evaluation failed');
+        return result.result.value;
+      };
+      const waitSecond = async (expression) => {
+        for (let i = 0; i < 100; i++) {
+          if (await read(expression)) return;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        throw Error(
+          'Second browser state did not propagate: ' +
+            expression +
+            ' PAGE: ' +
+            (await read('document.body.innerText')),
+        );
+      };
+      await send('Runtime.enable');
+      await send('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+      await send('Page.navigate', { url: origin });
+      await waitSecond("!!document.querySelector('input[name=username]')");
+      await read(
+        `(()=>{for(const [name,value] of Object.entries(${JSON.stringify({ username: 'manager', password })})){document.querySelector('input[name='+name+']').value=value;}document.querySelector('form').requestSubmit();})()`,
+      );
+      await waitSecond("!!document.querySelector('nav')");
+      await send('Page.navigate', { url: origin + '/#/pos' });
+      await waitSecond("document.querySelectorAll('.pos-card').length===2");
+      await send('Page.bringToFront');
+      await evaluate(
+        "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).click()",
+      );
+      await wait("document.querySelector('dialog').open");
+      await click('Mark all sold out');
+      await wait(
+        "!document.querySelector('.pos-item-availability').disabled && document.querySelector('.pos-item-availability').textContent==='Make all available'",
+      );
+      await waitSecond(
+        "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).textContent.includes('Sold out')",
+      );
+      assert.equal(
+        await evaluate("document.querySelectorAll('.pos-card').length"),
+        2,
+      );
+      await click('Make all available');
+      await wait(
+        "!document.querySelector('.pos-item-availability').disabled && document.querySelector('.pos-item-availability').textContent==='Mark all sold out'",
+      );
+      await evaluate(
+        'document.querySelector(\'button[aria-label="Half: Mark sold out"]\').click()',
+      );
+      await wait(
+        '!!document.querySelector(\'button[aria-label="Half: Make available"]\')',
+      );
+      assert.ok(
+        await evaluate(
+          '!!document.querySelector(\'button[aria-label="Full: Mark sold out"]\')',
+        ),
+      );
+      await waitSecond(
+        "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).textContent.includes('Some portions sold out')",
+      );
+      await evaluate(
+        'document.querySelector(\'button[aria-label="Half: Make available"]\').click()',
+      );
+      await wait(
+        '!!document.querySelector(\'button[aria-label="Half: Mark sold out"]\')',
+      );
+      assert.equal(
+        (await http('GET', '?channel=SWIGGY')).body.categories
+          .flatMap((c) => c.items)
+          .find((i) => i.name === 'Manchurian').variants[0].price,
+        '350.00',
+      );
+      await click('Close');
+      console.log(
+        'Browser PASS: cashier whole-dish/variant Counter toggles, sold-out restoration and independent manager browser propagation within polling window.',
+      );
+    } finally {
+      second?.socket.close();
+      if (contextId)
+        await browser.send('Target.disposeBrowserContext', {
+          browserContextId: contextId,
+        });
+      browser.socket.close();
+    }
     assert.deepEqual(failures, []);
     assert.deepEqual(external, []);
     console.log(
-      'Browser PASS: owner paused-item diagnostics/reactivation, upload/replace/remove, image rendering/placeholders, Counter-only portions, search/category filtering, fresh item while POS stays open, inactive filtering, Manchurian preserved, cashier read-only, desktop/tablet and zero external requests. Isolated fixtures; real menu unchanged.',
+      'Browser PASS: owner paused-item diagnostics/reactivation, upload/replace/remove, image rendering/placeholders, Counter-only portions, search/category filtering, fresh item while POS stays open, inactive filtering, Manchurian preserved, cashier configuration denial, desktop/tablet and zero external requests. Isolated fixtures; real menu unchanged.',
     );
   } finally {
     if (ws) ws.close();

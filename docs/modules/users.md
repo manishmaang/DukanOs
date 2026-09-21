@@ -14,7 +14,7 @@ Every user has exactly one privileged role (OWNER or MANAGER) OR a nonempty subs
 
 | Role     | Capabilities                                                                                                                                        |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CASHIER  | orders.create, orders.read, payments.collect, menu.read                                                                                             |
+| CASHIER  | orders.create, orders.read, payments.collect, menu.read, menu.availability.manage                                                                   |
 | KITCHEN  | kitchen.read, kitchen.update, menu.read                                                                                                             |
 | DISPATCH | dispatch.read, dispatch.complete                                                                                                                    |
 | MANAGER  | All operational capabilities plus menu.manage, reports.read, payments.refund, orders.cancel, orders.prioritize, credit.adjust, users.password.reset |
@@ -71,4 +71,8 @@ Password hash replacement, user version increment, all target-session deletion, 
 
 ## Menu capabilities
 
-Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS read-only menu rendering requires menu.read.
+Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS reading requires menu.read. Migration 007 adds menu.availability.manage to OWNER, MANAGER and CASHIER only; it permits Counter flags, not price/configuration writes.
+
+## Input hardening
+
+See [API validation audit](../API_VALIDATION.md). Transport bodies/queries are explicitly constrained, implicit scalar conversion is disabled, DTO errors omit submitted values, and parser failures remain client-safe. Staff mutations revalidate the HTTP session after acquiring the staff transaction lock. Existing password hashing, cookie, mutation-header, role-combination and database constraints remain intact.

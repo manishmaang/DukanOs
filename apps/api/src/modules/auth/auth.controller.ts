@@ -1,3 +1,4 @@
+import { JsonInput } from '../../input-boundary';
 import { PasswordManagementService } from '../users/password-management.service';
 import {
   Body,
@@ -30,6 +31,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(200)
+  @JsonInput()
   async login(
     @Body() input: LoginDto,
     @Req() request: AuthRequest,
@@ -52,6 +54,7 @@ export class AuthController {
   }
   @Post('change-password')
   @HttpCode(204)
+  @JsonInput()
   async changePassword(
     @Body() input: ChangePasswordDto,
     @Req() request: AuthRequest,

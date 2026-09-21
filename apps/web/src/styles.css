@@ -708,3 +708,38 @@ small {
     padding: 16px;
   }
 }
+
+.pos-availability {
+  font-size: 0.85rem;
+  color: #526457;
+}
+.pos-card.sold-out {
+  border-color: #bd915e;
+}
+.pos-card.sold-out .menu-photo {
+  opacity: 0.65;
+}
+.pos-card.sold-out .pos-availability {
+  color: #805117;
+  font-weight: 700;
+}
+.pos-variant-availability {
+  display: grid;
+  gap: 6px;
+}
+.pos-variant-availability button,
+.pos-item-availability {
+  min-height: 44px;
+}
+.pos-portions li {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pos-portions li > strong {
+  flex: 1;
+}
+.pos-variant-availability {
+  flex-basis: 100%;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}

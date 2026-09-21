@@ -6,10 +6,16 @@ const {
   MenuMediaService,
 } = require('../apps/api/dist/modules/menu/menu-media.service');
 (async () => {
+  const args = process.argv.slice(2);
+  if (args.some((arg) => arg !== '--dry-run') || args.length > 1)
+    throw new Error('Use only --dry-run.');
   const db = new DatabaseService();
   try {
-    await new MenuMediaService(db).cleanup();
-    console.log('Unreferenced menu media older than 24 hours cleaned.');
+    const report = await new MenuMediaService(db).cleanup(
+      args.includes('--dry-run'),
+    );
+    console.log(JSON.stringify(report));
+    if (report.deferred) process.exitCode = 1;
   } finally {
     await db.onApplicationShutdown();
   }
