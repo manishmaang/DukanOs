@@ -2,6 +2,19 @@
 
 Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation and Kitchen Display System** implemented. Payments and Dispatch actions remain pending.
 
+## MVP checkpoint
+
+The completed MVP is preserved on GitHub as the annotated tag **`v0.1.0-mvp`**, marked on 2026-09-23 at commit `df2d141b11dd8463359dd3509b9cc9415b6c0a8a`. It includes staff authentication/RBAC, menu management and local images, Counter POS ordering, and Kitchen Order/Production views with operational availability and combined portion/dish titles. Dispatch and payments remain future work.
+
+To revisit this exact source version on a separate branch, start with a clean working tree:
+
+```sh
+git fetch origin --tags
+git switch -c restore/mvp v0.1.0-mvp
+```
+
+Keep this tag fixed; use new tags for later milestones. It preserves source code, not PostgreSQL records, uploaded images or local `.env` configuration. Returning to a runnable historical environment also requires compatible database/configuration and upload backups; switching Git versions does not undo migrations. These checkpoint instructions were added after the tagged commit.
+
 ## Requirements
 
 Node.js 22.12+ (tested with 24.13.1), npm, and Docker with Compose. PostgreSQL 16 can also be supplied directly via `DATABASE_URL` instead of Docker.
@@ -50,11 +63,11 @@ Liveness does not require DB availability. Readiness checks connectivity only. S
 
 `apps/api` — NestJS; `apps/web` — React POS/kitchen/dispatch/admin routes; `packages/shared-types` — public contracts; `database/migrations` — SQL; `docs` — persistent project context.
 
-Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC and menu foundation are implemented; Counter order creation is also implemented; the next proposed milestone is Kitchen. Follow the bootstrap phases rather than implementing all domains simultaneously.
+Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC, menu, Counter order creation and Kitchen are implemented; the next proposed milestone is Dispatch. Do not begin it automatically.
 
 ## Internet outages and hosting
 
-Hosting remains undecided. Running the built application and database on a shop server permits LAN access without internet; power and the local network must remain available. Cloud-only hosting needs additional offline execution/synchronization to meet the requirement. The scaffold has no offline order queue or cloud synchronization, and actual order/KDS continuity cannot be verified until those features exist. Hardware, electricity, maintenance and backups determine the eventual cost comparison.
+Hosting remains undecided. Running the built application and database on a shop server permits LAN access without internet; power and the local network must remain available. Cloud-only hosting needs additional offline execution/synchronization to meet the requirement. Counter ordering and Kitchen use local services only; disconnected-browser writes and cloud synchronization are not implemented. Hardware, electricity, maintenance and backups determine the eventual cost comparison.
 
 ## First owner and staff access
 
