@@ -135,3 +135,9 @@ Verification uses PostgreSQL fault injection for failed file rename/unlink and m
 ## Orders boundary
 
 Orders calls Menu application methods on its transaction connection to acquire the common menu lock and resolve Counter sellability. Current authoritative prices are snapshotted only at confirmation; menu edits never rewrite old orders. Price/availability writes and order confirmations serialize. No inventory reservation or provider call is introduced.
+
+## POS portion naming and multi-selection
+
+POS renders the stored variant name as the primary portion label, consistently with cart/order snapshots; it no longer replaces that name with displayLabel. Read-only investigation of the restaurant database and the Counter service projection found FULL / ₹250 with displayLabel SCG-H and HALF / ₹200 with displayLabel SCG-F on soya chap gravy. The API returned each name/label/price on the correct variant UUID. The previous UI preferred displayLabel for the row heading while the Choose button used name, exposing conflicting stored labels. No variant/price IDs were swapped in rendering. The presentation is corrected without rewriting business data or guessing the intended meaning of saved codes; labels remain editable in Menu administration.
+
+The dialog now supports quantities for multiple portions and one batch Add, shared/per-portion kitchen notes, compact sold-out controls, a smaller image and a persistent action footer. See Orders for cart behavior. Menu APIs, pricing, availability enforcement, images and audit semantics are unchanged; no migration is introduced.

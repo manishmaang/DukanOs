@@ -633,31 +633,6 @@ small {
 .pos-card-info small {
   color: #64745f;
 }
-.pos-portions {
-  width: min(440px, calc(100vw - 40px));
-  padding: 24px;
-  border: 1px solid #dce4d9;
-  border-radius: 18px;
-}
-.pos-portions::backdrop {
-  background: #11221899;
-}
-.pos-portions ul {
-  list-style: none;
-  padding: 0;
-}
-.pos-portions li {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid #e2e8de;
-}
-.pos-close {
-  display: block;
-  margin: 0 0 16px auto;
-  min-height: 44px;
-}
 @media (max-width: 600px) {
   .pos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -723,27 +698,6 @@ small {
   color: #805117;
   font-weight: 700;
 }
-.pos-variant-availability {
-  display: grid;
-  gap: 6px;
-}
-.pos-variant-availability button,
-.pos-item-availability {
-  min-height: 44px;
-}
-.pos-portions li {
-  flex-wrap: wrap;
-  align-items: center;
-}
-.pos-portions li > strong {
-  flex: 1;
-}
-.pos-variant-availability {
-  flex-basis: 100%;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-}
-
 .pos-order-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;
@@ -763,12 +717,10 @@ small {
   max-height: 90vh;
   overflow: auto;
 }
-.order-cart button,
-.portion-order button {
+.order-cart button {
   min-height: 44px;
 }
-.order-cart textarea,
-.portion-order textarea {
+.order-cart textarea {
   width: 100%;
   box-sizing: border-box;
   min-height: 60px;
@@ -793,10 +745,6 @@ small {
   font-size: 2rem;
   font-weight: bold;
 }
-.portion-order {
-  display: grid;
-  gap: 0.75rem;
-}
 @media (max-width: 760px) {
   .pos-order-layout {
     grid-template-columns: 1fr;
@@ -806,6 +754,229 @@ small {
     max-height: none;
   }
 }
-.portion-order .cart-quantity input {
-  width: 5rem;
+
+/* Dish selection: bounded dialog with a scrollable body and always-visible action. */
+.pos-portions {
+  width: min(1040px, calc(100vw - 40px));
+  max-width: none;
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  border: 1px solid #dce4d9;
+  border-radius: 18px;
+  color: inherit;
+  overflow: hidden;
+}
+.pos-portions[open] {
+  display: flex;
+  flex-direction: column;
+}
+.pos-portions::backdrop {
+  background: #11221899;
+}
+.selection-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px 12px;
+  flex: none;
+}
+.selection-heading h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.pos-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 28px;
+  background: transparent;
+  color: #20382d;
+  border: 1px solid #dce4d9;
+}
+.portion-content {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(0, 1.35fr);
+  gap: 24px;
+  padding: 0 24px 20px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.portion-aside .menu-photo {
+  width: 100%;
+  height: 210px;
+  aspect-ratio: auto;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.portion-aside p {
+  margin: 8px 0;
+}
+.portion-options {
+  min-width: 0;
+}
+.portion-rows {
+  display: grid;
+  gap: 8px;
+}
+.portion-row {
+  border: 1px solid #dce4d9;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.portion-row.selected {
+  border-color: #63835e;
+  background: #edf4e8;
+  box-shadow: inset 3px 0 #63835e;
+}
+.portion-row.unavailable {
+  background: #f5f3ed;
+}
+.portion-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.portion-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  min-width: 0;
+}
+.portion-name strong {
+  overflow-wrap: anywhere;
+}
+.portion-quantity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.portion-quantity button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 22px;
+}
+.portion-quantity output {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 700;
+}
+.pos-portions .secondary-control {
+  background: transparent;
+  color: #405a48;
+  border: 0;
+  padding: 6px 8px;
+  min-height: 44px;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.portion-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+}
+.portion-row-actions small {
+  color: #526457;
+  margin-right: auto;
+}
+.portion-note,
+.portion-shared-note {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.portion-shared-note {
+  margin-top: 12px;
+}
+.pos-portions textarea {
+  width: 100%;
+  min-height: 54px;
+  padding: 8px;
+  border: 1px solid #a3b4a0;
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+.portion-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: none;
+  padding: 12px 24px;
+  border-top: 1px solid #dce4d9;
+  background: white;
+}
+.portion-summary {
+  font-size: 13px;
+  color: #526457;
+  max-height: 40px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.portion-add {
+  min-height: 48px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+@media (max-width: 800px) {
+  .pos-portions {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .portion-content {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 0 16px 16px;
+  }
+  .portion-aside {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .portion-aside .menu-photo {
+    width: 100px;
+    height: 80px;
+  }
+  .portion-aside p {
+    margin-right: auto;
+  }
+  .selection-heading {
+    padding: 16px;
+  }
+  .portion-footer {
+    padding: 12px 16px;
+  }
+}
+@media (max-width: 480px) {
+  .portion-row-main {
+    gap: 8px;
+  }
+  .portion-name {
+    display: grid;
+    gap: 2px;
+  }
+  .portion-quantity {
+    gap: 4px;
+  }
+  .portion-footer {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .portion-add {
+    width: 100%;
+  }
+  .portion-aside p {
+    display: none;
+  }
 }

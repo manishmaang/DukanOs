@@ -135,3 +135,9 @@
 - Exact paise totals with configurable exclusive tax defaulting to zero; no rupee rounding or payment transactions.
 - POS cart with portions, quantities, kitchen notes, safe confirmation retry and token success state; retained menu photos/availability controls.
 - Confirm/detail/date-token/FIFO list APIs, KITCHEN read capability, transactional and browser regression coverage.
+
+### Changed
+
+- Refined POS dish selection into a 1040px maximum, two-column dialog with compact image, persistent action footer and adaptive tablet layout.
+- Added simultaneous portion quantities, exact live totals and atomic batch cart insertion with shared or optional per-portion notes; retained existing merge and order semantics.
+- Prioritized stored portion names over conflicting display labels; investigated actual SCG-H/F values without altering menu data. Availability actions remain compact secondary controls.

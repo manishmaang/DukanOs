@@ -242,6 +242,7 @@ const { UsersService } = require(
       variants: [
         {
           name: 'Half',
+          displayLabel: 'SCG-F',
           channels: [
             { channelCode: 'COUNTER', price: '200', available: true },
             { channelCode: 'SWIGGY', price: '350', available: true },
@@ -249,6 +250,7 @@ const { UsersService } = require(
         },
         {
           name: 'Full',
+          displayLabel: 'SCG-H',
           channels: [{ channelCode: 'COUNTER', price: '250', available: true }],
         },
       ],
@@ -298,7 +300,7 @@ const { UsersService } = require(
     assert.match(portions, /200/);
     assert.match(portions, /250/);
     assert.doesNotMatch(portions, /350|Swiggy|Zomato/);
-    await click('Close');
+    await evaluate("document.querySelector('.pos-close').click()");
     await fill('.pos-search input', 'missing');
     assert.equal(
       await evaluate("document.querySelectorAll('.pos-card').length"),
@@ -483,9 +485,9 @@ const { UsersService } = require(
         "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).click()",
       );
       await wait("document.querySelector('dialog').open");
-      await click('Mark all sold out');
+      await click('Mark dish sold out');
       await wait(
-        "!document.querySelector('.pos-item-availability').disabled && document.querySelector('.pos-item-availability').textContent==='Make all available'",
+        "!document.querySelector('.pos-item-availability').disabled && document.querySelector('.pos-item-availability').textContent==='Make dish available'",
       );
       await waitSecond(
         "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).textContent.includes('Sold out')",
@@ -494,9 +496,9 @@ const { UsersService } = require(
         await evaluate("document.querySelectorAll('.pos-card').length"),
         2,
       );
-      await click('Make all available');
+      await click('Make dish available');
       await wait(
-        "!document.querySelector('.pos-item-availability').disabled && document.querySelector('.pos-item-availability').textContent==='Mark all sold out'",
+        "!document.querySelector('.pos-item-availability').disabled && document.querySelector('.pos-item-availability').textContent==='Mark dish sold out'",
       );
       await evaluate(
         'document.querySelector(\'button[aria-label="Half: Mark sold out"]\').click()',
@@ -524,36 +526,64 @@ const { UsersService } = require(
           .find((i) => i.name === 'Manchurian').variants[0].price,
         '350.00',
       );
-      await click('Close');
+      await evaluate("document.querySelector('.pos-close').click()");
       console.log(
         'Browser PASS: cashier whole-dish/variant Counter toggles, sold-out restoration and independent manager browser propagation within polling window.',
       );
       // Real cashier interaction: portion, quantity, note, cart edits and confirmation.
       await click('Soya Chaap');
       await evaluate("document.querySelector('.pos-card').click()");
-      await click('Choose Full');
-      await fill('input[aria-label="Portion quantity"]', '2');
-      await fill('.portion-order textarea', 'Extra spicy');
-      await click('Add to Order');
-      await wait("document.querySelectorAll('.cart-line').length===1");
+      assert.equal(
+        await evaluate("document.querySelector('.portion-add').disabled"),
+        true,
+      );
+      await evaluate(
+        `document.querySelector('button[aria-label="Increase Half quantity"]').click()`,
+      );
+      await evaluate(
+        `document.querySelector('button[aria-label="Increase Full quantity"]').click()`,
+      );
+      await fill(
+        'textarea[aria-label="Shared kitchen instruction"]',
+        'Extra spicy',
+      );
+      assert.equal(
+        await evaluate("document.querySelector('.portion-add').textContent"),
+        'Add 2 items · ₹450',
+      );
+      assert.equal(
+        await evaluate(
+          "document.querySelectorAll('.portion-row.selected').length",
+        ),
+        2,
+      );
+      assert.ok(
+        !(
+          await evaluate("document.querySelector('dialog').textContent")
+        ).includes('SCG-'),
+      );
+      await evaluate("document.querySelector('.portion-add').click()");
+      await wait("document.querySelectorAll('.cart-line').length===2");
       await click('All dishes');
       const openManchurian = async () => {
         await evaluate(
           "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).click()",
         );
-        await click('Choose Half');
-        await click('Add to Order');
+        await evaluate(
+          `document.querySelector('button[aria-label="Increase Half quantity"]').click()`,
+        );
+        await evaluate("document.querySelector('.portion-add').click()");
       };
       await openManchurian();
       await evaluate(
-        `document.querySelector('button[aria-label="Increase line 2"]').click()`,
+        `document.querySelector('button[aria-label="Increase line 3"]').click()`,
       );
-      await click('Remove line 2');
+      await click('Remove line 3');
       await openManchurian();
       assert.ok(
         (
           await evaluate("document.querySelector('.order-cart').textContent")
-        ).includes('700'),
+        ).includes('650'),
       );
       await evaluate(
         "(()=>{const b=document.querySelector('.confirm-order');b.click();b.click();})()",
@@ -566,10 +596,13 @@ const { UsersService } = require(
       let placed = (await orderRead()).orders;
       assert.equal(placed.length, 1);
       assert.equal(placed[0].status, 'QUEUED');
-      assert.equal(placed[0].items[0].quantity, 2);
+      assert.equal(placed[0].items[0].quantity, 1);
       assert.equal(placed[0].items[0].instruction, 'Extra spicy');
-      assert.equal(placed[0].items[0].unitPrice, '250.00');
-      assert.equal(placed[0].grandTotal, '700.00');
+      assert.equal(placed[0].items[1].variantName, 'Full');
+      assert.equal(placed[0].items[1].quantity, 1);
+      assert.equal(placed[0].items[1].instruction, 'Extra spicy');
+      assert.equal(placed[0].items[0].unitPrice, '200.00');
+      assert.equal(placed[0].grandTotal, '650.00');
       await click('New Order');
       await openManchurian();
       await click('Confirm Order');
@@ -612,6 +645,192 @@ const { UsersService } = require(
       console.log(
         'Browser PASS: HTTP-LAN-compatible request UUID, lost confirmation response, page reload and safe retry recover token #3 without duplication.',
       );
+      await click('New Order');
+      const longName =
+        'Family Special Vegetable Noodles with Seasonal Greens and Fresh Herbs for Sharing';
+      const createFixture = async (body) =>
+        read(
+          `fetch('/api/menu/items',{method:'POST',headers:{'Content-Type':'application/json','X-DukanOS-Request':'1'},body:${JSON.stringify(JSON.stringify(body))}}).then(async r=>({status:r.status,body:await r.json()}))`,
+        );
+      const many = await createFixture({
+        name: longName,
+        categoryId: chinese.id,
+        variants: ['Regular', 'Half', 'Full', 'Large'].map((name, i) => ({
+          name,
+          channels: [
+            {
+              channelCode: 'COUNTER',
+              price: ['80.50', '120', '180', '240'][i],
+              available: true,
+            },
+          ],
+        })),
+      });
+      assert.equal(many.status, 201);
+      const single = await createFixture({
+        name: 'Spring Roll',
+        categoryId: chinese.id,
+        variants: [
+          {
+            name: 'Standard',
+            channels: [
+              { channelCode: 'COUNTER', price: '120', available: true },
+            ],
+          },
+        ],
+      });
+      assert.equal(single.status, 201);
+      await click('Refresh menu');
+      await wait("document.querySelectorAll('.pos-card').length===4");
+      const openDish = async (name) =>
+        evaluate(
+          `[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes(${JSON.stringify(name)})).click()`,
+        );
+      const increment = async (name) =>
+        evaluate(
+          `document.querySelector('button[aria-label="Increase ${name} quantity"]').click()`,
+        );
+      await command('Emulation.setDeviceMetricsOverride', {
+        width: 1440,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      await openDish(longName);
+      await increment('Regular');
+      await increment('Half');
+      await increment('Full');
+      assert.equal(
+        await evaluate("document.querySelector('.portion-add').textContent"),
+        'Add 3 items · ₹380.5',
+      );
+      await fill(
+        'textarea[aria-label="Shared kitchen instruction"]',
+        'Extra spicy',
+      );
+      await click('Add note for Half');
+      await fill('textarea[aria-label="Half instruction"]', 'No onion');
+      await click('Use shared note for Half');
+      const layout = await evaluate(
+        "(()=>{const d=document.querySelector('dialog'),b=document.querySelector('.portion-content'),a=document.querySelector('.portion-add');return {width:d.getBoundingClientRect().width,height:d.getBoundingClientRect().height,bodyHeight:b.clientHeight,bodyScroll:b.scrollHeight,footerBottom:a.getBoundingClientRect().bottom,viewport:innerHeight,overflow:d.scrollWidth>d.clientWidth};})()",
+      );
+      assert.equal(layout.width, 1040);
+      assert.ok(
+        layout.bodyScroll <= layout.bodyHeight + 1,
+        JSON.stringify(layout),
+      );
+      assert.ok(layout.footerBottom < layout.viewport);
+      assert.equal(layout.overflow, false);
+      let selectionShot = await command('Page.captureScreenshot', {
+        format: 'png',
+      });
+      fs.writeFileSync(
+        '/tmp/dukanos-multi-portion-desktop.png',
+        Buffer.from(selectionShot.data, 'base64'),
+      );
+      await command('Emulation.setDeviceMetricsOverride', {
+        width: 1366,
+        height: 768,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      assert.ok(
+        await evaluate(
+          "(()=>{const b=document.querySelector('.portion-content');return b.scrollHeight<=b.clientHeight+1 && document.querySelector('.portion-add').getBoundingClientRect().bottom<innerHeight;})()",
+        ),
+        'Four default portion controls must fit a 1366×768 desktop',
+      );
+      await command('Emulation.setDeviceMetricsOverride', {
+        width: 768,
+        height: 1024,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      assert.ok(
+        await evaluate(
+          "(()=>{const d=document.querySelector('dialog'),a=document.querySelector('.portion-add');return d.scrollWidth<=d.clientWidth && a.getBoundingClientRect().bottom<innerHeight && document.querySelector('.portion-content').scrollHeight<=document.querySelector('.portion-content').clientHeight+1;})()",
+        ),
+      );
+      selectionShot = await command('Page.captureScreenshot', {
+        format: 'png',
+      });
+      fs.writeFileSync(
+        '/tmp/dukanos-multi-portion-tablet.png',
+        Buffer.from(selectionShot.data, 'base64'),
+      );
+      await click('Add note for Half');
+      await fill('textarea[aria-label="Half instruction"]', 'No onion');
+      await evaluate("document.querySelector('.portion-add').click()");
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        3,
+      );
+      assert.deepEqual(
+        await evaluate(
+          "[...document.querySelectorAll('.cart-line textarea')].map(e=>e.value)",
+        ),
+        ['Extra spicy', 'No onion', 'Extra spicy'],
+      );
+      await openDish('Spring Roll');
+      assert.equal(
+        await evaluate("document.querySelectorAll('.portion-row').length"),
+        1,
+      );
+      await increment('Standard');
+      await evaluate("document.querySelector('.portion-add').click()");
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        4,
+      );
+      await openDish(longName);
+      await increment('Full');
+      await evaluate("document.querySelector('.pos-close').click()");
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        4,
+      );
+      await openDish(longName);
+      assert.equal(
+        await evaluate("document.querySelector('.portion-add').disabled"),
+        true,
+      );
+      await increment('Full');
+      await fill(
+        'textarea[aria-label="Shared kitchen instruction"]',
+        'No vegetables',
+      );
+      await evaluate("document.querySelector('.portion-add').click()");
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        5,
+      );
+      await openDish(longName);
+      await increment('Half');
+      await evaluate(
+        `document.querySelector('button[aria-label="Half: Mark sold out"]').click()`,
+      );
+      await wait(
+        `!!document.querySelector('button[aria-label="Half: Make available"]')`,
+      );
+      assert.equal(
+        await evaluate(
+          `document.querySelector('button[aria-label="Increase Half quantity"]').disabled`,
+        ),
+        true,
+      );
+      assert.equal(
+        await evaluate("document.querySelector('.portion-add').disabled"),
+        true,
+      );
+      await increment('Regular');
+      await evaluate("document.querySelector('.portion-add').click()");
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        6,
+      );
+      console.log(
+        'Browser PASS: four-portion long-name desktop/tablet dialog fits, three selected together with exact total, zero/sold-out excluded, shared/per-portion notes, single portion, prior cart preserved, close discards selection and differently customized lines stay separate.',
+      );
       const finalShot = await command('Page.captureScreenshot', {
         format: 'png',
         captureBeyondViewport: true,
@@ -621,7 +840,7 @@ const { UsersService } = require(
         Buffer.from(finalShot.data, 'base64'),
       );
       console.log(
-        'Browser PASS: CASHIER Soya Full ×2 Extra spicy, second dish quantity/remove/re-add, double click creates one QUEUED order, authoritative snapshots, next token and another-session sold-out rejection.',
+        'Browser PASS: CASHIER Soya Half ×1 + Full ×1 in one Add, Extra spicy, second dish quantity/remove/re-add, double click creates one QUEUED order, authoritative snapshots, next token and another-session sold-out rejection.',
       );
     } finally {
       second?.socket.close();
