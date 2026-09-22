@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-23 — MVP checkpoint
+
+- Marked and pushed fixed annotated tag `v0.1.0-mvp` at `df2d141`, preserving the completed authentication, Menu, Counter Orders and Kitchen stage.
+- Documented the checkpoint, recovery branch command and separate database/upload/configuration backup requirements in README and SYSTEM. The tag remains on the original implementation commit, before this documentation update.
+- Corrected stale README statements about Kitchen implementation and local order/Kitchen operation.
+
 ## 2026-09-22 — Production card titles
 
 - Combined snapshotted portion and item names into one uppercase Production title beside the total; long names wrap independently of the quantity.

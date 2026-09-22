@@ -47,6 +47,8 @@ Channel: source of an order and pricing context. Variant: portion of a menu prod
 
 ## Version control and delivery
 
+The MVP source baseline is the fixed annotated GitHub tag `v0.1.0-mvp`, marked on 2026-09-23 at commit `df2d141b11dd8463359dd3509b9cc9415b6c0a8a`. It includes authentication/RBAC, Menu, Counter Orders and Kitchen through the Production title refinement. Never move or overwrite this checkpoint; give later milestones new tags. See [README checkpoint instructions](../README.md#mvp-checkpoint) to create a recovery branch. Git does not preserve live PostgreSQL data, uploads or local environment configuration, and switching versions does not reverse migrations; compatible backups are separate requirements.
+
 The workspace is initialized as a Git repository. The GitHub remote is `git@github.com:manishmaang/DukanOs.git`. The user has authorized committing and pushing every completed major or minor achievement after relevant checks and documentation updates. Every new module/milestone uses a separate branch created from freshly updated main. Intermediate achievements are pushed to that work branch; completed and verified work is merged back into main with a merge commit and pushed. See AGENTS.md sections 22–23 for the persistent delivery workflow. Never commit local environment secrets or generated/dependency files.
 
 ## Multi-role RBAC requirement (2026-09-12)
