@@ -1,5 +1,6 @@
+import { DishSelection } from './DishSelection';
 import { OrderCart } from './OrderCart';
-import { addLine, cartPaise, type CartLine } from './order-cart';
+import { addLines, cartPaise, type CartLine } from './order-cart';
 import { useEffect, useRef, useState } from 'react';
 import type { OperationalMenu } from '@dukanos/shared-types';
 import { api, ApiFailure, errorMessage } from './api';
@@ -26,10 +27,6 @@ export function MenuPreview({
 }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [orderLocked, setOrderLocked] = useState(false);
-  const [portion, setPortion] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [instruction, setInstruction] = useState('');
-  const [cartError, setCartError] = useState('');
   const [menu, setMenu] = useState<OperationalMenu>();
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -41,7 +38,6 @@ export function MenuPreview({
   const [notice, setNotice] = useState('');
   const changing = useRef(false);
   const sequence = useRef(0);
-  const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     let alive = true;
     const refresh = async () => {
@@ -124,10 +120,6 @@ export function MenuPreview({
   const dish = menu?.categories
     .flatMap((c) => c.items)
     .find((i) => i.id === selected);
-  useEffect(() => {
-    if (dish && !dialog.current?.open) dialog.current?.showModal();
-    else if (!dish) dialog.current?.close();
-  }, [dish]);
   const activeCategory = menu?.categories.some((c) => c.id === category)
     ? category
     : '';
@@ -213,10 +205,7 @@ export function MenuPreview({
                   key={i.id}
                   onClick={() => {
                     setSelected(i.id);
-                    setPortion('');
-                    setQuantity(1);
-                    setInstruction('');
-                    setCartError('');
+                    setActionError('');
                   }}
                 >
                   <MenuPhoto src={i.image?.url} name={i.name} />
@@ -243,161 +232,22 @@ export function MenuPreview({
             </div>
           </section>
         ))}
-        <dialog
-          ref={dialog}
-          className="pos-portions"
-          onCancel={() => setSelected(undefined)}
-          onClose={() => setSelected(undefined)}
-          aria-label={dish ? dish.name + ' portions' : 'Portions'}
-        >
-          {dish && (
-            <>
-              <button
-                className="pos-close"
-                onClick={() => {
-                  dialog.current?.close();
-                  setSelected(undefined);
-                }}
-              >
-                Close
-              </button>
-              <MenuPhoto src={dish.image?.url} name={dish.name} />
-              <h2>{dish.name}</h2>
-              <p>Counter only · Other channels are unchanged</p>
-              {canManageAvailability && (
-                <button
-                  className="pos-item-availability"
-                  disabled={busy}
-                  onClick={() =>
-                    void changeAvailability(
-                      dish,
-                      !dish.variants.some((v) => v.available),
-                    )
-                  }
-                >
-                  {busy
-                    ? 'Saving…'
-                    : dish.variants.some((v) => v.available)
-                      ? 'Mark all sold out'
-                      : 'Make all available'}
-                </button>
-              )}
-              {actionError && <p role="alert">{actionError}</p>}
-              {notice && <p role="status">{notice}</p>}
-              <ul>
-                {dish.variants.map((v) => (
-                  <li key={v.id}>
-                    <strong>{v.displayLabel || v.name}</strong>
-                    {canCreateOrders && (
-                      <button
-                        disabled={!v.available || orderLocked}
-                        aria-pressed={portion === v.id}
-                        onClick={() => setPortion(v.id)}
-                      >
-                        Choose {v.name}
-                      </button>
-                    )}
-                    <span>₹{rupees(v.price)}</span>
-                    <span className="pos-variant-availability">
-                      <small>{v.available ? 'Available' : 'Sold out'}</small>
-                      {canManageAvailability && (
-                        <button
-                          disabled={busy}
-                          aria-label={`${v.name}: ${v.available ? 'Mark sold out' : 'Make available'}`}
-                          onClick={() =>
-                            void changeAvailability(dish, !v.available, v.id)
-                          }
-                        >
-                          {v.available ? 'Mark sold out' : 'Make available'}
-                        </button>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {canCreateOrders && (
-                <div className="portion-order">
-                  <label>
-                    Quantity
-                    <div className="cart-quantity">
-                      <button
-                        aria-label="Decrease portion quantity"
-                        disabled={quantity <= 1}
-                        onClick={() => setQuantity(quantity - 1)}
-                      >
-                        −
-                      </button>
-                      <input
-                        aria-label="Portion quantity"
-                        type="number"
-                        min={1}
-                        max={99}
-                        step={1}
-                        value={quantity}
-                        onChange={(e) => setQuantity(Number(e.target.value))}
-                      />
-                      <button
-                        aria-label="Increase portion quantity"
-                        disabled={quantity >= 99}
-                        onClick={() => setQuantity(quantity + 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </label>
-                  <label>
-                    Kitchen instruction
-                    <textarea
-                      maxLength={500}
-                      value={instruction}
-                      onChange={(e) => setInstruction(e.target.value)}
-                      placeholder="Extra spicy, no onion…"
-                    />
-                  </label>
-                  {cartError && <p role="alert">{cartError}</p>}
-                  <button
-                    disabled={
-                      orderLocked ||
-                      !dish.variants.some(
-                        (v) => v.id === portion && v.available,
-                      ) ||
-                      !Number.isInteger(quantity) ||
-                      quantity < 1 ||
-                      quantity > 99
-                    }
-                    onClick={() => {
-                      const variant = dish.variants.find(
-                        (v) => v.id === portion,
-                      );
-                      if (!variant?.available) return;
-                      try {
-                        setLines(
-                          addLine(lines, {
-                            variantId: variant.id,
-                            itemName: dish.name,
-                            variantName: variant.name,
-                            price: variant.price,
-                            quantity,
-                            instruction,
-                          }),
-                        );
-                        setSelected(undefined);
-                      } catch (e) {
-                        setCartError(
-                          e instanceof Error
-                            ? e.message
-                            : 'Could not add line.',
-                        );
-                      }
-                    }}
-                  >
-                    Add to Order
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </dialog>
+        {dish && (
+          <DishSelection
+            key={dish.id}
+            dish={dish}
+            canCreateOrders={canCreateOrders}
+            canManageAvailability={canManageAvailability}
+            locked={orderLocked}
+            busy={busy}
+            actionError={actionError}
+            onDismiss={() => setSelected(undefined)}
+            onAvailability={(available, variantId) =>
+              void changeAvailability(dish, available, variantId)
+            }
+            onAdd={(additions) => setLines(addLines(lines, additions))}
+          />
+        )}
       </section>
       {canCreateOrders && (
         <OrderCart

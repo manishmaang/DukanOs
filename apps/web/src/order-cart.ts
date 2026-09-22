@@ -56,3 +56,35 @@ export function confirmationId(): string {
   );
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+
+/** Apply the complete dish selection atomically; a failed merge leaves the cart intact. */
+export function addLines(lines: CartLine[], additions: CartLine[]): CartLine[] {
+  return additions.reduce((next, line) => addLine(next, line), lines);
+}
+export function selectionLines(
+  dish: import('@dukanos/shared-types').OperationalMenu['categories'][number]['items'][number],
+  quantities: Record<string, number>,
+  instruction: string,
+  notes: Record<string, string>,
+): CartLine[] {
+  return dish.variants.flatMap((variant) => {
+    const quantity = quantities[variant.id] ?? 0;
+    if (
+      !variant.available ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > 99
+    )
+      return [];
+    return [
+      {
+        variantId: variant.id,
+        itemName: dish.name,
+        variantName: variant.name,
+        price: variant.price,
+        quantity,
+        instruction: (notes[variant.id] ?? instruction).trim(),
+      },
+    ];
+  });
+}
