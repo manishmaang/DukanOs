@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-22 — Compact Kitchen and operational availability
+
+### Changed
+
+- Compact responsive Order/Production grids and small empty sections; Production hides token metadata and combines matching instruction quantities without changing original source associations.
+- Same-day Order cards omit redundant dates; cross-date work remains explicit.
+
+### Added
+
+- Configurable total-age late highlighting, default >=15 minutes, with static red treatment and no FIFO changes.
+- Kitchen Counter Availability search/panel with whole-dish and portion sold-out/restore through existing Menu APIs/audit.
+- Migration 010 grants KITCHEN only the existing menu.availability.manage capability; Zomato/Swiggy and menu administration stay independent.
+- Boundary, permission, audit and browser coverage for density, instruction splits, late/reduced-motion treatment and Kitchen/POS availability synchronization.
+
+### Verified
+
+- `npm run check` passed (10 API unit tests and 10 frontend/helper tests); all 68 PostgreSQL integration tests passed. Kitchen and existing Menu/POS Chromium regressions passed.
+- Migration 010 applied locally: only the requested role permission was added; all other 19 data tables and the image file were unchanged.
+
 ## 2026-09-22 — Kitchen Display System
 
 ### Added

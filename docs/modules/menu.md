@@ -53,7 +53,7 @@ Item/variant/channel mutations return the updated item aggregate, including its 
 
 ## Permissions and concurrency
 
-OWNER/MANAGER: menu.read + menu.manage + menu.availability.manage. CASHIER: menu.read + menu.availability.manage. KITCHEN: menu.read. DISPATCH: neither by default. These are database grants, not hard-coded role authorization. Current permissions are checked by guards and rechecked inside write transactions with session validity. Menu writes serialize under a PostgreSQL transaction advisory lock; expected aggregate versions prevent stale overwrites. Child database triggers increment parent versions. Repeatable-read catalog snapshots prevent mixed read models. Audit inserts are atomic with successful configuration mutations and record actor/time/before/after.
+OWNER/MANAGER: menu.read + menu.manage + menu.availability.manage. CASHIER/KITCHEN: menu.read + menu.availability.manage. DISPATCH: neither by default. These are database grants, not hard-coded role authorization. Current permissions are checked by guards and rechecked inside write transactions with session validity. Menu writes serialize under a PostgreSQL transaction advisory lock; expected aggregate versions prevent stale overwrites. Child database triggers increment parent versions. Repeatable-read catalog snapshots prevent mixed read models. Audit inserts are atomic with successful configuration mutations and record actor/time/before/after.
 
 ## Database tables and dependencies
 
@@ -110,7 +110,7 @@ Refresh occurs on entry, window focus, visibility return, menu-save notification
 
 ## Operational Counter availability
 
-Migration 007 grants menu.availability.manage to OWNER, MANAGER and CASHIER. KITCHEN retains menu.read only: it has no cashier-facing POS workspace and Kitchen has its own Order/Production workspace and does not grant menu administration. DISPATCH gains nothing. Multi-role unions apply normally. The new permission never grants price, configuration, image or other-channel writes.
+Migration 007 grants menu.availability.manage to OWNER, MANAGER and CASHIER. Migration 010 also grants menu.availability.manage to KITCHEN. Pure Kitchen has no cashier-facing POS workspace; its Availability panel operates on the same Counter flags without menu administration. DISPATCH gains nothing. Multi-role unions apply normally. The new permission never grants price, configuration, image or other-channel writes.
 
 `GET /api/menu/counter` (menu.read) returns active categories/dishes/portions with configured Counter prices, including available=false portions. Items include the current aggregate version. Other operational channel reads retain their sellable-only contract.
 
@@ -141,3 +141,7 @@ Orders calls Menu application methods on its transaction connection to acquire t
 POS renders the stored variant name as the primary portion label, consistently with cart/order snapshots; it no longer replaces that name with displayLabel. Read-only investigation of the restaurant database and the Counter service projection found FULL / ₹250 with displayLabel SCG-H and HALF / ₹200 with displayLabel SCG-F on soya chap gravy. The API returned each name/label/price on the correct variant UUID. The previous UI preferred displayLabel for the row heading while the Choose button used name, exposing conflicting stored labels. No variant/price IDs were swapped in rendering. The presentation is corrected without rewriting business data or guessing the intended meaning of saved codes; labels remain editable in Menu administration.
 
 The dialog now supports quantities for multiple portions and one batch Add, independent optional per-portion kitchen notes, compact sold-out controls, a smaller image and a persistent action footer. See Orders for cart behavior. Menu APIs, pricing, availability enforcement, images and audit semantics are unchanged; no migration is introduced.
+
+## Kitchen availability access
+
+Migration 010 grants KITCHEN the existing menu.availability.manage capability. The Kitchen workspace opens a searchable availability-only panel and uses the same Counter read/mutation endpoints, expected item version, transaction and Menu audit as POS. Whole-dish and per-portion sold-out/restore affect Counter only. No new availability state, API or menu.manage grant exists. The panel hides prices/general editing; source menu configuration and all confirmed orders remain unchanged. Independent POS devices refresh within five seconds plus request time, and confirmation always rechecks sellability.

@@ -1,9 +1,11 @@
+import { kitchenConfiguration } from './kitchen-config';
 import { Injectable } from '@nestjs/common';
 import type { KitchenOrder, KitchenState } from '@dukanos/shared-types';
 import { DatabaseService } from '../../database/database.service';
 import { aggregateProduction } from './production';
 @Injectable()
 export class KitchenService {
+  private readonly configuration = kitchenConfiguration();
   constructor(private readonly db: DatabaseService) {}
   state(): Promise<KitchenState> {
     return this.db.transaction(async (c) => {
@@ -25,10 +27,16 @@ export class KitchenService {
       })) as KitchenOrder[];
       const queued = orders.filter((o) => o.status === 'QUEUED');
       const preparing = orders.filter((o) => o.status === 'PREPARING');
-      const time = (await c.query('SELECT clock_timestamp() AS now')).rows[0]
-        .now as Date;
+      const timing = (
+        await c.query<{ now: Date; business_date: string }>(
+          'SELECT t AS now,(t AT TIME ZONE $1)::date::text AS business_date FROM (SELECT clock_timestamp() AS t) stamp',
+          [this.configuration.timezone],
+        )
+      ).rows[0]!;
       return {
-        serverTime: time.toISOString(),
+        serverTime: timing.now.toISOString(),
+        businessDate: timing.business_date,
+        lateThresholdMinutes: this.configuration.lateThresholdMinutes,
         nextOrderId: queued[0]?.orderId ?? null,
         queued,
         preparing,

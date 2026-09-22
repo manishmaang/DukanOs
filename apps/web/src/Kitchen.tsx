@@ -1,3 +1,5 @@
+import { KitchenAvailability } from './KitchenAvailability';
+import { instructionBreakdown, isLate } from './kitchen-presentation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   KitchenOrder,
@@ -49,37 +51,41 @@ function Production({
   label: string;
 }) {
   return (
-    <section className="kds-column" aria-label={label}>
-      <h2>{label}</h2>
-      {!groups.length && <p className="kds-empty">No quantities here.</p>}
-      {groups.map((g) => (
-        <article className="kds-card kds-production" key={g.key}>
-          <h3>{g.kitchenName}</h3>
-          <p className="kds-production-total">
-            {g.variantName} <strong>×{g.totalQuantity}</strong>
-          </p>
-          <p className="kds-source-label">Source tokens</p>
-          <ul>
-            {g.sources.map((s) => (
-              <li key={s.lineId}>
-                <div>
-                  <strong>
-                    #{s.tokenNumber} ×{s.quantity}
-                  </strong>{' '}
-                  <time>{s.businessDate}</time>
-                </div>
-                {s.instruction && (
-                  <p className="kds-instruction">{s.instruction}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </article>
-      ))}
+    <section className="kds-column kds-production-section" aria-label={label}>
+      <h2>
+        {label} <span>{groups.length}</span>
+      </h2>
+      <div className="kds-production-grid">
+        {groups.map((g) => (
+          <article className="kds-card kds-production" key={g.key}>
+            <h3>{g.kitchenName}</h3>
+            <p className="kds-production-total">
+              {g.variantName} <strong>×{g.totalQuantity}</strong>
+            </p>
+            <ul className="kds-breakdown">
+              {instructionBreakdown(g.sources).map((part) => (
+                <li key={part.instruction}>
+                  <span className={part.instruction ? 'kds-exception' : ''}>
+                    {part.instruction || 'Normal'}
+                  </span>
+                  <strong>×{part.quantity}</strong>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
-export function Kitchen({ canUpdate }: { canUpdate: boolean }) {
+export function Kitchen({
+  canUpdate,
+  canManageAvailability,
+}: {
+  canUpdate: boolean;
+  canManageAvailability: boolean;
+}) {
+  const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [state, setState] = useState<KitchenState | null>(null);
   const [mode, setMode] = useState<'orders' | 'production'>('orders');
   const [error, setError] = useState('');
@@ -171,12 +177,16 @@ export function Kitchen({ canUpdate }: { canUpdate: boolean }) {
   }
   // Tick rerenders locally; the clock uses the server sample plus monotonic elapsed time.
   const now = clock.current.server + performance.now() - clock.current.received;
+  const multipleDates = state
+    ? new Set([...state.queued, ...state.preparing].map((o) => o.businessDate))
+        .size > 1
+    : false;
   return (
     <div className="kds">
       <div className="kds-toolbar">
         <div>
           <h1>Kitchen</h1>
-          <p>Oldest token starts first · updates every 2 seconds</p>
+          <p>Oldest token starts first</p>
         </div>
         <div className="kds-modes" role="group" aria-label="Kitchen views">
           <button
@@ -191,11 +201,18 @@ export function Kitchen({ canUpdate }: { canUpdate: boolean }) {
           >
             Production View
           </button>
+          {canManageAvailability && (
+            <button onClick={() => setAvailabilityOpen(true)}>
+              Availability
+            </button>
+          )}
         </div>
       </div>
       {feedback && (
         <p role="status" className="notice">
-          {feedback}
+          {mode === 'production'
+            ? feedback.replace(/^Token #\d+ /, 'Order ')
+            : feedback}
         </p>
       )}
       {error && (
@@ -212,7 +229,7 @@ export function Kitchen({ canUpdate }: { canUpdate: boolean }) {
               Quantities follow whole orders. Start and mark ready in Order
               View.
             </p>
-            <div className="kds-columns">
+            <div className="kds-production-sections">
               <Production groups={state.production.queued} label="To start" />
               <Production
                 groups={state.production.preparing}
@@ -242,58 +259,82 @@ export function Kitchen({ canUpdate }: { canUpdate: boolean }) {
                         : 'No orders in preparation.'}
                     </p>
                   )}
-                  {orders.map((order) => {
-                    const next = state.nextOrderId === order.orderId;
-                    const fresh =
-                      (arrivals.current.get(order.orderId) ?? 0) >
-                      performance.now();
-                    return (
-                      <article
-                        className={`kds-card ${next ? 'kds-next' : ''} ${fresh ? 'kds-new' : ''}`}
-                        key={order.orderId}
-                        data-order-id={order.orderId}
-                      >
-                        <div className="kds-token-row">
-                          <h3 className="kds-token">#{order.tokenNumber}</h3>
-                          {next && <strong className="kds-badge">NEXT</strong>}
-                          {fresh && <span className="kds-badge">NEW</span>}
-                        </div>
-                        <p className="kds-age">
-                          {status === 'QUEUED' ? 'Waiting' : 'Preparing'}{' '}
-                          {duration(
-                            status === 'QUEUED'
-                              ? order.queuedAt
-                              : order.preparingAt!,
-                            now,
+                  <div className="kds-order-grid">
+                    {orders.map((order) => {
+                      const late = isLate(
+                        order.queuedAt,
+                        now,
+                        state.lateThresholdMinutes,
+                      );
+                      const showDate =
+                        order.businessDate !== state.businessDate ||
+                        multipleDates;
+                      const next = state.nextOrderId === order.orderId;
+                      const fresh =
+                        (arrivals.current.get(order.orderId) ?? 0) >
+                        performance.now();
+                      return (
+                        <article
+                          className={`kds-card ${next ? 'kds-next' : ''} ${fresh ? 'kds-new' : ''} ${late ? 'kds-late' : ''}`}
+                          key={order.orderId}
+                          data-order-id={order.orderId}
+                        >
+                          <div className="kds-token-row">
+                            <h3 className="kds-token">#{order.tokenNumber}</h3>
+                            {next && (
+                              <strong className="kds-badge">NEXT</strong>
+                            )}
+                            {fresh && <span className="kds-badge">NEW</span>}
+                            {late && (
+                              <strong className="kds-late-badge">
+                                LATE · {duration(order.queuedAt, now)}
+                              </strong>
+                            )}
+                            <p className="kds-age">
+                              {status === 'QUEUED' ? 'Waiting' : 'Preparing'}{' '}
+                              {duration(
+                                status === 'QUEUED'
+                                  ? order.queuedAt
+                                  : order.preparingAt!,
+                                now,
+                              )}
+                            </p>
+                          </div>
+                          {showDate && (
+                            <time className="kds-date">
+                              {order.businessDate}
+                            </time>
                           )}
-                        </p>
-                        <time className="kds-date">{order.businessDate}</time>
-                        <OrderItems order={order} />
-                        {canUpdate && (
-                          <button
-                            className="kds-action"
-                            disabled={
-                              !!pending || (status === 'QUEUED' && !next)
-                            }
-                            onClick={() => void transition(order)}
-                          >
-                            {pending === order.orderId
-                              ? 'Updating…'
-                              : status === 'PREPARING'
-                                ? 'Mark Ready'
-                                : next
-                                  ? 'Start Order'
-                                  : 'Waiting for older token'}
-                          </button>
-                        )}
-                      </article>
-                    );
-                  })}
+                          <OrderItems order={order} />
+                          {canUpdate && (
+                            <button
+                              className="kds-action"
+                              disabled={
+                                !!pending || (status === 'QUEUED' && !next)
+                              }
+                              onClick={() => void transition(order)}
+                            >
+                              {pending === order.orderId
+                                ? 'Updating…'
+                                : status === 'PREPARING'
+                                  ? 'Mark Ready'
+                                  : next
+                                    ? 'Start Order'
+                                    : 'Waiting for older token'}
+                            </button>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
                 </section>
               );
             })}
           </div>
         ))}
+      {availabilityOpen && canManageAvailability && (
+        <KitchenAvailability onClose={() => setAvailabilityOpen(false)} />
+      )}
     </div>
   );
 }

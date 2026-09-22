@@ -1164,34 +1164,44 @@ small {
   }
 }
 
-/* Kitchen: text and instructions, no financial or image dependencies. */
+/* Kitchen keeps the active work dense without shrinking touch controls. */
 .layout:has(.kds) {
   max-width: 1600px;
+}
+.layout:has(.kds) > header {
+  padding: 8px 0;
+}
+.layout:has(.kds) > nav {
+  margin: 12px 0;
 }
 .kds-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 .kds-toolbar h1 {
-  font-size: 2.2rem;
+  font-size: 1.8rem;
   margin: 0;
 }
-.kds-toolbar p,
+.kds-toolbar p {
+  margin: 4px 0 0;
+  color: #42584e;
+}
 .kds-help {
   color: #42584e;
+  margin: 4px 0 10px;
 }
 .kds-modes {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 .kds-modes button {
-  min-height: 52px;
-  font-size: 1.1rem;
+  min-height: 48px;
+  font-size: 1rem;
   background: white;
   color: #203f32;
   border: 2px solid #476353;
@@ -1200,102 +1210,133 @@ small {
   background: #203f32;
   color: white;
 }
-.kds-columns {
+.kds-columns,
+.kds-production-sections {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  align-items: start;
+  gap: 14px;
 }
 .kds-column {
   min-width: 0;
+  min-height: 0;
   background: #ecf0ea;
-  padding: 18px;
-  border-radius: 14px;
+  padding: 12px;
+  border-radius: 10px;
 }
 .kds-column > h2 {
   display: flex;
-  justify-content: space-between;
-  margin: 0 0 18px;
-  font-size: 1.7rem;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 1.2rem;
 }
-.kds-preparing {
+.kds-column > h2 span {
+  font-size: 1rem;
+  font-weight: 500;
+}
+.kds-column:has(.kds-production-grid:empty) > h2 {
+  margin: 0;
+}
+.kds-preparing,
+.kds-production-section[aria-label='In preparation'] {
   background: #e8eef7;
 }
+.kds-order-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.kds-production-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
 .kds-card {
+  min-width: 0;
   background: white;
   border: 2px solid #bac9bd;
-  border-radius: 12px;
-  padding: 22px;
-  margin-bottom: 18px;
+  border-radius: 9px;
+  padding: 12px;
   overflow-wrap: anywhere;
 }
+.kds-order-grid .kds-card {
+  display: flex;
+  flex-direction: column;
+}
 .kds-next {
-  border: 3px solid #28613d;
+  border-color: #28613d;
 }
 .kds-new {
-  box-shadow: 0 0 0 4px #edbd3f;
+  box-shadow: 0 0 0 2px #d8ad2f;
 }
 .kds-token-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .kds-token-row .kds-token {
-  font-size: 3.2rem;
+  font-size: 2.1rem;
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 .kds-badge {
   background: #245436;
   color: white;
-  border-radius: 6px;
-  padding: 6px 12px;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 .kds-age {
-  font-size: 1.3rem;
-  font-weight: 700;
-  margin: 10px 0 2px;
+  margin: 0 0 0 auto;
+  font-size: 0.95rem;
+  font-weight: 650;
 }
-.kds-date,
-.kds-production time {
-  font-size: 0.9rem;
+.kds-date {
+  font-size: 0.8rem;
   color: #4d5e54;
+  margin-top: 4px;
 }
 .kds-dish {
-  border-top: 1px solid #cdd7cf;
-  margin-top: 18px;
-  padding-top: 14px;
+  border-top: 1px solid #dbe2dd;
+  margin-top: 8px;
+  padding-top: 8px;
 }
 .kds-dish h3,
 .kds-production h3 {
-  font-size: 1.5rem;
-  margin: 0 0 10px;
+  font-size: 1.15rem;
+  line-height: 1.3;
+  margin: 0 0 4px;
 }
 .kds-line {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 .kds-line > p {
-  font-size: 1.35rem;
-  margin: 6px 0;
+  font-size: 1.1rem;
+  line-height: 1.35;
+  margin: 3px 0;
 }
 .kds .kds-instruction {
   color: #721b0b;
   background: #fff1c5;
-  border-left: 5px solid #a24616;
-  padding: 10px 12px;
-  font-size: 1.25rem;
-  font-weight: 750;
+  border-left: 4px solid #a24616;
+  padding: 5px 8px;
+  font-size: 1rem;
+  font-weight: 700;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  margin: 8px 0;
+  margin: 4px 0;
+}
+.kds-lines {
+  margin-bottom: 8px;
 }
 .kds-action {
   width: 100%;
-  min-height: 60px;
-  margin-top: 16px;
-  font-size: 1.3rem;
+  min-height: 48px;
+  margin-top: auto;
+  padding: 8px;
+  font-size: 1.05rem;
   font-weight: 700;
 }
 .kds-action:disabled {
@@ -1304,43 +1345,143 @@ small {
   opacity: 1;
 }
 .kds-empty {
-  padding: 20px 4px;
-  font-size: 1.2rem;
+  margin: 0;
+  font-size: 1rem;
 }
 .kds-production-total {
-  font-size: 1.8rem;
+  font-size: 1.1rem;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin: 12px 0;
+  gap: 8px;
+  margin: 4px 0;
 }
 .kds-production-total strong {
   font-size: 2.2rem;
+  line-height: 1.15;
 }
-.kds-source-label {
-  font-weight: 700;
-}
-.kds-production ul {
+.kds-breakdown {
   list-style: none;
-  margin: 0;
+  margin: 8px 0 0;
   padding: 0;
 }
-.kds-production li {
-  border-top: 1px solid #d3dbd5;
-  padding: 12px 0;
-  font-size: 1.25rem;
+.kds-breakdown:empty {
+  display: none;
 }
-.kds-production li > div {
+.kds-breakdown li {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 1rem;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+.kds-breakdown li strong {
+  flex-shrink: 0;
+}
+.kds-exception {
+  color: #721b0b;
+  font-weight: 650;
+}
+/* Static treatment: attention without flashing, including reduced-motion mode. */
+.kds-late {
+  border-color: #b32e22;
+  background: #fff3f0;
+  box-shadow: 0 0 0 1px #b32e22;
+}
+.kds-late-badge {
+  background: #a02418;
+  color: white;
+  padding: 4px 7px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.kds-availability {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  border: 1px solid #aabbad;
+  border-radius: 12px;
+  padding: 20px;
+  color: #20382d;
+  overflow: auto;
+}
+.kds-availability::backdrop {
+  background: #13281dcc;
+}
+.availability-header,
+.availability-dish-heading {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-@media (max-width: 900px) {
-  .kds-columns {
+.availability-header h2 {
+  margin: 0;
+}
+.kds-availability > p {
+  margin: 8px 0;
+}
+.kds-availability input {
+  width: 100%;
+}
+.availability-list {
+  margin-top: 14px;
+}
+.availability-dish {
+  border-top: 1px solid #b8c9bd;
+  padding: 12px 0;
+}
+.availability-dish h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.availability-portion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.kds-availability button {
+  min-height: 44px;
+}
+.availability-sold {
+  color: #9c281b;
+  font-weight: 700;
+}
+@media (max-width: 1399px) {
+  .kds-production-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1179px) {
+  .kds-order-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 999px) {
+  .kds-production-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 699px) {
+  .kds-order-grid {
     grid-template-columns: 1fr;
   }
-  .kds-card {
-    padding: 18px;
+}
+@media (max-width: 599px) {
+  .kds-production-grid {
+    grid-template-columns: 1fr;
+  }
+  .availability-dish-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .availability-portion {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .availability-portion button {
+    grid-column: 1/-1;
   }
 }

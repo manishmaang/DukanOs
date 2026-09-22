@@ -192,6 +192,9 @@ function App() {
                       <Kitchen
                         key={user.id}
                         canUpdate={user.permissions.includes('kitchen.update')}
+                        canManageAvailability={user.permissions.includes(
+                          'menu.availability.manage',
+                        )}
                       />
                     ) : link.path === '/menu' ? (
                       <MenuAdmin />

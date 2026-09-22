@@ -63,3 +63,7 @@ See [API validation audit](../API_VALIDATION.md). Transport bodies/queries are e
 ## Orders Core integration
 
 Orders endpoints use existing orders.create/read guards and confirmation rechecks current permission/session after locking. OWNER/MANAGER/CASHIER create orders. Migration 008 grants orders.read to KITCHEN without creation permission.
+
+## Kitchen availability capability
+
+Migration 010 grants menu.availability.manage to KITCHEN through role_permissions. Effective permissions remain live unions; no role/session format changes or menu.manage grant. Existing sessions see the grant on their next request; UI context refreshes on focus/every 30 seconds. Menu's backend checks remain authoritative for Kitchen sold-out/restore requests.
