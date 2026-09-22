@@ -2,11 +2,11 @@
 
 ## Purpose and current implementation
 
-Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. No draft rows, payments, customers, kitchen actions, cancellations or amendments are exposed yet.
+Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. Kitchen START/READY is implemented through Orders-owned lifecycle commands. No draft rows, payments, customers, cancellations or amendments are exposed yet.
 
 ## Lifecycle and immutability
 
-Policy: DRAFT → QUEUED → PREPARING → READY → COMPLETED. DRAFT/QUEUED may transition to CANCELLED in a future authorized cancellation workflow; PREPARING cancellation requires a separate business decision. Terminal states have no outgoing transitions. This milestone implements only DRAFT → QUEUED. PostgreSQL blocks updates/deletes of confirmed orders, items and history, and blocks later item/history appends. Kitchen must replace the order update guard with tightly validated, audited lifecycle transitions in a new migration; it must preserve financial/item immutability. There is deliberately no generic status PATCH API.
+Policy: DRAFT → QUEUED → PREPARING → READY → COMPLETED. DRAFT/QUEUED may transition to CANCELLED in a future authorized cancellation workflow; PREPARING cancellation requires a separate business decision. Terminal states have no outgoing transitions. Implemented transitions are DRAFT → QUEUED → PREPARING → READY. Migration 009 permits only audited Kitchen START/READY after confirmation, using append-only history to apply status atomically. Financial snapshots and all item fields remain immutable; later item appends and history rewrites remain forbidden. There is no generic status PATCH, cancellation or completion API yet. See [Kitchen](kitchen.md) for FIFO, locking and transition errors.
 
 ## Confirmation and concurrency
 
@@ -46,13 +46,13 @@ All routes below have /api prefix and normal authenticated session/mutation-head
 | GET /orders/tokens/:date/:token                              | orders.read   | Exact business-date/token lookup                                   |
 | GET /orders?status=QUEUED&businessDate=YYYY-MM-DD&after=UUID | orders.read   | `{orders,nextCursor}`, 100 results in queued_at/id ascending order |
 
-List filters are optional; omit businessDate for pending work spanning midnight. Pass nextCursor as after with the same filters for the next page. Current statuses are QUEUED only; other lifecycle values are reserved in the policy/schema. No history mutation API is exposed. Public shared contracts contain no request fingerprint or persistence credentials.
+List filters are optional; omit businessDate for pending work spanning midnight. Pass nextCursor as after with the same filters for the next page. Current persisted statuses are QUEUED, PREPARING and READY; later lifecycle values remain reserved. No history mutation API is exposed. Public shared contracts contain no request fingerprint or persistence credentials.
 
-OWNER/MANAGER/CASHIER already have orders.create/read. Migration 008 additionally grants orders.read to KITCHEN for the next queue consumer, without order creation, menu administration or Kitchen UI actions. DISPATCH order reading remains deferred. Multi-role unions work normally.
+OWNER/MANAGER/CASHIER already have orders.create/read. Migration 008 additionally grants orders.read to KITCHEN for the next queue consumer, without order creation or menu administration. Existing kitchen.read/update grants authorize the implemented Kitchen workspace/actions. DISPATCH order reading remains deferred. Multi-role unions work normally.
 
-## Future KDS contract
+## Kitchen boundary
 
-GET /api/orders?status=QUEUED returns source, order UUID, businessDate, tokenNumber, queuedAt (waiting-duration basis), confirmedBy and item UUID/menu IDs, snapshotted item/kitchen/variant names, quantities and plain kitchen instructions. Sort is queued_at ASC,id ASC with a cursor, across dates by default. Build lifecycle commands/history around Orders rather than writing tables from Kitchen. No Socket.IO/event delivery, prioritization, kitchen aggregation or KDS UI exists yet.
+Kitchen consumes operational-only projections via GET /api/kitchen/orders and /production, with no financial fields. Orders exports OrderLifecycleService for explicit START/READY commands. A transaction sharing confirmation's advisory lock enforces FIFO, locks/rechecks actor session and capability, validates canTransition and appends actor/time/reason history. Database triggers independently enforce FIFO and apply status without permitting financial changes. Preparing time is derived from history. Kitchen polls the combined read snapshot every two seconds and refetches after actions/reconnect. Generic order read endpoints remain available with their existing financial contracts; Kitchen UI uses its dedicated projections. See [Kitchen](kitchen.md).
 
 ## Verification
 

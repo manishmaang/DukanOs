@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-22 — Kitchen Display System
+
+### Added
+
+- Large-text Kitchen Order/Production views, FIFO NEXT/START, audited READY, live local timers and new-token highlighting.
+- Operational-only read APIs and server-derived queued/preparing production totals with every source line and instruction retained.
+- Migration 009: history-driven lifecycle transitions, unique destinations and FIFO enforcement; existing records and financial snapshots preserved.
+- Two-second local state polling, action/conflict/reconnect recovery, stale-action suppression and multi-role workspace switching.
+- PostgreSQL concurrency/migration/permission tests and an isolated multi-device Chromium scenario (`test:kitchen-browser`).
+
+### Verified
+
+- `npm run check` passed (9 API unit tests, 8 frontend/helper tests); all 68 PostgreSQL tests passed.
+- Existing Menu/POS Chromium regression and Kitchen multi-device/browser scenarios passed with external requests blocked.
+- Applied migration 009 locally; before/after digests confirmed all 20 existing data tables and the existing image file unchanged.
+
 ## 2026-09-21 — Menu/POS and API hardening
 
 ### Added

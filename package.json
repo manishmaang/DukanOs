@@ -26,7 +26,8 @@
     "test:integration": "npm run build -w @dukanos/api && node --env-file=.env --test apps/api/test/integration/*.test.cjs",
     "auth:reset-owner": "npm run build -w @dukanos/api && node --env-file=.env scripts/reset-owner.cjs",
     "media:cleanup": "npm run build -w @dukanos/api && node --env-file=.env scripts/cleanup-menu-media.cjs",
-    "test:menu-browser": "npm run build && node --env-file=.env scripts/test-menu-browser.cjs"
+    "test:menu-browser": "npm run build && node --env-file=.env scripts/test-menu-browser.cjs",
+    "test:kitchen-browser": "npm run build && node --env-file=.env scripts/test-kitchen-browser.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

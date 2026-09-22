@@ -38,3 +38,7 @@ This is an input and obvious-protection audit, not a penetration test. Existing 
 ## Orders Core
 
 POST /orders/counter: JSON ConfirmOrderDto, UUIDv4 requestId, 1–100 nested lines, UUIDv4 variantId, integer quantity 1–99, optional nonnull plain instruction ≤500 characters. No supplied price/status/tax/source fields accepted. GET /orders accepts only optional status enum, calendar businessDate and UUIDv4 after cursor; result bounded to 100. GET /orders/:id uses UUIDv4 pipe; token route validates calendar date and positive PostgreSQL integer token. GET /orders/configuration is body/query-free. Normal auth/CSRF/capabilities and sanitized errors apply. ITEM_NOT_AVAILABLE includes affected line in safe plain text; no error metadata passthrough was added.
+
+## Kitchen
+
+GET /kitchen/orders and /kitchen/production accept no body or query and require kitchen.read. POST /kitchen/orders/:id/start and /ready accept no body/query (even `{}` is rejected), validate UUIDv4, require kitchen.update and the mutation header, and revalidate session/capability after transaction-lock waiting. Dedicated operations cannot accept arbitrary status or financial changes. Stale/FIFO conflicts return specific 409 business errors and cause frontend authoritative refetch. Read models contain operational snapshots only.

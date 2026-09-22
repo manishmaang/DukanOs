@@ -1,32 +1,60 @@
-# Kitchen
+# Kitchen Display System
 
-## Purpose
+## Purpose and current implementation
 
-Present digital queue and traceable production requirements.
+Kitchen has an Order View and a read-only Production View at `/#/kitchen`. It consumes immutable sale-time order lines, enforces FIFO acceptance and performs QUEUED → PREPARING → READY through Orders-owned commands. It needs only the restaurant server, PostgreSQL and LAN, without external assets/services or menu images.
 
-## Current implementation
+## Order View
 
-Domain functionality is not implemented. The web app contains a placeholder route only. No domain APIs, migrations, or events exist for this module.
+Separate Queued and Preparing columns show large tokens, business dates (tokens repeat across dates), kitchen-name/variant snapshots, quantities and prominent plain-text instructions. Empty instructions render nothing. Same-dish lines are visually grouped; each portion/customization retains its own line. Kitchen display names fall back to item names at confirmation, not at read time.
 
-## Intended business rules
+Both lists sort queued_at ASC, order UUID ASC, across all business dates. The oldest QUEUED order is marked NEXT; only its Start Order is enabled. Starting moves the whole order to Preparing and enables the next token, permitting parallel cooking after FIFO acceptance. Mark Ready removes an order from active Kitchen. There is no arbitrary status editor or full Dispatch workflow.
 
-- Default FIFO ordered by queue timestamp and stable order ID; explicit priority needs actor, time, permission and reason.
-- Main actions START (QUEUED → PREPARING) and READY (PREPARING → READY).
-- Production groups by product/variant and retains per-order quantities and customization references.
-- Reconnecting screens must refresh authoritative state; paper is optional.
+Waiting time measures elapsed time since queued_at. Preparing time measures elapsed time since the PREPARING history entry. The browser samples serverTime and advances a monotonic local timer; it does not fetch every second just for the display. New queued arrivals receive an eight-second NEW highlight; initial page loading is not treated as a new arrival. No sound is required. Controls are at least 60px high; desktop uses two columns and widths ≤900px stack without shrinking the text.
 
-## Proposed entities / database tables
+## Production View
 
-Projection over orders/items; audited priority records. These are design candidates, not current schema. See [DATABASE](../DATABASE.md).
+The backend derives both views from one repeatable-read snapshot. TO START includes only QUEUED lines; IN PREPARATION includes only PREPARING lines. A transition moves **all** lines of an order between sections. READY/COMPLETED/CANCELLED never contribute. Production has no state-changing buttons; use Order View.
 
-## Dependencies
+Aggregate key: menu item UUID + variant UUID + snapshotted item name + snapshotted kitchen name + snapshotted variant name. IDs prevent distinct products with identical labels from collapsing; snapshots keep renamed versions separate. Prices are neither selected nor exposed. Traverse FIFO-ordered orders and position-ordered lines, retaining first-seen group order: earliest source is the primary urgency, order UUID and line position resolve ties. No current Menu lookup is involved.
 
-Orders owns lifecycle and item history; future Socket.IO application notifications.
+Each group has totalQuantity, earliestQueuedAt and sources containing orderId, lineId, businessDate, tokenNumber, quantity, instruction and queuedAt. Every original line remains a source, even when two lines share the same token/portion. Prominent instructions accompany each source quantity. A blank instruction consumes no note space; its source quantity still appears. Totals never replace the source breakdown or merge customizations away.
 
-## Pending work
+## APIs and permissions
 
-Queue APIs, large readable KDS, transition/aggregation/concurrency tests, reconnect behavior and WAN-outage verification.
+All routes use `/api`, normal live session authentication, no-store responses and existing permission unions.
 
-## Orders Core integration
+| Route                          | Permission     | Contract                                                                                        |
+| ------------------------------ | -------------- | ----------------------------------------------------------------------------------------------- |
+| GET /kitchen/orders            | kitchen.read   | KitchenState: serverTime, nextOrderId, queued[], preparing[], production {queued[],preparing[]} |
+| GET /kitchen/production        | kitchen.read   | serverTime and queued[]/preparing[] production groups                                           |
+| POST /kitchen/orders/:id/start | kitchen.update | QUEUED → PREPARING; 200 KitchenTransitionResult                                                 |
+| POST /kitchen/orders/:id/ready | kitchen.update | PREPARING → READY; 200 KitchenTransitionResult                                                  |
 
-Orders Core is now available: GET /api/orders?status=QUEUED returns date/token, queuedAt, actor and snapshotted item/kitchen/variant names, quantities and instructions, sorted queued_at/id ascending with cursor paging. Omit date to include yesterday’s pending orders. KITCHEN has orders.read. No KDS UI/actions/events exist yet. The next milestone must implement audited Orders lifecycle commands and a migration replacing the current confirmed-order update guard; retain financial and line immutability.
+All four routes reject query fields and request bodies, including `{}` on transitions. IDs must be UUIDv4. Mutations require X-DukanOS-Request: 1. Results expose operational snapshots only, no prices, taxes, payment information or request fingerprints. Contracts are in packages/shared-types/src/kitchen.ts.
+
+Existing grants already give OWNER/MANAGER/KITCHEN kitchen.read and kitchen.update; no permission changes are required. CASHIER alone cannot access Kitchen or transitions; CASHIER+KITCHEN can switch POS/Kitchen without logout. Backend permission/session checks are authoritative; no role-name checks determine actions.
+
+## Transactions, FIFO and history
+
+KitchenController delegates START/READY to Orders' OrderLifecycleService. Its transaction acquires advisory lock 742019323, then actor user/session locks, then the order lock. It rechecks active session and kitchen.update after waiting, validates the existing state policy and checks the oldest queued ID before START. This is the same serialization boundary as Counter confirmation and menu writes: no earlier uncommitted confirmation can appear behind an already-started token. Transactions stay local and short.
+
+The service inserts one actor/time/reason history entry. Migration 009 independently validates FIFO/current state in a history insert trigger and atomically applies status in an AFTER trigger. A unique order/destination index prevents duplicate lifecycle entries. The order update guard allows only the two implemented transitions backed by history and rejects every other column change. Item/history updates and deletes, late item appends and order deletes remain forbidden. Preparing time is derived from history; no redundant timestamp columns or Kitchen tables are added. Existing records require no backfill/reset.
+
+A stale duplicate START returns ORDER_ALREADY_STARTED; duplicate READY returns ORDER_ALREADY_READY; a wrong state returns INVALID_ORDER_TRANSITION; skipping the next token returns OLDER_ORDER_WAITING (409). Unknown orders return ORDER_NOT_FOUND. Failed transactions roll back both status and history. A retry after a lost success may return a conflict; refetch reveals the committed state without duplicating history. Timestamps never precede the prior order history timestamp, even if server clock correction moves backward.
+
+## Freshness and recovery
+
+There was no existing socket server. This MVP uses non-overlapping two-second visible-page polling of the combined authoritative read model, immediate refresh after every action (including conflicts), and refresh on focus, visibility return and browser online events. Both modes switch immediately within the same snapshot; aggregation is not recomputed in the browser. Local elapsed-time rendering runs independently every second. Response sequencing prevents old reads overwriting a newer action result.
+
+Healthy cross-device propagation is about two seconds plus request time, not guaranteed instantaneous delivery. Requests time out after ten seconds through the shared API helper. On read failure, clear the stale actionable queue, show connection feedback and continue recovery polling. No queued offline writes or automatic transition retries exist. Reconnection always refetches PostgreSQL-backed state; there is no event-replay assumption, event bus, Socket.IO, Redis or cloud service. See decision 012.
+
+## Verification
+
+PostgreSQL tests cover migration of populated Orders Core, FIFO/UUID ties/previous-day work, concurrent START and READY, strict input and RBAC, session revocation during lock waiting, status/history rollback, immutable financials and snapshots, production source totals and independent instructions. Unit coverage tests grouping identity and exception preservation.
+
+`npm run test:kitchen-browser` (CHROME_BINARY required) uses isolated PostgreSQL fixtures and independent Chromium cookie jars. It creates the specified three orders through CASHIER POS, verifies totals 3+3, source instructions, NEXT, START/READY, stale-device conflict, connection loss/recovery, multi-role switching and tablet layout. External requests are blocked. This is local-browser verification, not a physical router-disconnection exercise.
+
+## Current limitations and pending work
+
+Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch/completion, sound, printing, payments, amendments and cancellation remain separate future milestones.

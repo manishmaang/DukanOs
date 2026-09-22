@@ -52,3 +52,5 @@ export interface PasswordResetTarget {
 
 export type * from './menu';
 export type * from './orders';
+
+export type * from './kitchen';
