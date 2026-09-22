@@ -15,7 +15,7 @@ Every user has exactly one privileged role (OWNER or MANAGER) OR a nonempty subs
 | Role     | Capabilities                                                                                                                                        |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | CASHIER  | orders.create, orders.read, payments.collect, menu.read, menu.availability.manage                                                                   |
-| KITCHEN  | kitchen.read, kitchen.update, menu.read                                                                                                             |
+| KITCHEN  | kitchen.read, kitchen.update, menu.read, orders.read, menu.availability.manage                                                                      |
 | DISPATCH | dispatch.read, dispatch.complete                                                                                                                    |
 | MANAGER  | All operational capabilities plus menu.manage, reports.read, payments.refund, orders.cancel, orders.prioritize, credit.adjust, users.password.reset |
 | OWNER    | All MANAGER capabilities plus users.manage                                                                                                          |
@@ -71,7 +71,7 @@ Password hash replacement, user version increment, all target-session deletion, 
 
 ## Menu capabilities
 
-Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS reading requires menu.read. Migration 007 adds menu.availability.manage to OWNER, MANAGER and CASHIER only; it permits Counter flags, not price/configuration writes.
+Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing menu.manage remains granted to OWNER and MANAGER. DISPATCH has neither by default. Multi-role permission unions and current-session checks apply unchanged. Menu administration uses capability guards and rechecks menu.manage inside its transaction; POS reading requires menu.read. Migration 007 grants menu.availability.manage to OWNER, MANAGER and CASHIER; migration 010 adds KITCHEN; it permits Counter flags, not price/configuration writes.
 
 ## Input hardening
 
@@ -79,4 +79,4 @@ See [API validation audit](../API_VALIDATION.md). Transport bodies/queries are e
 
 ## Orders Core integration
 
-Migration 008 grants KITCHEN orders.read for the future queue consumer. It does not grant orders.create. Existing OWNER/MANAGER/CASHIER order capabilities remain unchanged.
+Migration 008 grants KITCHEN orders.read for the Kitchen queue consumer. It does not grant orders.create. Existing OWNER/MANAGER/CASHIER order capabilities remain unchanged.

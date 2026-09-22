@@ -78,3 +78,7 @@ OrdersModule imports MenuModule and shares the confirmation transaction connecti
 ## Kitchen boundary
 
 KitchenModule imports OrdersModule for explicit lifecycle commands. It exposes one combined read snapshot for instant Order/Production mode switching and a separate production endpoint. Both use repeatable-read PostgreSQL projections without Menu joins or financial fields. Production aggregation is a pure tested backend function. The existing React router/capability navigation hosts Kitchen.tsx; no new UI or networking dependencies are required. Migration 009 makes history the atomic driver of status while keeping every financial/item field immutable. Confirmation and Kitchen transitions share advisory lock 742019323, then user/session/order locks, to serialize FIFO decisions with queue insertion.
+
+## Kitchen usability and availability
+
+KitchenState adds validated server-configured lateThresholdMinutes and restaurant businessDate; existing source/production contracts remain intact. The browser derives only whitespace-normalized instruction display totals from source lines, without changing domain grouping or original notes. The Kitchen Availability modal calls existing Menu endpoints directly under menu.availability.manage and shares POS's notification/polling strategy. No new availability service, settings module, event transport or state machine is introduced.

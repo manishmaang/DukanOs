@@ -60,3 +60,19 @@ test('production preserves source lines and snapshot identity, quantity and earl
   assert.equal(distinct[0].itemName, 'Noodles');
   assert.deepEqual(aggregateProduction([]), []);
 });
+
+test('Kitchen threshold has one validated default and configurable source', () => {
+  const {
+    kitchenConfiguration,
+  } = require('../dist/modules/kitchen/kitchen-config');
+  assert.equal(kitchenConfiguration({}).lateThresholdMinutes, 15);
+  assert.equal(
+    kitchenConfiguration({ KITCHEN_LATE_THRESHOLD_MINUTES: '20' })
+      .lateThresholdMinutes,
+    20,
+  );
+  for (const value of ['0', '-1', '1.5', '1441', 'abc', ''])
+    assert.throws(() =>
+      kitchenConfiguration({ KITCHEN_LATE_THRESHOLD_MINUTES: value }),
+    );
+});

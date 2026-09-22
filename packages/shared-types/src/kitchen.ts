@@ -42,6 +42,8 @@ export interface KitchenProduction {
 }
 export interface KitchenState {
   serverTime: string;
+  businessDate: string;
+  lateThresholdMinutes: number;
   nextOrderId: string | null;
   queued: KitchenOrder[];
   preparing: KitchenOrder[];

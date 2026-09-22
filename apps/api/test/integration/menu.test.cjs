@@ -1138,9 +1138,10 @@ test(
           const others = d.variants.map((v) =>
             v.channels.filter((c) => c.channelCode !== 'COUNTER'),
           );
-          for (const role of ['KITCHEN', 'DISPATCH'])
-            await toggle(false, role).expect(403);
-          const sold = (await toggle(false).expect(200)).body.categories
+          await toggle(false, 'DISPATCH').expect(403);
+          const sold = (
+            await toggle(false, 'KITCHEN').expect(200)
+          ).body.categories
             .flatMap((c) => c.items)
             .find((i) => i.id === d.id);
           assert.ok(sold.variants.every((v) => !v.available));
@@ -1166,6 +1167,78 @@ test(
               .find((i) => i.id === d.id).variants.length,
             1,
           );
+          await toggle(true, 'KITCHEN').expect(200);
+          await refresh();
+          await toggle(false, 'KITCHEN', d.variants[0].id).expect(200);
+          await refresh();
+          assert.equal(
+            d.variants[0].channels.find((c) => c.channelCode === 'COUNTER')
+              .available,
+            false,
+          );
+          assert.equal(
+            d.variants[1].channels.find((c) => c.channelCode === 'COUNTER')
+              .available,
+            true,
+          );
+          assert.deepEqual(
+            d.variants.map((v) =>
+              v.channels.filter((c) => c.channelCode !== 'COUNTER'),
+            ),
+            others,
+          );
+          const rejected = await request(server)
+            .post('/api/orders/counter')
+            .set('Cookie', cookies.CASHIER)
+            .set('X-DukanOS-Request', '1')
+            .send({
+              requestId: randomUUID(),
+              lines: [{ variantId: d.variants[0].id, quantity: 1 }],
+            })
+            .expect(409);
+          assert.equal(rejected.body.code, 'ITEM_NOT_AVAILABLE');
+          for (const [method, path, body] of [
+            [
+              'patch',
+              '/items/' + d.id,
+              { version: d.version, name: 'Forbidden rename' },
+            ],
+            [
+              'post',
+              '/items',
+              {
+                name: 'Forbidden item',
+                categoryId: category.id,
+                variants: [{ name: 'Single' }],
+              },
+            ],
+            ['post', '/categories', { name: 'Forbidden category' }],
+            [
+              'put',
+              '/variants/' + d.variants[0].id + '/channels/COUNTER/price',
+              { itemVersion: d.version, price: '1' },
+            ],
+            [
+              'patch',
+              '/variants/' + d.variants[0].id + '/channels/SWIGGY/availability',
+              { itemVersion: d.version, available: false },
+            ],
+          ])
+            await call(method, path, body, 'KITCHEN').expect(403);
+          const audited = (
+            await sql.query(
+              "SELECT a.* FROM menu_audit a JOIN users u ON u.id=a.actor_id WHERE a.item_id=$1 AND u.username='kitchen' ORDER BY a.created_at",
+              [d.id],
+            )
+          ).rows;
+          assert.ok(audited.length >= 3);
+          assert.ok(
+            audited.every(
+              (a) => a.before_value && a.after_value && a.created_at,
+            ),
+          );
+          await toggle(true, 'KITCHEN', d.variants[0].id).expect(200);
+          await refresh();
           await toggle(true, 'MANAGER').expect(200);
           await refresh();
           await toggle(false, 'OWNER').expect(200);
