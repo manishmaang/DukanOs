@@ -1,3 +1,4 @@
+import { InstructionEditor } from './InstructionEditor';
 import { useEffect, useRef, useState } from 'react';
 import type {
   ConfirmedOrder,
@@ -10,6 +11,7 @@ import {
   cartPaise,
   confirmationId,
   orderInput,
+  groupCartLines,
   type CartLine,
 } from './order-cart';
 import { rupees } from './menu-editor';
@@ -105,7 +107,7 @@ export function OrderCart({
   }
   if (confirmed)
     return (
-      <aside className="order-cart" aria-label="Current order">
+      <aside className="order-cart order-confirmed" aria-label="Current order">
         <div role="status">
           <h2>Order confirmed</h2>
           <p className="order-token">TOKEN #{confirmed.tokenNumber}</p>
@@ -122,107 +124,170 @@ export function OrderCart({
         </button>
       </aside>
     );
+  const groups = groupCartLines(lines);
+  function updateLine(
+    id: string,
+    change: Partial<Pick<CartLine, 'quantity' | 'instruction'>>,
+  ) {
+    setLines(
+      lines.map((line) => (line.id === id ? { ...line, ...change } : line)),
+    );
+  }
   return (
     <aside className="order-cart" aria-label="Current order">
-      <h2>Current Order</h2>
-      {!lines.length && !locked && <p>Choose a dish and portion to start.</p>}
-      {lines.map((line, index) => (
-        <div className="cart-line" key={index}>
-          <strong>
-            {line.itemName} / {line.variantName}
-          </strong>
-          <div className="cart-quantity">
-            <button
-              aria-label={`Decrease line ${index + 1}`}
-              disabled={locked || line.quantity <= 1}
-              onClick={() =>
-                setLines(
-                  lines.map((l, i) =>
-                    i === index ? { ...l, quantity: l.quantity - 1 } : l,
-                  ),
-                )
-              }
-            >
-              −
-            </button>
-            <span>{line.quantity}</span>
-            <button
-              aria-label={`Increase line ${index + 1}`}
-              disabled={locked || line.quantity >= 99}
-              onClick={() =>
-                setLines(
-                  lines.map((l, i) =>
-                    i === index ? { ...l, quantity: l.quantity + 1 } : l,
-                  ),
-                )
-              }
-            >
-              +
-            </button>
-            <span>
-              ₹
-              {rupees(
-                cartAmount(cartPaise(line.price) * BigInt(line.quantity)),
-              )}
-            </span>
-          </div>
-          <label>
-            Kitchen instruction
-            <textarea
-              maxLength={500}
-              value={line.instruction}
-              disabled={locked}
-              onChange={(e) =>
-                setLines(
-                  lines.map((l, i) =>
-                    i === index ? { ...l, instruction: e.target.value } : l,
-                  ),
-                )
-              }
-            />
-          </label>
+      <div className="cart-heading">
+        <h2>Current Order</h2>
+        {!!lines.length && (
           <button
+            className="secondary-control"
             disabled={locked}
-            onClick={() => setLines(lines.filter((_, i) => i !== index))}
+            onClick={() => {
+              if (window.confirm('Clear the current draft?')) setLines([]);
+            }}
           >
-            Remove line {index + 1}
+            Clear draft
           </button>
-        </div>
-      ))}
-      {!!lines.length && (
-        <>
-          <p>Subtotal ₹{rupees(cartAmount(subtotal))}</p>
-          <p>
-            {config?.taxLabel ?? 'Tax'} ({config?.taxRate ?? '…'}%) ₹
-            {rupees(cartAmount(tax))}
-          </p>
-          <strong>Estimated total ₹{rupees(cartAmount(subtotal + tax))}</strong>
-          <p className="menu-muted">
-            Current Counter prices and configured tax apply at confirmation. No
-            payment is collected.
-          </p>
-        </>
+        )}
+      </div>
+      {!lines.length && !locked && (
+        <p className="cart-empty">
+          No items yet. <span>Tap a dish to add it.</span>
+        </p>
       )}
-      {error && <p role="alert">{error}</p>}
-      <button
-        className="confirm-order"
-        disabled={
-          busy ||
-          (locked && !pending.current) ||
-          (!locked && (!lines.length || !config))
-        }
-        onClick={() => void confirm()}
-      >
-        {busy ? 'Confirming…' : locked ? 'Retry confirmation' : 'Confirm Order'}
-      </button>
-      <button
-        disabled={locked || !lines.length}
-        onClick={() => {
-          if (window.confirm('Clear the current draft?')) setLines([]);
-        }}
-      >
-        Clear draft
-      </button>
+      {!!lines.length && (
+        <div
+          className="cart-items"
+          role="region"
+          aria-label="Order items"
+          tabIndex={0}
+        >
+          {groups.map((group) => (
+            <div
+              className="cart-dish"
+              key={group.menuItemId}
+              data-menu-item-id={group.menuItemId}
+            >
+              <h3>{group.name}</h3>
+              {group.lines.map((line) => (
+                <div
+                  className="cart-line"
+                  key={line.id}
+                  data-line-id={line.id}
+                  data-variant-id={line.variantId}
+                >
+                  <div className="cart-line-main">
+                    <strong className="cart-variant">{line.variantName}</strong>
+                    <div
+                      className="cart-quantity"
+                      role="group"
+                      aria-label={`${line.itemName} / ${line.variantName} quantity`}
+                    >
+                      <button
+                        aria-label={`Decrease ${line.variantName} quantity`}
+                        disabled={locked || line.quantity <= 1}
+                        onClick={() =>
+                          updateLine(line.id, { quantity: line.quantity - 1 })
+                        }
+                      >
+                        −
+                      </button>
+                      <span>{line.quantity}</span>
+                      <button
+                        aria-label={`Increase ${line.variantName} quantity`}
+                        disabled={locked || line.quantity >= 99}
+                        onClick={() =>
+                          updateLine(line.id, { quantity: line.quantity + 1 })
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+                    <strong className="cart-line-price">
+                      ₹
+                      {rupees(
+                        cartAmount(
+                          cartPaise(line.price) * BigInt(line.quantity),
+                        ),
+                      )}
+                    </strong>
+                  </div>
+                  <div className="cart-line-actions">
+                    <InstructionEditor
+                      label={`${line.itemName} / ${line.variantName}`}
+                      value={line.instruction}
+                      disabled={locked}
+                      onChange={(instruction) =>
+                        updateLine(line.id, { instruction })
+                      }
+                    />
+                    <button
+                      className="secondary-control cart-remove"
+                      aria-label={`Remove ${line.itemName} / ${line.variantName}`}
+                      disabled={locked}
+                      onClick={() =>
+                        setLines(lines.filter((l) => l.id !== line.id))
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {(!!lines.length || locked || error) && (
+        <div className="cart-summary">
+          {!!lines.length && (
+            <>
+              <dl className="cart-totals">
+                <div>
+                  <dt>Subtotal</dt>
+                  <dd>₹{rupees(cartAmount(subtotal))}</dd>
+                </div>
+                <div>
+                  <dt>
+                    {config?.taxLabel ?? 'Tax'} ({config?.taxRate ?? '…'}%)
+                  </dt>
+                  <dd>₹{rupees(cartAmount(tax))}</dd>
+                </div>
+                <div className="cart-grand-total">
+                  <dt>
+                    Total <small>(estimate)</small>
+                  </dt>
+                  <dd>₹{rupees(cartAmount(subtotal + tax))}</dd>
+                </div>
+              </dl>
+              <details className="cart-price-help">
+                <summary>Pricing details</summary>
+                <p>
+                  Current Counter prices and configured tax apply at
+                  confirmation. No payment is collected.
+                </p>
+              </details>
+            </>
+          )}
+          {error && <p role="alert">{error}</p>}
+          {(!!lines.length || locked) && (
+            <button
+              className="confirm-order"
+              disabled={
+                busy ||
+                (locked && !pending.current) ||
+                (!locked && (!lines.length || !config))
+              }
+              onClick={() => void confirm()}
+            >
+              {busy
+                ? 'Confirming…'
+                : locked
+                  ? 'Retry confirmation'
+                  : 'Confirm Order'}
+            </button>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

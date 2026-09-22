@@ -96,6 +96,7 @@ const { UsersService } = require(
     const failures = [];
     const external = [];
     const writes = [];
+    const orderPayloads = [];
     const command = (method, params = {}) =>
       new Promise((resolve, reject) => {
         const id = ++sequence;
@@ -116,6 +117,11 @@ const { UsersService } = require(
           ['POST', 'PUT'].includes(req.request.method)
         )
           writes.push(req.request.method);
+        if (
+          req.request.url.endsWith('/api/orders/counter') &&
+          req.request.method === 'POST'
+        )
+          orderPayloads.push(JSON.parse(req.request.postData));
         const local =
           req.request.url.startsWith(origin) ||
           req.request.url.startsWith('data:') ||
@@ -176,6 +182,21 @@ const { UsersService } = require(
       evaluate(
         `(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Input not found: '+${JSON.stringify(selector)});const p=e.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:e.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`,
       );
+    const noteIn = async (selector, value) => {
+      await evaluate(
+        `(()=>{const scope=document.querySelector(${JSON.stringify(selector)});scope.querySelector('button[aria-label^="Add instruction"],button[aria-label^="Edit instruction"]').click();})()`,
+      );
+      await fill(selector + ' textarea', value);
+      await evaluate(
+        `[...document.querySelector(${JSON.stringify(selector)}).querySelectorAll('button')].find(b=>b.textContent==='Done').click()`,
+      );
+    };
+    const portionNote = async (name, value) => {
+      const id = await evaluate(
+        `[...document.querySelectorAll('.pos-portions .portion-row')].find(r=>r.querySelector('.portion-name strong').textContent===${JSON.stringify(name)}).dataset.variantId`,
+      );
+      await noteIn('.pos-portions [data-variant-id="' + id + '"]', value);
+    };
     const save = async () => {
       await click(
         await evaluate(
@@ -543,10 +564,7 @@ const { UsersService } = require(
       await evaluate(
         `document.querySelector('button[aria-label="Increase Full quantity"]').click()`,
       );
-      await fill(
-        'textarea[aria-label="Shared kitchen instruction"]',
-        'Extra spicy',
-      );
+      await portionNote('Full', 'No onion');
       assert.equal(
         await evaluate("document.querySelector('.portion-add').textContent"),
         'Add 2 items · ₹450',
@@ -564,6 +582,44 @@ const { UsersService } = require(
       );
       await evaluate("document.querySelector('.portion-add').click()");
       await wait("document.querySelectorAll('.cart-line').length===2");
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-dish').length"),
+        1,
+      );
+      assert.equal(
+        await evaluate(
+          "document.querySelectorAll('.order-cart textarea').length",
+        ),
+        0,
+      );
+      assert.deepEqual(
+        await evaluate(
+          "[...document.querySelectorAll('.cart-line')].map(r=>r.querySelector('.instruction-text')?.textContent??'')",
+        ),
+        ['', 'Note: No onion'],
+      );
+      const firstLineId = await evaluate(
+        "document.querySelector('.cart-line').dataset.lineId",
+      );
+      const halfCart = '[data-line-id="' + firstLineId + '"]';
+      await noteIn(halfCart, 'Nothing spicy');
+      await noteIn(halfCart, 'Less spicy');
+      assert.equal(
+        await evaluate(
+          "document.querySelectorAll('.cart-line')[1].querySelector('.instruction-text').textContent",
+        ),
+        'Note: No onion',
+      );
+      await evaluate(
+        `document.querySelector(${JSON.stringify(halfCart)}).querySelector('button[aria-label^="Remove instruction"]').click()`,
+      );
+      assert.equal(
+        await evaluate(
+          `document.querySelector(${JSON.stringify(halfCart)}).querySelector('textarea,.instruction-text')===null`,
+        ),
+        true,
+      );
+
       await click('All dishes');
       const openManchurian = async () => {
         await evaluate(
@@ -576,9 +632,11 @@ const { UsersService } = require(
       };
       await openManchurian();
       await evaluate(
-        `document.querySelector('button[aria-label="Increase line 3"]').click()`,
+        `document.querySelectorAll('.cart-line')[2].querySelector('button[aria-label="Increase Half quantity"]').click()`,
       );
-      await click('Remove line 3');
+      await evaluate(
+        "document.querySelectorAll('.cart-line')[2].querySelector('.cart-remove').click()",
+      );
       await openManchurian();
       assert.ok(
         (
@@ -597,12 +655,16 @@ const { UsersService } = require(
       assert.equal(placed.length, 1);
       assert.equal(placed[0].status, 'QUEUED');
       assert.equal(placed[0].items[0].quantity, 1);
-      assert.equal(placed[0].items[0].instruction, 'Extra spicy');
+      assert.equal(placed[0].items[0].instruction, '');
       assert.equal(placed[0].items[1].variantName, 'Full');
       assert.equal(placed[0].items[1].quantity, 1);
-      assert.equal(placed[0].items[1].instruction, 'Extra spicy');
+      assert.equal(placed[0].items[1].instruction, 'No onion');
       assert.equal(placed[0].items[0].unitPrice, '200.00');
       assert.equal(placed[0].grandTotal, '650.00');
+      assert.deepEqual(
+        orderPayloads[0].lines.map((l) => l.instruction),
+        ['', 'No onion', ''],
+      );
       await click('New Order');
       await openManchurian();
       await click('Confirm Order');
@@ -646,6 +708,56 @@ const { UsersService } = require(
         'Browser PASS: HTTP-LAN-compatible request UUID, lost confirmation response, page reload and safe retry recover token #3 without duplication.',
       );
       await click('New Order');
+      await evaluate(
+        "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).click()",
+      );
+      await evaluate(
+        `document.querySelector('.pos-portions button[aria-label="Increase Half quantity"]').click()`,
+      );
+      await evaluate(
+        `document.querySelector('.pos-portions button[aria-label="Increase Full quantity"]').click()`,
+      );
+      await portionNote('Half', 'Nothing spicy');
+      await portionNote('Full', 'Extra spicy');
+      await evaluate("document.querySelector('.portion-add').click()");
+      assert.deepEqual(
+        await evaluate(
+          "[...document.querySelectorAll('.cart-line .instruction-text')].map(e=>e.textContent)",
+        ),
+        ['Note: Nothing spicy', 'Note: Extra spicy'],
+      );
+      await click('Confirm Order');
+      await wait(
+        "document.querySelector('.order-token')?.textContent==='TOKEN #4'",
+      );
+      const independent = (await orderRead()).orders.find(
+        (o) => o.tokenNumber === 4,
+      );
+      assert.deepEqual(
+        orderPayloads.at(-1).lines.map((l) => l.instruction),
+        ['Nothing spicy', 'Extra spicy'],
+      );
+      assert.deepEqual(
+        independent.items.map((l) => [l.variantName, l.instruction]),
+        [
+          ['Half', 'Nothing spicy'],
+          ['Full', 'Extra spicy'],
+        ],
+      );
+      const stored = (
+        await admin.query(
+          `SELECT variant_name_snapshot,instruction FROM "${schema}".order_items WHERE order_id=$1 ORDER BY position`,
+          [independent.id],
+        )
+      ).rows;
+      assert.deepEqual(stored, [
+        { variant_name_snapshot: 'Half', instruction: 'Nothing spicy' },
+        { variant_name_snapshot: 'Full', instruction: 'Extra spicy' },
+      ]);
+      await click('New Order');
+      console.log(
+        'Browser PASS: independent Manchurian Half/Full instructions in actual payload, confirmed API and PostgreSQL; Soya Full-only note leaves Half clean; cart add/edit/remove note changes only its line.',
+      );
       const longName =
         'Family Special Vegetable Noodles with Seasonal Greens and Fresh Herbs for Sharing';
       const createFixture = async (body) =>
@@ -704,13 +816,6 @@ const { UsersService } = require(
         await evaluate("document.querySelector('.portion-add').textContent"),
         'Add 3 items · ₹380.5',
       );
-      await fill(
-        'textarea[aria-label="Shared kitchen instruction"]',
-        'Extra spicy',
-      );
-      await click('Add note for Half');
-      await fill('textarea[aria-label="Half instruction"]', 'No onion');
-      await click('Use shared note for Half');
       const layout = await evaluate(
         "(()=>{const d=document.querySelector('dialog'),b=document.querySelector('.portion-content'),a=document.querySelector('.portion-add');return {width:d.getBoundingClientRect().width,height:d.getBoundingClientRect().height,bodyHeight:b.clientHeight,bodyScroll:b.scrollHeight,footerBottom:a.getBoundingClientRect().bottom,viewport:innerHeight,overflow:d.scrollWidth>d.clientWidth};})()",
       );
@@ -758,8 +863,9 @@ const { UsersService } = require(
         '/tmp/dukanos-multi-portion-tablet.png',
         Buffer.from(selectionShot.data, 'base64'),
       );
-      await click('Add note for Half');
-      await fill('textarea[aria-label="Half instruction"]', 'No onion');
+      await portionNote('Regular', 'Extra spicy');
+      await portionNote('Half', 'No onion');
+      await portionNote('Full', 'Extra spicy');
       await evaluate("document.querySelector('.portion-add').click()");
       assert.equal(
         await evaluate("document.querySelectorAll('.cart-line').length"),
@@ -767,9 +873,9 @@ const { UsersService } = require(
       );
       assert.deepEqual(
         await evaluate(
-          "[...document.querySelectorAll('.cart-line textarea')].map(e=>e.value)",
+          "[...document.querySelectorAll('.cart-line .instruction-text')].map(e=>e.textContent)",
         ),
-        ['Extra spicy', 'No onion', 'Extra spicy'],
+        ['Note: Extra spicy', 'Note: No onion', 'Note: Extra spicy'],
       );
       await openDish('Spring Roll');
       assert.equal(
@@ -795,10 +901,7 @@ const { UsersService } = require(
         true,
       );
       await increment('Full');
-      await fill(
-        'textarea[aria-label="Shared kitchen instruction"]',
-        'No vegetables',
-      );
+      await portionNote('Full', 'No vegetables');
       await evaluate("document.querySelector('.portion-add').click()");
       assert.equal(
         await evaluate("document.querySelectorAll('.cart-line').length"),
@@ -829,7 +932,67 @@ const { UsersService } = require(
         6,
       );
       console.log(
-        'Browser PASS: four-portion long-name desktop/tablet dialog fits, three selected together with exact total, zero/sold-out excluded, shared/per-portion notes, single portion, prior cart preserved, close discards selection and differently customized lines stay separate.',
+        'Browser PASS: four-portion long-name desktop/tablet dialog fits, three selected together with exact total, zero/sold-out excluded, independent per-portion notes, single portion, prior cart preserved, close discards selection and differently customized lines stay separate.',
+      );
+      for (let i = 0; i < 6; i++) {
+        await openDish('Spring Roll');
+        await increment('Standard');
+        await portionNote('Standard', 'Separate preparation ' + i);
+        await evaluate("document.querySelector('.portion-add').click()");
+      }
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        12,
+      );
+      assert.equal(
+        await evaluate(
+          "document.querySelectorAll('.order-cart textarea').length",
+        ),
+        0,
+      );
+      await command('Emulation.setDeviceMetricsOverride', {
+        width: 1440,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      await evaluate('window.scrollTo(0,0)');
+      const cartLayout = await evaluate(
+        "(()=>{const c=document.querySelector('.order-cart'),i=document.querySelector('.cart-items'),b=document.querySelector('.confirm-order');return {width:c.getBoundingClientRect().width,scroll:i.scrollHeight>i.clientHeight,buttonBottom:b.getBoundingClientRect().bottom,viewport:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth};})()",
+      );
+      assert.ok(cartLayout.width >= 430, JSON.stringify(cartLayout));
+      assert.ok(cartLayout.scroll);
+      assert.ok(
+        cartLayout.buttonBottom <= cartLayout.viewport,
+        JSON.stringify(cartLayout),
+      );
+      assert.equal(cartLayout.overflow, false);
+      let cartShot = await command('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        '/tmp/dukanos-compact-cart-desktop.png',
+        Buffer.from(cartShot.data, 'base64'),
+      );
+      await command('Emulation.setDeviceMetricsOverride', {
+        width: 768,
+        height: 1024,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      await evaluate(
+        "document.querySelector('.order-cart').scrollIntoView({block:'start'})",
+      );
+      assert.ok(
+        await evaluate(
+          "document.querySelector('.confirm-order').getBoundingClientRect().bottom<=innerHeight && document.documentElement.scrollWidth<=innerWidth",
+        ),
+      );
+      cartShot = await command('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        '/tmp/dukanos-compact-cart-tablet.png',
+        Buffer.from(cartShot.data, 'base64'),
+      );
+      console.log(
+        'Browser PASS: 12 independent cart lines grouped by dish; desktop cart exceeds 430px, item area scrolls independently and confirmation remains visible on desktop/tablet.',
       );
       const finalShot = await command('Page.captureScreenshot', {
         format: 'png',
@@ -840,7 +1003,7 @@ const { UsersService } = require(
         Buffer.from(finalShot.data, 'base64'),
       );
       console.log(
-        'Browser PASS: CASHIER Soya Half ×1 + Full ×1 in one Add, Extra spicy, second dish quantity/remove/re-add, double click creates one QUEUED order, authoritative snapshots, next token and another-session sold-out rejection.',
+        'Browser PASS: CASHIER Soya Half ×1 + Full ×1 in one Add, independent optional notes, second dish quantity/remove/re-add, double click creates one QUEUED order, authoritative snapshots, next token and another-session sold-out rejection.',
       );
     } finally {
       second?.socket.close();

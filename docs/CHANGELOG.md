@@ -141,3 +141,7 @@
 - Refined POS dish selection into a 1040px maximum, two-column dialog with compact image, persistent action footer and adaptive tablet layout.
 - Added simultaneous portion quantities, exact live totals and atomic batch cart insertion with shared or optional per-portion notes; retained existing merge and order semantics.
 - Prioritized stored portion names over conflicting display labels; investigated actual SCG-H/F values without altering menu data. Availability actions remain compact secondary controls.
+
+- Widened POS to a 1480px maximum workspace with a compact dish-grouped cart, independently scrolling items and persistent totals/confirmation.
+- Replaced shared/default-visible instructions with independent optional portion/line editors; cart notes can be added, edited or removed without reopening a dish.
+- Added stable frontend line identities, item-based presentation grouping and price-aware merge checks while preserving the confirmation API and database semantics.

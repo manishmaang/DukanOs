@@ -4,6 +4,8 @@ test('cart exact estimates and merging preserve customization boundaries', async
   const { addLine, cartPaise, cartAmount, orderInput } =
     await import('../src/order-cart.ts');
   const line = {
+    id: 'line',
+    menuItemId: 'dish',
     variantId: 'x',
     itemName: 'Noodles',
     variantName: 'Full',
@@ -43,7 +45,7 @@ test('confirmation IDs support LAN HTTP without crypto.randomUUID', async () => 
     );
 });
 
-test('multi-portion selection applies shared/overridden notes, excludes zero and sold-out portions, and totals exactly', async () => {
+test('multi-portion selection preserves independent notes, excludes zero and sold-out portions, and totals exactly', async () => {
   const { selectionLines, addLines, cartPaise, cartAmount } =
     await import('../src/order-cart.ts');
   const dish = {
@@ -72,13 +74,12 @@ test('multi-portion selection applies shared/overridden notes, excludes zero and
   const selected = selectionLines(
     dish,
     { half: 1, full: 1, regular: 2, zero: 0, sold: 2 },
-    ' Extra spicy ',
-    { regular: 'No onion' },
+    { half: 'Nothing spicy', full: 'Extra spicy', regular: 'No onion' },
   );
   assert.deepEqual(
     selected.map((l) => [l.variantName, l.quantity, l.instruction]),
     [
-      ['Half', 1, 'Extra spicy'],
+      ['Half', 1, 'Nothing spicy'],
       ['Full', 1, 'Extra spicy'],
       ['Regular', 2, 'No onion'],
     ],
@@ -92,25 +93,30 @@ test('multi-portion selection applies shared/overridden notes, excludes zero and
     ),
     '611.00',
   );
-  const existing = { ...selected[1], instruction: 'No vegetables' };
+  const existing = {
+    ...selected[1],
+    id: 'existing',
+    instruction: 'No vegetables',
+  };
   const cart = addLines([existing], selected);
   assert.equal(cart.length, 4);
   assert.equal(cart[0], existing);
   assert.equal(
-    addLines(cart, selectionLines(dish, { full: 1 }, 'Extra spicy', {})).find(
-      (l) => l.variantId === 'full' && l.instruction === 'Extra spicy',
-    ).quantity,
+    addLines(
+      cart,
+      selectionLines(dish, { full: 1 }, { full: 'Extra spicy' }),
+    ).find((l) => l.variantId === 'full' && l.instruction === 'Extra spicy')
+      .quantity,
     2,
   );
-  assert.equal(
-    selectionLines(dish, { full: 1 }, 'Shared', { full: '' })[0].instruction,
-    '',
-  );
-  assert.deepEqual(selectionLines(dish, {}, '', {}), []);
+  assert.equal(selectionLines(dish, { full: 1 }, {})[0].instruction, '');
+  assert.deepEqual(selectionLines(dish, {}, {}), []);
 });
 test('multi-add is all-or-nothing when a later merge exceeds the line limit', async () => {
   const { addLines } = await import('../src/order-cart.ts');
   const line = {
+    id: 'line',
+    menuItemId: 'dish',
     variantId: 'full',
     itemName: 'Chaap',
     variantName: 'Full',
@@ -127,4 +133,65 @@ test('multi-add is all-or-nothing when a later merge exceeds the line limit', as
   );
   assert.deepEqual(original, [line]);
   assert.equal(original[0].quantity, 99);
+});
+
+test('presentation groups by dish without collapsing lines or leaking UI IDs into confirmation', async () => {
+  const { selectionLines, groupCartLines, orderInput, addLines } =
+    await import('../src/order-cart.ts');
+  const dish = {
+    id: 'dish',
+    name: 'Manchurian',
+    variants: [
+      { id: 'half', name: 'Half', price: '90', available: true },
+      { id: 'full', name: 'Full', price: '100', available: true },
+    ],
+  };
+  const lines = selectionLines(
+    dish,
+    { half: 1, full: 1 },
+    { half: 'Nothing spicy', full: 'Extra spicy' },
+  );
+  const groups = groupCartLines(lines);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].lines.length, 2);
+  assert.equal(groups[0].lines[0], lines[0]);
+  assert.notEqual(lines[0].id, lines[1].id);
+  assert.deepEqual(orderInput(lines, 'request'), {
+    requestId: 'request',
+    lines: [
+      { variantId: 'half', quantity: 1, instruction: 'Nothing spicy' },
+      { variantId: 'full', quantity: 1, instruction: 'Extra spicy' },
+    ],
+  });
+  const edited = lines.map((l) =>
+    l.id === lines[0].id ? { ...l, instruction: '' } : l,
+  );
+  assert.equal(edited[1].instruction, 'Extra spicy');
+  assert.equal(edited[0].id, lines[0].id);
+  assert.equal(
+    addLines(lines, selectionLines(dish, { full: 1 }, { full: 'Extra spicy' }))
+      .length,
+    2,
+  );
+  assert.equal(
+    addLines(lines, selectionLines(dish, { full: 1 }, { full: 'No onion' }))
+      .length,
+    3,
+  );
+  assert.equal(
+    addLines(lines, [{ ...lines[1], id: 'different-price', price: '110' }])
+      .length,
+    3,
+  );
+  assert.equal(
+    addLines(lines, [{ ...lines[1], id: 'same-price', price: '100.00' }])[1]
+      .quantity,
+    2,
+  );
+  const sameNameOtherDish = {
+    ...lines[1],
+    id: 'other',
+    menuItemId: 'other-dish',
+  };
+  assert.equal(groupCartLines([...lines, sameNameOtherDish]).length, 2);
 });
