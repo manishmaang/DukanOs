@@ -528,6 +528,101 @@ const { UsersService } = require(
       console.log(
         'Browser PASS: cashier whole-dish/variant Counter toggles, sold-out restoration and independent manager browser propagation within polling window.',
       );
+      // Real cashier interaction: portion, quantity, note, cart edits and confirmation.
+      await click('Soya Chaap');
+      await evaluate("document.querySelector('.pos-card').click()");
+      await click('Choose Full');
+      await fill('input[aria-label="Portion quantity"]', '2');
+      await fill('.portion-order textarea', 'Extra spicy');
+      await click('Add to Order');
+      await wait("document.querySelectorAll('.cart-line').length===1");
+      await click('All dishes');
+      const openManchurian = async () => {
+        await evaluate(
+          "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).click()",
+        );
+        await click('Choose Half');
+        await click('Add to Order');
+      };
+      await openManchurian();
+      await evaluate(
+        `document.querySelector('button[aria-label="Increase line 2"]').click()`,
+      );
+      await click('Remove line 2');
+      await openManchurian();
+      assert.ok(
+        (
+          await evaluate("document.querySelector('.order-cart').textContent")
+        ).includes('700'),
+      );
+      await evaluate(
+        "(()=>{const b=document.querySelector('.confirm-order');b.click();b.click();})()",
+      );
+      await wait(
+        "document.querySelector('.order-token')?.textContent==='TOKEN #1'",
+      );
+      const orderRead = async () =>
+        evaluate("fetch('/api/orders?status=QUEUED').then(r=>r.json())");
+      let placed = (await orderRead()).orders;
+      assert.equal(placed.length, 1);
+      assert.equal(placed[0].status, 'QUEUED');
+      assert.equal(placed[0].items[0].quantity, 2);
+      assert.equal(placed[0].items[0].instruction, 'Extra spicy');
+      assert.equal(placed[0].items[0].unitPrice, '250.00');
+      assert.equal(placed[0].grandTotal, '700.00');
+      await click('New Order');
+      await openManchurian();
+      await click('Confirm Order');
+      await wait(
+        "document.querySelector('.order-token')?.textContent==='TOKEN #2'",
+      );
+      assert.equal((await orderRead()).orders.length, 2);
+      await click('New Order');
+      await openManchurian();
+      // A second authenticated manager changes availability after selection.
+      const toggled = await read(
+        "(async()=>{const menu=await fetch('/api/menu/counter').then(r=>r.json());const item=menu.categories.flatMap(c=>c.items).find(i=>i.name==='Manchurian');return fetch('/api/menu/counter/items/'+item.id+'/availability',{method:'PATCH',headers:{'Content-Type':'application/json','X-DukanOS-Request':'1'},body:JSON.stringify({version:item.version,available:false})}).then(r=>r.status);})()",
+      );
+      assert.equal(toggled, 200);
+      await click('Confirm Order');
+      await wait(
+        "document.querySelector('.order-cart [role=alert]')?.textContent.includes('no longer available')",
+      );
+      assert.equal((await orderRead()).orders.length, 2);
+      await read(
+        "(async()=>{const menu=await fetch('/api/menu/counter').then(r=>r.json());const item=menu.categories.flatMap(c=>c.items).find(i=>i.name==='Manchurian');await fetch('/api/menu/counter/items/'+item.id+'/availability',{method:'PATCH',headers:{'Content-Type':'application/json','X-DukanOS-Request':'1'},body:JSON.stringify({version:item.version,available:true})});})()",
+      );
+      await evaluate(
+        "(()=>{Object.defineProperty(crypto,'randomUUID',{value:undefined,configurable:true});const original=window.fetch;let drop=true;window.fetch=async(...args)=>{const result=await original(...args);if(drop&&args[0]==='/api/orders/counter'){drop=false;throw new TypeError('simulated lost response');}return result;};})()",
+      );
+      await click('Confirm Order');
+      await wait(
+        "document.querySelector('.confirm-order')?.textContent==='Retry confirmation'",
+      );
+      assert.equal((await orderRead()).orders.length, 3);
+      await command('Page.reload');
+      await wait(
+        "document.querySelector('.confirm-order')?.textContent==='Retry confirmation'",
+      );
+      await click('Retry confirmation');
+      await wait(
+        "document.querySelector('.order-token')?.textContent==='TOKEN #3'",
+      );
+      assert.equal((await orderRead()).orders.length, 3);
+      console.log(
+        'Browser PASS: HTTP-LAN-compatible request UUID, lost confirmation response, page reload and safe retry recover token #3 without duplication.',
+      );
+      const finalShot = await command('Page.captureScreenshot', {
+        format: 'png',
+        captureBeyondViewport: true,
+      });
+      fs.writeFileSync(
+        '/tmp/dukanos-orders-browser.png',
+        Buffer.from(finalShot.data, 'base64'),
+      );
+      console.log(
+        'Browser PASS: CASHIER Soya Full ×2 Extra spicy, second dish quantity/remove/re-add, double click creates one QUEUED order, authoritative snapshots, next token and another-session sold-out rejection.',
+      );
     } finally {
       second?.socket.close();
       if (contextId)

@@ -46,6 +46,13 @@ export class MenuService {
     private readonly db: DatabaseService,
     private readonly media: MenuMediaService,
   ) {}
+  /** Orders holds this lock through commit: menu changes cannot invalidate sale snapshots. */
+  async lockForConfirmation(client: PoolClient) {
+    await client.query('SELECT pg_advisory_xact_lock(742019323)');
+  }
+  async counterForConfirmation(client: PoolClient) {
+    return this.operationalCatalog(await readCatalog(client), 'COUNTER', true);
+  }
   async catalog(
     ordering: 'admin' | 'operational' = 'admin',
   ): Promise<MenuCatalog> {

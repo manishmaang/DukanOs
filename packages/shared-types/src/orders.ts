@@ -1,0 +1,44 @@
+export type OrderStatus =
+  'DRAFT' | 'QUEUED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+export interface CounterOrderInput {
+  requestId: string;
+  lines: { variantId: string; quantity: number; instruction?: string }[];
+}
+export interface OrderConfiguration {
+  timezone: string;
+  taxLabel: string;
+  taxRate: string;
+  taxMode: 'EXCLUSIVE';
+  rounding: 'HALF_UP_PAISE';
+}
+export interface ConfirmedOrder {
+  id: string;
+  source: 'COUNTER';
+  status: OrderStatus;
+  businessDate: string;
+  tokenNumber: number;
+  queuedAt: string;
+  confirmedBy: string;
+  subtotal: string;
+  discountTotal: string;
+  taxTotal: string;
+  roundingAdjustment: string;
+  grandTotal: string;
+  tax: OrderConfiguration;
+  items: {
+    id: string;
+    menuItemId: string;
+    variantId: string;
+    itemName: string;
+    kitchenName: string;
+    variantName: string;
+    quantity: number;
+    unitPrice: string;
+    lineSubtotal: string;
+    instruction: string;
+  }[];
+}
+export interface OrderList {
+  orders: ConfirmedOrder[];
+  nextCursor: string | null;
+}

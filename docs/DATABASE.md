@@ -2,7 +2,7 @@
 
 ## Implemented schema
 
-Scaffold infrastructure, Auth/Users and Menu tables are implemented. Other domain entities below remain proposed, **not migrated tables**.
+Scaffold infrastructure, Auth/Users, Menu and Orders tables are implemented. Other domain entities below remain proposed, **not migrated tables**.
 
 ### schema_migrations
 
@@ -20,21 +20,21 @@ Run `npm run db:migrate` from the repository root. A transaction-scoped advisory
 
 Use UUID primary keys, timestamptz timestamps, explicit FKs and restrictive deletion for historical/financial records. Only introduce tables with their implementing feature and tests.
 
-| Module       | Proposed entities and integrity                                                                                                                                                                                                                                                    |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Orders       | orders (unique internal number, channel, status, customer FK optional, version, timestamps), order_items and immutable item revisions (order/variant FKs, positive integer quantities, price/name/instruction snapshots), amendment records and status history (actor/reason/time) |
-| Payments     | payment_transactions (order FK, tender, positive numeric amount, idempotency key), refunds (original payment FK, positive numeric amount, actor/reason), no destructive updates to posted entries                                                                                  |
-| Kitchen      | order-owned queue timestamps and audited priority records; derive aggregation from active item revisions without losing order linkage                                                                                                                                              |
-| Customers    | customers (name and indexed normalized mobile; do not assume shared family phone numbers are unique), optional preferences and communication consent                                                                                                                               |
-| Credit       | credit_accounts (unique customer FK, eligibility and optional nonnegative limit), ledger_entries (account/order/payment linkage, signed numeric amount, unique operation reference)                                                                                                |
-| Integrations | provider_orders (unique provider/external ID, internal order FK), external item/modifier mappings, processing records for deduplication                                                                                                                                            |
-| Reports      | initially queries/projections over source records; no independent sales ledger or duplicate financial authority                                                                                                                                                                    |
+| Module            | Proposed entities and integrity                                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Orders extensions | Future immutable amendments/revisions; base Orders schema is implemented below.                                                                                                                   |
+| Payments          | payment_transactions (order FK, tender, positive numeric amount, idempotency key), refunds (original payment FK, positive numeric amount, actor/reason), no destructive updates to posted entries |
+| Kitchen           | order-owned queue timestamps and audited priority records; derive aggregation from active item revisions without losing order linkage                                                             |
+| Customers         | customers (name and indexed normalized mobile; do not assume shared family phone numbers are unique), optional preferences and communication consent                                              |
+| Credit            | credit_accounts (unique customer FK, eligibility and optional nonnegative limit), ledger_entries (account/order/payment linkage, signed numeric amount, unique operation reference)               |
+| Integrations      | provider_orders (unique provider/external ID, internal order FK), external item/modifier mappings, processing records for deduplication                                                           |
+| Reports           | initially queries/projections over source records; no independent sales ledger or duplicate financial authority                                                                                   |
 
-Future financial values are proposed as numeric(14,2) in PostgreSQL and strings in JSON. Menu uses checked numeric instead, to reject excessive scale without silent rounding. Application arithmetic needs an exact decimal implementation before financial features ship. Provisional currency is INR; tax precision/rounding must be decided before totals implementation. Credit entries increase debt for purchases and decrease it for repayments/reversals. Posted transactions are append-only, with linked reversals. Do not count repayments as sales.
+Future financial values are proposed as numeric(14,2) in PostgreSQL and strings in JSON. Menu uses checked numeric instead, to reject excessive scale without silent rounding. Orders arithmetic uses BigInt paise; currency is INR and exclusive configurable tax is rounded HALF_UP once to paise. Credit entries increase debt for purchases and decrease it for repayments/reversals. Posted transactions are append-only, with linked reversals. Do not count repayments as sales.
 
 ## Planned transactional boundaries
 
-- Place order: validate availability/channel prices, persist item snapshots, initial tender or credit debt, status history, and operation key atomically.
+- Confirm Counter order (implemented): validate availability/prices, persist sale/tax snapshots, daily token, status history and request identity atomically. No tender or credit debt is created.
 - Amend order: lock order, verify expected version/status, append item revisions and amendment reason, compute exact delta, record linked payment/refund/credit adjustment atomically as applicable. External payment calls require a separate durable state machine, not a long-held DB transaction.
 - Refund: lock original payment, check remaining refundable balance against all posted refunds, insert refund with unique operation key.
 - Credit purchase/settlement: lock credit account before checking balance/limit; insert ledger and tender records together.
@@ -87,13 +87,13 @@ Password mutations use staff advisory lock 742019322 and ordered row locks. They
 | variant_channel_settings | Composite PK (variant_id, channel_code), restrictive FKs, exact price, independent available flag default false, timestamps; available-channel index. Keys immutable.                         |
 | menu_audit               | UUID PK, actor user FK, exactly one category/item FK, CREATED/UPDATED action, before/after JSON snapshots, created_at; target/time indexes. UPDATE/DELETE rejected.                           |
 
-Prices are INR decimal strings in JSON. PostgreSQL `numeric` with `price >= 0 AND price < 1000000000000 AND scale(price) <= 2` provides up to 12 integral digits and 2 fractional digits (₹999999999999.99 maximum). Unconstrained numeric with checks deliberately avoids numeric(14,2) silently rounding an overprecision input. API accepts plain decimal strings and normalizes two fractional digits without floating-point conversion. No totals/tax arithmetic exists.
+Prices are INR decimal strings in JSON. PostgreSQL `numeric` with `price >= 0 AND price < 1000000000000 AND scale(price) <= 2` provides up to 12 integral digits and 2 fractional digits (₹999999999999.99 maximum). Unconstrained numeric with checks deliberately avoids numeric(14,2) silently rounding an overprecision input. API accepts plain decimal strings and normalizes two fractional digits without floating-point conversion. Orders performs exact totals/tax arithmetic separately.
 
 Deferred constraints require each item to retain at least one variant at commit. Categories/items have version/timestamp triggers; variant and price/availability writes update the parent item's version and acquire its row lock. API menu writes use advisory lock 742019323, recheck the actor session/capability inside the transaction and compare expected category/item aggregate versions. A concurrent stale edit returns MENU_VERSION_CONFLICT rather than overwriting. Operational catalog reads use a repeatable-read snapshot. The broad write lock is appropriate for this single small restaurant; no distributed locks are used.
 
 Availability is computed from active category/item/variant/channel plus configured price and available=true. Database constraints protect references, unique records and price precision; the service checks reference activation before pricing/enabling. Disabling remains allowed when parents are inactive. No physical-delete endpoints exist. Changing a category does not bump child item versions, but writes recheck current category activation under the common lock.
 
-Menu audit is configuration history, not an order ledger. Future order items must snapshot item/variant names, channel, sold unit price and later modifier selections; current menu rows cannot reconstruct historical sales. No modifier or order tables are introduced.
+Menu audit is configuration history, not an order ledger. Counter order items now snapshot item/variant names, channel and sold unit price; future structured modifiers will need snapshots too; current menu rows cannot reconstruct historical sales. Migration 004 introduced no modifier or order tables; Orders arrives in 008.
 
 ## Menu UX migration and aggregate transactions — 005
 
@@ -112,3 +112,13 @@ Image attachments are part of the full-dish versioned save and before/after menu
 ## Counter operational capability — 007_counter_availability.sql
 
 Adds menu.availability.manage and grants OWNER/MANAGER/CASHIER explicitly. No existing menu or media data changes; no new table/column. Operational toggles use existing variant_channel_settings.available for COUNTER, existing parent versions, menu audit and advisory lock 742019323. They do not touch active fields, prices or other channels. Staff HTTP mutations now also revalidate session existence/expiry after advisory lock 742019322; all existing constraints remain authoritative.
+
+## Orders Core — 008_orders_core.sql
+
+Adds order_daily_tokens (business_date PK, positive last_token), orders, order_items and order_status_history. Existing users/menu/images/audit rows are unchanged. KITCHEN gains orders.read.
+
+Orders: UUID PK; source FK to sales_channels (currently constrained COUNTER); checked lifecycle status; date/token unique; confirmed_by user FK; creator/request_id unique plus SHA-256 request hash; queued_at; checked exact subtotal/tax/grand total and zero discount/rounding adjustment; tax rate/label/timezone/mode/rounding snapshots. Queue index `(status,queued_at,id)` and actor/time index. Amounts use numeric plus scale/range checks instead of silently rounding typmods. Grand total equals subtotal+tax; tax equals round(subtotal*rate/100,2).
+
+Order items: UUID PK, restrictive order/menu/variant FKs, position unique per order (1–100), checked quantity 1–99, item/kitchen/variant name snapshots, exact unit price/line subtotal and up to 500-character instruction. Variant/item matching is checked by insert trigger; line subtotal equals quantity×price. Order status history: UUID PK, order/actor FKs, checked from/to transition, timestamp and nonblank reason; indexed by order/time/ID. Updates/deletes are forbidden. The initial history insert seals the aggregate; insert guards reject subsequent item/history appends. Deferred validation forbids committing an unsealed order. Deferred constraints require 1–100 items, sum matching subtotal and initial DRAFT→QUEUED history with the confirmation actor/time.
+
+All confirmed orders are currently immutable at database level, including status. The next lifecycle migration must replace only the appropriate guard with transactional transition/history enforcement. No cancellation or token recycling operation is exposed. Daily counter updates must increase and deletion is forbidden, preventing token reuse. Token allocation uses atomic daily UPSERT inside confirmation; the menu advisory lock serializes validation/snapshots against catalog writes. Failed confirmation rolls back allocation. Confirmed records retain keys permanently. No payment/customer tables or fake financial transactions are created.

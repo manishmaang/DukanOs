@@ -26,3 +26,7 @@ Orders and Credit share atomic financial operations.
 ## Pending work
 
 Resolve tax/discount/rounding policy; implement exact arithmetic and audited/idempotent tender/refund workflows with critical tests.
+
+## Orders Core integration
+
+Counter orders now persist subtotal, zero discount, configured tax, zero rounding adjustment and grand total. They create no payment rows or payment status. Future Payments references order UUID and keeps payment state independent from the operational lifecycle.

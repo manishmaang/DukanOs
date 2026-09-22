@@ -192,6 +192,11 @@ function App() {
                     ) : link.path === '/pos' &&
                       user.permissions.includes('menu.read') ? (
                       <MenuPreview
+                        key={user.id}
+                        userId={user.id}
+                        canCreateOrders={user.permissions.includes(
+                          'orders.create',
+                        )}
                         canManageAvailability={user.permissions.includes(
                           'menu.availability.manage',
                         )}

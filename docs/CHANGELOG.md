@@ -126,3 +126,12 @@
 ### Tested
 
 - Nested-save rollback, authorization, obsolete-field rejection, deterministic ordering and a populated-database upgrade; desktop/tablet Chromium workflow with non-local requests blocked.
+
+## 2026-09-22
+
+### Added
+
+- Counter Orders Core, migration 008: atomic confirmation, daily restaurant-timezone tokens, actor-scoped idempotency, immutable sale/tax snapshots and initial status history.
+- Exact paise totals with configurable exclusive tax defaulting to zero; no rupee rounding or payment transactions.
+- POS cart with portions, quantities, kitchen notes, safe confirmation retry and token success state; retained menu photos/availability controls.
+- Confirm/detail/date-token/FIFO list APIs, KITCHEN read capability, transactional and browser regression coverage.

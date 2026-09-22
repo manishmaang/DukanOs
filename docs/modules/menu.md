@@ -2,7 +2,7 @@
 
 ## Purpose and current implementation
 
-A single-restaurant catalog for future POS/Kitchen consumers: category → menu item → flexible sellable variants → channel price/availability. Backend APIs, a dedicated Menu workspace, and a POS browsing and availability controls are implemented. Ordering is not implemented.
+A single-restaurant catalog for future POS/Kitchen consumers: category → menu item → flexible sellable variants → channel price/availability. Backend APIs, a dedicated Menu workspace, and a POS browsing and availability controls are implemented. Counter ordering is implemented in Orders.
 
 ## Model and lifecycle
 
@@ -67,21 +67,21 @@ The same dish form handles creation and editing: name, category, optional descri
 
 One Save Item/Save Changes sends one aggregate write. Channel-wide switches apply to priced active portions; individual cell controls support differing availability. Mixed states are indicated. Newly entered prices do not silently enable availability. Item active=false pauses every channel while preserving channel flags. Prices display without unnecessary whole-rupee decimal zeros using string formatting, never floating-point conversion. Validation identifies the portion/channel and leaves edits intact on failure. Switching dishes or reloading prompts only when it would discard unsaved dish changes; full-page unload also warns. A conflict requires reloading and reviewing the newer version, not automatic overwrite. Drafts are not persisted across sessions.
 
-Desktop/tablet layout uses a menu list beside the editor, with a horizontally scrollable price matrix when needed. Controls have 44px touch targets; narrow screens stack the panels. The save action is below the form and does not obscure prices. POS permits Counter availability changes through a separate operational capability. No orders, payments or kitchen tickets are created.
+Desktop/tablet layout uses a menu list beside the editor, with a horizontally scrollable price matrix when needed. Controls have 44px touch targets; narrow screens stack the panels. The save action is below the form and does not obscure prices. POS permits Counter availability changes through a separate operational capability. Menu administration creates no orders; POS confirmation is owned by Orders.
 
 ## Modifiers deferred
 
-Reusable menu-side modifiers are deliberately deferred to keep this milestone focused. Proposed model: modifier_groups (name, active, sort order, selection minimum/maximum), modifier_options (group FK, name, active, sort order), item_modifier_groups (item/group unique assignment). Options would have stable IDs; optional future option/channel price records can add charges without changing base variant pricing. Selection counts, mutually exclusive instructions, eligibility and paid-option semantics must be resolved with the order design. Free-text instructions will remain independently supported by future orders. No modifier tables, assignment UI or selection/pricing behavior is claimed as implemented.
+Reusable menu-side modifiers are deliberately deferred to keep this milestone focused. Proposed model: modifier_groups (name, active, sort order, selection minimum/maximum), modifier_options (group FK, name, active, sort order), item_modifier_groups (item/group unique assignment). Options would have stable IDs; optional future option/channel price records can add charges without changing base variant pricing. Selection counts, mutually exclusive instructions, eligibility and paid-option semantics must be resolved with the order design. Orders now independently supports free-text kitchen instructions. No modifier tables, assignment UI or selection/pricing behavior is claimed as implemented.
 
 ## Historical and integration boundary
 
-Future order items must snapshot sold item/variant names, price, channel and instructions/modifiers. Current menu configuration and its audit trail do not replace immutable sale snapshots. External item → internal variant mappings belong to provider adapters; no Zomato/Swiggy payloads or API calls enter Menu.
+Implemented Counter order items snapshot sold item/variant names, price, channel and instructions/modifiers. Current menu configuration and its audit trail do not replace immutable sale snapshots. External item → internal variant mappings belong to provider adapters; no Zomato/Swiggy payloads or API calls enter Menu.
 
 ## Verification and remaining work
 
 `npm run check` and `npm run test:integration` cover HTTP validation, permissions, names, price precision, availability, activation, database constraints and concurrent price updates. Integration tests use an isolated menu_test_* PostgreSQL schema and remove only their own data. A local Chromium smoke check also verified OWNER form-based menu creation/pricing, MANAGER administration, CASHIER preview, KITCHEN administration denial and inactive filtering using an isolated test schema. Non-local browser requests were blocked; no external requests occurred. The UX regression checks additionally cover obsolete ordering-field rejection, deterministic admin/POS ordering, nested transaction rollback (including a late database failure), concurrency and migration of an existing populated catalog. A Chromium check exercised category creation, one-save Regular/Half/Full pricing, re-open/edit, channel-wide availability, search and tablet layout. See README for manual menu creation; no production menu seed exists.
 
-Remaining: modifiers, pagination if menu size requires it, and future order-time validation/snapshots. Hosting, TLS and backup readiness remain deployment work. No disconnected-browser writes or WAN/cloud synchronization exists; LAN/server/PostgreSQL must remain up.
+Remaining: modifiers, pagination if menu size requires it, and future structured modifiers. Hosting, TLS and backup readiness remain deployment work. No disconnected-browser writes or WAN/cloud synchronization exists; LAN/server/PostgreSQL must remain up.
 
 ## Menu photos
 
@@ -104,7 +104,7 @@ Admin items now expose `counterVisibility` (visible, reasons and per-variant rea
 
 ## Visual POS
 
-POS means Point of Sale; Kitchen/KDS remains separate. POS uses `/api/menu/counter`, which includes temporarily sold-out active priced portions with available flags and item versions; `/api/menu?channel=COUNTER` remains sellable-only. Large local photo cards retain written dish names, exact lowest price and portion count. Category buttons and case-insensitive dish/category/portion search work together. Oldest-created-first placement remains stable. Selecting a card opens a keyboard-dismissable portion/price dialog with permission-gated availability controls; there is no cart, quantity or order creation. Missing or failed images use a local plate illustration without remote requests. Inactive categories/items/portions and unpriced Counter portions are excluded by the server. Active priced sold-out portions stay visible for restoration.
+POS means Point of Sale; Kitchen/KDS remains separate. POS uses `/api/menu/counter`, which includes temporarily sold-out active priced portions with available flags and item versions; `/api/menu?channel=COUNTER` remains sellable-only. Large local photo cards retain written dish names, exact lowest price and portion count. Category buttons and case-insensitive dish/category/portion search work together. Oldest-created-first placement remains stable. Selecting a card opens a keyboard-dismissable portion/price dialog with permission-gated availability controls; the same dialog now selects portions, quantities and instructions for the adjacent order cart. Missing or failed images use a local plate illustration without remote requests. Inactive categories/items/portions and unpriced Counter portions are excluded by the server. Active priced sold-out portions stay visible for restoration.
 
 Refresh occurs on entry, window focus, visibility return, menu-save notification within/across tabs and every five seconds while visible. Replacement URLs avoid stale image caches. Refresh errors clear the listing and show a retry message. This is bounded polling, not instantaneous cross-device push. Browser tests use isolated fixtures, block all non-local requests and exercise upload/replacement/removal, categories/search, Counter prices, automatic refresh and cashier read access and narrow availability controls. Existing business photos/data are not changed by automated tests.
 
@@ -131,3 +131,7 @@ A failed file write/rename attempts immediate temporary-file cleanup. A failed u
 All Menu body/query/route/multipart boundaries are included in [the validation audit](../API_VALIDATION.md). Active flags reject null, full dishes allow at most 100 portions and 100 channel entries each, versions are positive PostgreSQL integers, and channel codes follow the configured grammar. Database uniqueness, FK, money and atomic-save protections remain unchanged.
 
 Verification uses PostgreSQL fault injection for failed file rename/unlink and metadata insertion, validates safe dry-run, and checks actual generated files before/after replacement. A deterministic 1600×1200 JPEG fixture reduced from 545,574 to 100,072 bytes (about 82%) after normalization; this illustrates existing quality-82 compression, not a guaranteed ratio for food photos. Two independent Chromium cookie jars verify cashier toggles and manager propagation without tab broadcasts; all browser traffic is restricted to the local installation.
+
+## Orders boundary
+
+Orders calls Menu application methods on its transaction connection to acquire the common menu lock and resolve Counter sellability. Current authoritative prices are snapshotted only at confirmation; menu edits never rewrite old orders. Price/availability writes and order confirmations serialize. No inventory reservation or provider call is introduced.

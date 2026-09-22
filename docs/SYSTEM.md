@@ -6,19 +6,19 @@ DukanOS will replace paper tokens with one digital restaurant order record share
 
 ## Current implementation
 
-The repository contains an npm workspace monorepo, NestJS API, React application, PostgreSQL migrations, shared contracts, and automated checks. Staff authentication, many-to-many RBAC, owner bootstrap/recovery, self-service password changes, delegated password resets, audited staff creation/access editing, and permission-filtered navigation are implemented. Menu categories, items, flexible variants, channel prices/availability, audited administration and operational reads are implemented. Order entry, kitchen actions, dispatch actions, reports, payments, printing, and integrations remain unimplemented.
+The repository contains an npm workspace monorepo, NestJS API, React application, PostgreSQL migrations, shared contracts, and automated checks. Staff authentication, many-to-many RBAC, owner bootstrap/recovery, self-service password changes, delegated password resets, audited staff creation/access editing, and permission-filtered navigation are implemented. Menu categories, items, flexible variants, channel prices/availability, audited administration and operational reads are implemented. Counter order entry with daily tokens and immutable sale snapshots is implemented. Kitchen actions, dispatch actions, reports, payments, printing, and integrations remain unimplemented.
 
-`GET /api/health` checks process liveness; `/api/health/ready` checks database connectivity, not migration readiness. The production API serves the compiled frontend from the same origin. The frontend uses hash routes, session restoration and context refresh on focus/every 30 seconds. Staff creation/access editing requires users.manage; password-reset administration requires users.password.reset and role-specific target checks. All authenticated staff have a Change Password screen. POS displays a visual COUNTER menu with local photos, category buttons, search and portion prices; kitchen and dispatch remain placeholders. The dedicated Menu workspace requires menu.manage; Admin remains staff administration. Menu has category-grouped search and a single dish editor that saves metadata, portions, channel prices, availability and an optional local image reference atomically. Counter visibility diagnostics explain hidden dishes. POS refreshes on entry, focus, menu-change notification and every five seconds while visible. OWNER/MANAGER/CASHIER can mark Counter dishes or individual portions sold out/available in the portion dialog; sold-out cards stay visible for restoration. No ordering is implemented.
+`GET /api/health` checks process liveness; `/api/health/ready` checks database connectivity, not migration readiness. The production API serves the compiled frontend from the same origin. The frontend uses hash routes, session restoration and context refresh on focus/every 30 seconds. Staff creation/access editing requires users.manage; password-reset administration requires users.password.reset and role-specific target checks. All authenticated staff have a Change Password screen. POS displays a visual COUNTER menu with local photos, category buttons, search and portion prices; kitchen and dispatch remain placeholders. The dedicated Menu workspace requires menu.manage; Admin remains staff administration. Menu has category-grouped search and a single dish editor that saves metadata, portions, channel prices, availability and an optional local image reference atomically. Counter visibility diagnostics explain hidden dishes. POS refreshes on entry, focus, menu-change notification and every five seconds while visible. OWNER/MANAGER/CASHIER can mark Counter dishes or individual portions sold out/available in the portion dialog; sold-out cards stay visible for restoration. POS also supports an editable cart, plain kitchen instructions and atomic Counter confirmation into QUEUED with a clear token result.
 
 ## Technology and architecture
 
-Node.js (development verified with 24.13.1), NestJS 11, TypeScript, React 19, Vite 7, PostgreSQL 16. One modular monolith and one web application. SQL migrations use node-postgres; no ORM is selected. Menu INR prices use checked PostgreSQL numeric values and decimal strings at API boundaries; money arithmetic has not been implemented.
+Node.js (development verified with 24.13.1), NestJS 11, TypeScript, React 19, Vite 7, PostgreSQL 16. One modular monolith and one web application. SQL migrations use node-postgres; no ORM is selected. Menu INR prices use checked PostgreSQL numeric values and decimal strings at API boundaries; order totals use exact BigInt paise arithmetic.
 
 ## Deployment and continuity
 
 The owner has not chosen local or cloud hosting; cost matters. Internet outages must not stop ordering or kitchen operations. The baseline design therefore permits running the API, built web assets, and PostgreSQL on one shop server reachable over LAN. No CDN or internet-hosted assets are required. Menu photos are processed locally with Sharp and stored under DUKANOS_DATA_DIR/uploads/menu (default ~/.local/share/dukanos/uploads/menu), outside source/build assets. Backups must include PostgreSQL and this persistent directory. Local operation requires a working LAN, server, database, and power; disconnected browser writes are not supported. A cloud-only deployment cannot meet the internet-outage requirement without additional local execution and synchronization. Cloud backup or reporting replication is future work, not implemented functionality.
 
-The scaffold does not yet establish operational offline ordering: order and KDS features must be implemented and tested with WAN disconnected. Installation initially needs internet access to download packages/images.
+Counter confirmation uses only local API/PostgreSQL and locally served assets; KDS remains unimplemented. Installation initially needs internet access to download packages/images.
 
 ## Domain relationships and intended workflows
 
@@ -37,9 +37,9 @@ Counter or provider → normalized order → queued → preparing → ready → 
 
 ## Pending work and questions
 
-Next proposed milestone: POS ordering with immutable name/price snapshots, after resolving tax and total rules. Do not begin automatically. Later phases: Kitchen, Amendments, Customers, Credit, Reports, Integrations. Menu modifiers remain deferred.
+Next proposed milestone: Kitchen queue and audited lifecycle actions using the Orders API. Do not begin automatically. Later phases: Payments, Amendments, Customers, Credit, Reports, Integrations. Menu modifiers remain deferred.
 
-Resolve before relevant feature implementation: tax/discount/rounding rules, cancellation/amendment cutoffs once cooking starts, receipt hardware, provider API access, shop hardware and backup budget. Menu prices use INR; currency configuration and timezone settings remain unimplemented.
+Resolve before relevant feature implementation: production tax configuration, future discount/cash-rounding rules, cancellation/amendment cutoffs once cooking starts, receipt hardware, provider API access, shop hardware and backup budget. Menu prices use INR; currency remains INR. Restaurant timezone defaults to Asia/Kolkata; local environment config supplies timezone and generic exclusive order tax (default zero).
 
 ## Terminology
 
@@ -62,3 +62,7 @@ Category → item → data-driven variants → channel settings. COUNTER, ZOMATO
 ## API input boundaries
 
 All implemented endpoints have explicit body/query contracts and runtime DTO validation. Unknown fields, malformed identifiers, null booleans, invalid nested inputs and unbounded configuration arrays are rejected. See [API validation audit](API_VALIDATION.md) for the endpoint matrix, transport limits and remaining security work. Media replacement/removal cleans obsolete files after commit; failed staging compensates filesystem writes. Explicit media cleanup supports --dry-run and never runs at startup.
+
+## Orders Core
+
+See [Orders](modules/orders.md) for transaction, idempotency and FIFO read contracts. DRAFT is a local cart; confirmation persists QUEUED, names/prices/tax snapshots, confirmed actor and append-only DRAFT→QUEUED history. UUID identifies orders; date-scoped tokens reset at restaurant midnight via PostgreSQL allocation. No payment is implied or recorded. Queued orders cannot be edited; future lifecycle writes require an audited Orders extension. KITCHEN has orders.read but no creation permission.

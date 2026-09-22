@@ -26,3 +26,7 @@ Orders owns lifecycle and item history; future Socket.IO application notificatio
 ## Pending work
 
 Queue APIs, large readable KDS, transition/aggregation/concurrency tests, reconnect behavior and WAN-outage verification.
+
+## Orders Core integration
+
+Orders Core is now available: GET /api/orders?status=QUEUED returns date/token, queuedAt, actor and snapshotted item/kitchen/variant names, quantities and instructions, sorted queued_at/id ascending with cursor paging. Omit date to include yesterday’s pending orders. KITCHEN has orders.read. No KDS UI/actions/events exist yet. The next milestone must implement audited Orders lifecycle commands and a migration replacing the current confirmed-order update guard; retain financial and line immutability.
