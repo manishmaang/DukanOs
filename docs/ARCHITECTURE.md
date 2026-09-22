@@ -2,7 +2,7 @@
 
 ## Repository
 
-- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu/Orders modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
+- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu/Orders/Kitchen modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
 - `apps/web`: one React application, with hash routes for POS, kitchen, dispatch, and administration.
 - `packages/shared-types`: compile-time public contracts only; no runtime database models or business logic.
 - `database/migrations`: ordered, immutable SQL migrations.
@@ -25,9 +25,9 @@ The same application can run locally or on a cloud host. The baseline for requir
 
 Do not run local and cloud databases as independent writable authorities. No replication, synchronization, failover, service worker, disconnected browser queue, or background jobs exist. Backups and restore procedures remain a release requirement. Choose cloud vs local based on available shop hardware, electricity, maintenance, and backup cost, not an assumed monthly price.
 
-## Real-time and integration plan
+## Local freshness and integration boundary
 
-Socket.IO will deliver stable application events after database commit. Reconnecting clients must reload canonical state. Delivery must never be the only durable record; select a transactional outbox if reliable asynchronous integration is required. Current scaffold has no socket server or event bus. Provider-specific adapters will validate and normalize payloads and deduplicate provider order IDs; core Orders must not import provider types.
+Kitchen uses two-second authoritative polling (there was no socket infrastructure), with immediate action/conflict/focus/reconnect refetch and local elapsed timers. Orders and production arrive in one consistent read snapshot; stale responses cannot overwrite newer results. No runtime event bus or socket server exists. A future push transport should publish only after commit and still refetch canonical state on reconnect; select an outbox if durable external delivery becomes required. Provider-specific adapters will validate, normalize and deduplicate provider order IDs; core Orders must not import provider types. See decision 012.
 
 ## Verification references
 
@@ -73,4 +73,8 @@ POS uses a Counter-specific read model including sold-out priced portions, keepi
 
 ## Orders boundary
 
-OrdersModule imports MenuModule and shares the confirmation transaction connection with Menu application methods. Orders owns tokens, snapshots, totals and history. BigInt paise implements exact arithmetic; no money library or runtime shared-type logic is introduced. POS retains its visual menu and adds a cart component; pending confirmation identity is kept in per-user tab storage. Tax/timezone are validated server environment settings loaded at startup. Future Kitchen consumes Orders DTOs and must call audited Orders lifecycle commands, not mutate order tables directly. See decision 011.
+OrdersModule imports MenuModule and shares the confirmation transaction connection with Menu application methods. Orders owns tokens, snapshots, totals and history. BigInt paise implements exact arithmetic; no money library or runtime shared-type logic is introduced. POS retains its visual menu and adds a cart component; pending confirmation identity is kept in per-user tab storage. Tax/timezone are validated server environment settings loaded at startup. KitchenController calls Orders-owned OrderLifecycleService for audited transitions. KitchenService reads operational snapshots and computes production aggregates; it does not write order tables. See decision 011.
+
+## Kitchen boundary
+
+KitchenModule imports OrdersModule for explicit lifecycle commands. It exposes one combined read snapshot for instant Order/Production mode switching and a separate production endpoint. Both use repeatable-read PostgreSQL projections without Menu joins or financial fields. Production aggregation is a pure tested backend function. The existing React router/capability navigation hosts Kitchen.tsx; no new UI or networking dependencies are required. Migration 009 makes history the atomic driver of status while keeping every financial/item field immutable. Confirmation and Kitchen transitions share advisory lock 742019323, then user/session/order locks, to serialize FIFO decisions with queue insertion.

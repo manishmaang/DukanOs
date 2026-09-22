@@ -1,6 +1,6 @@
 # DukanOS
 
-Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management and Counter order creation** implemented. Payments and kitchen workflows remain pending.
+Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation and Kitchen Display System** implemented. Payments and Dispatch actions remain pending.
 
 ## Requirements
 
@@ -134,7 +134,7 @@ The [API validation audit](docs/API_VALIDATION.md) documents every current endpo
 
 ## Counter ordering
 
-Apply `npm run db:migrate`, build/start the application, and sign in as CASHIER, MANAGER or OWNER. Open POS, tap a dish, choose an available portion, quantity and optional kitchen instruction, then **Add to Order**. Edit quantities/notes or remove lines in Current Order. **Confirm Order** stores the order as QUEUED and shows its daily token and authoritative total. **New Order** starts the next cart. No payment is collected and Kitchen actions are not implemented yet.
+Apply `npm run db:migrate`, build/start the application, and sign in as CASHIER, MANAGER or OWNER. Open POS, tap a dish, choose an available portion, quantity and optional kitchen instruction, then **Add to Order**. Edit quantities/notes or remove lines in Current Order. **Confirm Order** stores the order as QUEUED and shows its daily token and authoritative total. **New Order** starts the next cart. No payment is collected. Kitchen staff receive the order through the Kitchen workspace.
 
 Prices and sellability are rechecked at confirmation. If a portion was sold out, review the identified line. After a network timeout, use **Retry confirmation**: it reuses the stored request identity and cannot create a second order. Keep that tab open until the result is resolved. Ordinary unsent carts are not persisted. To inspect confirmed data, use authenticated `/api/orders?status=QUEUED`, `/api/orders/:id` or `/api/orders/tokens/YYYY-MM-DD/47`.
 
@@ -146,4 +146,12 @@ ORDER_TAX_RATE=0
 ORDER_TAX_LABEL=Tax
 ```
 
-Tokens reset by local calendar date at midnight. Tax is a configurable exclusive percentage (0–100, up to two fractional digits), default zero, rounded once HALF_UP to paise. No tax-law rate is assumed. Historical configuration and totals are snapshotted. Totals are never rounded to whole rupees. See [Orders](docs/modules/orders.md) for idempotency, schema, immutability and next-Kitchen contracts.
+Tokens reset by local calendar date at midnight. Tax is a configurable exclusive percentage (0–100, up to two fractional digits), default zero, rounded once HALF_UP to paise. No tax-law rate is assumed. Historical configuration and totals are snapshotted. Totals are never rounded to whole rupees. See [Orders](docs/modules/orders.md) for idempotency, schema, immutability and Kitchen contracts.
+
+## Kitchen Display System
+
+Apply `npm run db:migrate` (009 preserves existing orders/menu/users/images), then build and restart the API. Sign in as KITCHEN, OWNER, MANAGER or staff with a combined KITCHEN role. Open **Kitchen**. **Order View** shows queued tokens oldest first with NEXT; **Start Order** accepts only that token. Multiple accepted orders can cook in parallel. **Mark Ready** removes an order from active Kitchen; Dispatch completion is future work. Tokens show their business date because daily numbers repeat.
+
+**Production View** shows To start and In preparation separately, with dish/portion totals and source token quantities/instructions. Preparation state belongs to the whole order. Notes are independent per line; prices/payment data are absent. Devices refresh automatically about every two seconds plus request time, and refetch after actions or reconnect. A connection failure pauses actions until a successful read. The server, LAN and PostgreSQL must remain available; internet is not required. See [Kitchen](docs/modules/kitchen.md) for endpoints and limits.
+
+Run `npm run check` and `npm run test:integration`. For real Chromium verification, set CHROME_BINARY to your local executable and run `npm run test:kitchen-browser`. The script creates three orders through POS in an isolated schema, verifies production totals/source notes, FIFO, START/READY, independent-device conflicts/recovery and tablet layout, and removes its fixtures. Screenshots: `/tmp/dukanos-kitchen-orders.png`, `/tmp/dukanos-kitchen-production.png`, `/tmp/dukanos-kitchen-tablet.png`. It does not modify restaurant orders.

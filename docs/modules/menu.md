@@ -110,7 +110,7 @@ Refresh occurs on entry, window focus, visibility return, menu-save notification
 
 ## Operational Counter availability
 
-Migration 007 grants menu.availability.manage to OWNER, MANAGER and CASHIER. KITCHEN retains menu.read only: it has no cashier-facing POS workspace and kitchen workflows are not part of this milestone. DISPATCH gains nothing. Multi-role unions apply normally. The new permission never grants price, configuration, image or other-channel writes.
+Migration 007 grants menu.availability.manage to OWNER, MANAGER and CASHIER. KITCHEN retains menu.read only: it has no cashier-facing POS workspace and Kitchen has its own Order/Production workspace and does not grant menu administration. DISPATCH gains nothing. Multi-role unions apply normally. The new permission never grants price, configuration, image or other-channel writes.
 
 `GET /api/menu/counter` (menu.read) returns active categories/dishes/portions with configured Counter prices, including available=false portions. Items include the current aggregate version. Other operational channel reads retain their sellable-only contract.
 

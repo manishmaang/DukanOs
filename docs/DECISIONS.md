@@ -253,3 +253,25 @@ Keep editable drafts in POS memory. Confirm in one PostgreSQL transaction sharin
 ### Reason and consequences
 
 This fits one restaurant and protects against duplicate confirmations, changing menu state and historical repricing without new infrastructure. Broad lock throughput is bounded by short local transactions. Persisted drafts, tax administration/inclusive tax, payments, customer association, lifecycle actions and full amendments are deferred. Closing the browser tab loses tab-scoped retry recovery; staff should check existing orders after uncertain results. KDS can consume the FIFO read contract now but must add an audited transition migration before changing status.
+
+## 012 — FIFO Kitchen transitions and authoritative polling
+
+Date: 2026-09-22.
+
+### Context and options considered
+
+Multiple kitchen devices need FIFO acceptance, traceable production totals and quick local updates. Orders Core already seals snapshots/history; no socket server exists. Considered row-only locking versus the existing confirmation lock; separate kitchen states versus Orders lifecycle; per-item preparation versus whole-order semantics; adding Socket.IO versus short authoritative polling.
+
+### Decision
+
+Orders owns QUEUED→PREPARING→READY commands. Serialize transitions with confirmation using lock 742019323, recheck session/capability, and let validated append-only history atomically drive status through migration 009. Keep financial/item fields immutable. Kitchen reads a repeatable-read operational projection, groups by stable menu IDs plus name snapshots, and retains every source line/instruction. Preparation remains order-level.
+
+Use a two-second visible-page poll of one combined Kitchen snapshot, immediate action/conflict/focus/online refetch and local elapsed timers. No event bus/socket dependency is introduced. Failed reads hide stale actionable state. No automatic offline mutation retry exists.
+
+### Reason
+
+The existing shared write boundary makes FIFO concurrent with confirmation explicit and testable for one small restaurant. History-derived timestamps avoid redundant metadata. Polling provides short local propagation and naturally recovers missed changes without socket session/revocation machinery or a second state authority.
+
+### Consequences
+
+Healthy updates have about two seconds plus request latency, not instantaneous push. Active queues are unpaginated; large-backlog load testing and finer locking can follow measured need. A future socket layer must retain authoritative refetch and publish only after commit. Per-item completion, batch actions, prioritization/overrides, cancellation, Dispatch completion and payments require separate milestones. No Kitchen transition changes sale snapshots.

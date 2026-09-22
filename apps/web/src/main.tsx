@@ -1,3 +1,4 @@
+import { Kitchen } from './Kitchen';
 import { MenuAdmin, MenuPreview } from './Menu';
 import { ChangePassword, StaffPasswordResets } from './PasswordManagement';
 import {
@@ -187,7 +188,12 @@ function App() {
                   key={link.path}
                   path={link.path}
                   element={
-                    link.path === '/menu' ? (
+                    link.path === '/kitchen' ? (
+                      <Kitchen
+                        key={user.id}
+                        canUpdate={user.permissions.includes('kitchen.update')}
+                      />
+                    ) : link.path === '/menu' ? (
                       <MenuAdmin />
                     ) : link.path === '/pos' &&
                       user.permissions.includes('menu.read') ? (
