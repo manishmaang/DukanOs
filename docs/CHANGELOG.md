@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-23 — Dispatch handover
+
+### Added
+
+- READY-only Dispatch workspace with oldest-ready ordering, token/portion quantities, secondary notes and Handed Over actions; responsive cards, configurable READY-age attention, new-arrival highlighting and local polling/recovery.
+- Dedicated dispatch.read queue and dispatch.complete command using existing role grants and multi-role navigation.
+- Migration 011 extends Orders' history-driven guards to READY→COMPLETED and indexes READY history; existing records and immutable sale data are preserved, without redundant timestamp columns.
+- PostgreSQL and Chromium coverage for lifecycle handoff, migration preservation, permissions, concurrent/stale completion, rollback, reconnect and responsive UI. No payment dependency, undo or provider integration.
+
+### Verified
+
+- `npm run check` passed; all 77 PostgreSQL tests and Dispatch, Kitchen and Menu/POS Chromium regressions passed. Desktop/tablet Dispatch screenshots reviewed; browser traffic restricted to local services.
+- Migration 011 applied locally and rerun safely. Digests confirmed all 20 existing data tables and the existing image unchanged; three existing READY orders remain available for handover.
+
 ## 2026-09-23 — MVP checkpoint
 
 - Marked and pushed fixed annotated tag `v0.1.0-mvp` at `df2d141`, preserving the completed authentication, Menu, Counter Orders and Kitchen stage.

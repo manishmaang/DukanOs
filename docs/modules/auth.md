@@ -32,7 +32,7 @@ Persistent atomic login counters allow 10 attempts per normalized username and 6
 
 ## Frontend
 
-Sign-in/session restoration, sign-out, and capability-filtered POS/Kitchen/Dispatch/Admin navigation are implemented. A single session permits switching all allowed workspaces without logout. Direct navigation to an unauthorized workspace renders unavailable. Context refreshes on focus and every 30 seconds; backend checks are authoritative between refreshes. POS provides menu browsing with Counter availability controls for permitted staff; Kitchen provides permission-gated Order/Production views and FIFO START/READY; dispatch remains a placeholder. Menu management has its own permission-filtered workspace.
+Sign-in/session restoration, sign-out, and capability-filtered POS/Kitchen/Dispatch/Admin navigation are implemented. A single session permits switching all allowed workspaces without logout. Direct navigation to an unauthorized workspace renders unavailable. Context refreshes on focus and every 30 seconds; backend checks are authoritative between refreshes. POS provides menu browsing with Counter availability controls for permitted staff; Kitchen provides permission-gated Order/Production views and FIFO START/READY; Dispatch provides READY handover with its own read/complete capabilities. Menu management has its own permission-filtered workspace.
 
 ## Dependencies / tables
 
@@ -67,3 +67,7 @@ Orders endpoints use existing orders.create/read guards and confirmation recheck
 ## Kitchen availability capability
 
 Migration 010 grants menu.availability.manage to KITCHEN through role_permissions. Effective permissions remain live unions; no role/session format changes or menu.manage grant. Existing sessions see the grant on their next request; UI context refreshes on focus/every 30 seconds. Menu's backend checks remain authoritative for Kitchen sold-out/restore requests.
+
+## Dispatch capabilities
+
+Existing dispatch.read and dispatch.complete grants now authorize the implemented Dispatch queue and READY→COMPLETED command for OWNER/MANAGER/DISPATCH. No permission migration or role model change is needed. CASHIER-only and KITCHEN-only lack these capabilities; combinations including DISPATCH union them naturally. Backend completion rechecks the live session/capability after locks; workspace visibility is only a convenience. Dispatch does not gain generic orders.read, menu administration or payment access. See [Dispatch](dispatch.md).

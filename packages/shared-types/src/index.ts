@@ -54,3 +54,5 @@ export type * from './menu';
 export type * from './orders';
 
 export type * from './kitchen';
+
+export type * from './dispatch';

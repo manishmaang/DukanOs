@@ -275,3 +275,19 @@ The existing shared write boundary makes FIFO concurrent with confirmation expli
 ### Consequences
 
 Healthy updates have about two seconds plus request latency, not instantaneous push. Active queues are unpaginated; large-backlog load testing and finer locking can follow measured need. A future socket layer must retain authoritative refetch and publish only after commit. Per-item completion, batch actions, prioritization/overrides, cancellation, Dispatch completion and payments require separate milestones. No Kitchen transition changes sale snapshots.
+
+## 013 — Dispatch handover through Orders history
+
+Date: 2026-09-23.
+
+### Context and options considered
+
+Staff need physical READY→COMPLETED handover with concurrent tablets and existing READY records. Considered separate Dispatch state/tables versus extending Orders commands; redundant ready_at/completed_at columns versus the existing unique destination history; strict handover FIFO versus oldest-ready display ordering.
+
+### Decision
+
+Use existing dispatch.read/dispatch.complete capabilities and Orders lifecycle locking/authorization. Extend database guards with migration 011; history drives status and supplies READY/completion times and actors. Add a partial READY history index and a Dispatch-specific financial-free projection sorted by ready time/UUID. Any READY order may be handed over; sorting assists staff but does not block a later customer. Reuse two-second authoritative polling and static configurable READY-age attention. Payments remain independent.
+
+### Reason and consequences
+
+One source of lifecycle truth preserves snapshots and avoids duplicated timestamps or audit systems. Existing READY orders require no backfill. Concurrent completion produces one transition and a safe conflict/refetch for other devices. There is no casual undo, payment prerequisite, partial handover or completed-history dashboard. Future correction/payment warnings need explicit rules; no new module starts automatically.

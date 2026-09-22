@@ -42,3 +42,7 @@ POST /orders/counter: JSON ConfirmOrderDto, UUIDv4 requestId, 1–100 nested lin
 ## Kitchen
 
 GET /kitchen/orders and /kitchen/production accept no body or query and require kitchen.read. POST /kitchen/orders/:id/start and /ready accept no body/query (even `{}` is rejected), validate UUIDv4, require kitchen.update and the mutation header, and revalidate session/capability after transaction-lock waiting. Dedicated operations cannot accept arbitrary status or financial changes. Stale/FIFO conflicts return specific 409 business errors and cause frontend authoritative refetch. Read models contain operational snapshots only.
+
+## Dispatch
+
+GET /dispatch/orders requires dispatch.read and rejects body/query input. POST /dispatch/orders/:id/complete requires dispatch.complete, UUIDv4, the mutation header and no body/query (including empty JSON). Orders rechecks the live session/capability inside the transaction and permits only READY→COMPLETED. Duplicates/wrong states produce sanitized 409 errors; queue reads expose operational snapshots only. No arbitrary status input exists.

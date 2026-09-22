@@ -2,7 +2,7 @@
 
 ## Repository
 
-- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu/Orders/Kitchen modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
+- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu/Orders/Kitchen/Dispatch modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
 - `apps/web`: one React application, with hash routes for POS, kitchen, dispatch, and administration.
 - `packages/shared-types`: compile-time public contracts only; no runtime database models or business logic.
 - `database/migrations`: ordered, immutable SQL migrations.
@@ -82,3 +82,7 @@ KitchenModule imports OrdersModule for explicit lifecycle commands. It exposes o
 ## Kitchen usability and availability
 
 KitchenState adds validated server-configured lateThresholdMinutes and restaurant businessDate; existing source/production contracts remain intact. The browser derives only whitespace-normalized instruction display totals from source lines, without changing domain grouping or original notes. The Kitchen Availability modal calls existing Menu endpoints directly under menu.availability.manage and shares POS's notification/polling strategy. No new availability service, settings module, event transport or state machine is introduced.
+
+## Dispatch boundary
+
+DispatchModule imports OrdersModule for READY→COMPLETED and owns only its operational read projection. Orders retains all lifecycle writes, locking, live capability checks and append-only history. READY/completion times come from unique history, not new timestamp columns or a second state machine. Dispatch reads one repeatable-read snapshot without Menu joins or financial fields, reuses the local two-second polling pattern and requires no external infrastructure. The React Dispatch workspace replaces the existing placeholder and preserves capability-union navigation. See decision 013.

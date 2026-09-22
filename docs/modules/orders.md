@@ -2,11 +2,11 @@
 
 ## Purpose and current implementation
 
-Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. Kitchen START/READY is implemented through Orders-owned lifecycle commands. No draft rows, payments, customers, cancellations or amendments are exposed yet.
+Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. Kitchen START/READY and Dispatch completion are implemented through Orders-owned lifecycle commands. No draft rows, payments, customers, cancellations or amendments are exposed yet.
 
 ## Lifecycle and immutability
 
-Policy: DRAFT → QUEUED → PREPARING → READY → COMPLETED. DRAFT/QUEUED may transition to CANCELLED in a future authorized cancellation workflow; PREPARING cancellation requires a separate business decision. Terminal states have no outgoing transitions. Implemented transitions are DRAFT → QUEUED → PREPARING → READY. Migration 009 permits only audited Kitchen START/READY after confirmation, using append-only history to apply status atomically. Financial snapshots and all item fields remain immutable; later item appends and history rewrites remain forbidden. There is no generic status PATCH, cancellation or completion API yet. See [Kitchen](kitchen.md) for FIFO, locking and transition errors.
+Policy: DRAFT → QUEUED → PREPARING → READY → COMPLETED. DRAFT/QUEUED may transition to CANCELLED in a future authorized cancellation workflow; PREPARING cancellation requires a separate business decision. Terminal states have no outgoing transitions. Implemented transitions are DRAFT → QUEUED → PREPARING → READY → COMPLETED. Migration 009 permits only audited Kitchen START/READY after confirmation, using append-only history to apply status atomically. Financial snapshots and all item fields remain immutable; later item appends and history rewrites remain forbidden. Migration 011 additionally permits audited Dispatch completion. There is no generic status PATCH, cancellation or undo API. See [Kitchen](kitchen.md) for FIFO, locking and transition errors.
 
 ## Confirmation and concurrency
 
@@ -46,9 +46,9 @@ All routes below have /api prefix and normal authenticated session/mutation-head
 | GET /orders/tokens/:date/:token                              | orders.read   | Exact business-date/token lookup                                   |
 | GET /orders?status=QUEUED&businessDate=YYYY-MM-DD&after=UUID | orders.read   | `{orders,nextCursor}`, 100 results in queued_at/id ascending order |
 
-List filters are optional; omit businessDate for pending work spanning midnight. Pass nextCursor as after with the same filters for the next page. Current persisted statuses are QUEUED, PREPARING and READY; later lifecycle values remain reserved. No history mutation API is exposed. Public shared contracts contain no request fingerprint or persistence credentials.
+List filters are optional; omit businessDate for pending work spanning midnight. Pass nextCursor as after with the same filters for the next page. Current persisted statuses are QUEUED, PREPARING, READY and COMPLETED; later lifecycle values remain reserved. No history mutation API is exposed. Public shared contracts contain no request fingerprint or persistence credentials.
 
-OWNER/MANAGER/CASHIER already have orders.create/read. Migration 008 additionally grants orders.read to KITCHEN for the next queue consumer, without order creation or menu administration. Existing kitchen.read/update grants authorize the implemented Kitchen workspace/actions. DISPATCH order reading remains deferred. Multi-role unions work normally.
+OWNER/MANAGER/CASHIER already have orders.create/read. Migration 008 additionally grants orders.read to KITCHEN for the next queue consumer, without order creation or menu administration. Existing kitchen.read/update grants authorize the implemented Kitchen workspace/actions. DISPATCH uses its dedicated operational projection, without generic orders.read access. Multi-role unions work normally.
 
 ## Kitchen boundary
 
@@ -79,3 +79,7 @@ The confirmation serializer explicitly sends only variantId, quantity and each l
 ## Kitchen usability boundary
 
 Kitchen's configurable late indicator uses total age since queuedAt and never changes FIFO or lifecycle rules. Compact Production instruction breakdowns are presentation-only; original order instructions/source associations remain immutable. Kitchen can change Counter sellability through Menu's existing capability/API. Existing draft carts are not silently removed or repriced; confirmation rejects a newly unavailable portion with ITEM_NOT_AVAILABLE. Already-confirmed orders remain valid Kitchen work regardless of later menu availability.
+
+## Dispatch boundary
+
+Dispatch reads READY-only snapshots ordered by unique READY history time/UUID and calls OrderLifecycleService for READY→COMPLETED under dispatch.complete. The existing lock/session/capability/status checks and history-driven transaction are shared with Kitchen. Migration 011 extends guards; completion records exactly one actor/time/reason history entry, preserves financial/item snapshots and has no payment prerequisite. Completed time is derived from the unique COMPLETED history record. No amendment, cancellation or undo is introduced. See [Dispatch](dispatch.md) for APIs, concurrency, polling and error behavior.
