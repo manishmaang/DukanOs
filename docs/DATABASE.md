@@ -132,3 +132,9 @@ Kitchen commands take the shared restaurant/menu/confirmation lock before actor/
 ## Kitchen Counter capability — 010_kitchen_counter_availability.sql
 
 Adds only role_permissions(KITCHEN, menu.availability.manage), using ON CONFLICT DO NOTHING. No table/column/trigger changes, defaults, catalog rewrite, history update or data reset. Existing KITCHEN menu.read, kitchen.read/update and orders.read remain; menu.manage and orders.create are not granted. Existing users, orders, prices, images and audit/history records are preserved. The Menu transaction and before_value/after_value audit continue to own Counter availability mutations.
+
+## Dispatch lifecycle — 011_dispatch_handoff.sql
+
+Replaces only protect_order_lifecycle and validate_order_transition to additionally accept READY→COMPLETED. Existing triggers atomically apply status from validated history; unique order_history_destination_idx continues to prevent duplicate destination history. Financial/item immutability, initial sealing, actor FKs, append-only history and FIFO START remain intact. Existing rows (including READY orders), IDs, timestamps, menu/images/users/audits and role grants are untouched. No new tables or columns.
+
+Adds partial order_history_ready_queue_idx(occurred_at,order_id) WHERE to_status='READY'. Dispatch joins READY orders to their unique READY history record and sorts by its timestamp then order UUID across dates. Completion time and actor are derived from the unique COMPLETED history row, avoiding a redundant completed_at column. The shared transaction lock/session/capability checks apply before completion. See decision 013 and Dispatch for errors and rollback semantics.

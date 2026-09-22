@@ -6,10 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import type {
-  KitchenTransitionResult,
-  OrderStatus,
-} from '@dukanos/shared-types';
+import type { OrderTransitionResult, OrderStatus } from '@dukanos/shared-types';
 import { DatabaseService } from '../../database/database.service';
 import type { AuthRequest } from '../auth/access';
 import { canTransition } from './order-policy';
@@ -18,9 +15,9 @@ export class OrderLifecycleService {
   constructor(private readonly db: DatabaseService) {}
   transition(
     id: string,
-    to: 'PREPARING' | 'READY',
+    to: 'PREPARING' | 'READY' | 'COMPLETED',
     actor: AuthRequest,
-  ): Promise<KitchenTransitionResult> {
+  ): Promise<OrderTransitionResult> {
     return this.db.transaction(async (c) => {
       // Same lock order as confirmation: shared restaurant writes, user, session, order.
       await c.query('SELECT pg_advisory_xact_lock(742019323)');
@@ -38,12 +35,15 @@ export class OrderLifecycleService {
         });
       const permission = await c.query(
         'SELECT 1 FROM user_roles ur JOIN role_permissions rp ON rp.role_code=ur.role_code WHERE ur.user_id=$1 AND rp.permission_code=$2',
-        [actor.user.id, 'kitchen.update'],
+        [
+          actor.user.id,
+          to === 'COMPLETED' ? 'dispatch.complete' : 'kitchen.update',
+        ],
       );
       if (!permission.rowCount)
         throw new ForbiddenException({
           code: 'PERMISSION_DENIED',
-          message: 'Kitchen update permission is required.',
+          message: 'Permission to perform this order transition is required.',
         });
       const order = (
         await c.query<{ status: OrderStatus }>(
@@ -61,7 +61,9 @@ export class OrderLifecycleService {
           code:
             to === 'PREPARING'
               ? 'ORDER_ALREADY_STARTED'
-              : 'ORDER_ALREADY_READY',
+              : to === 'READY'
+                ? 'ORDER_ALREADY_READY'
+                : 'ORDER_ALREADY_COMPLETED',
           message:
             'Another device already updated this order. The queue will refresh.',
         });
@@ -97,7 +99,9 @@ export class OrderLifecycleService {
             actor.user.id,
             to === 'PREPARING'
               ? 'Kitchen started order'
-              : 'Kitchen marked order ready',
+              : to === 'READY'
+                ? 'Kitchen marked order ready'
+                : 'Dispatch handed order over',
           ],
         )
       ).rows[0]!;

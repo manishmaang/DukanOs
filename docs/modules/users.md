@@ -48,7 +48,7 @@ users, roles, user_roles, permissions, role_permissions, user_audit. Users depen
 
 ## Pending work
 
-Name/profile editing, staff search/pagination, and a configurable permission editor if needed. Ordering and financial APIs are future modules.
+Name/profile editing, staff search/pagination, and a configurable permission editor if needed. Ordering and Dispatch are implemented; financial APIs remain future work.
 
 ## Delegated password reset
 
@@ -80,3 +80,7 @@ See [API validation audit](../API_VALIDATION.md). Transport bodies/queries are e
 ## Orders Core integration
 
 Migration 008 grants KITCHEN orders.read for the Kitchen queue consumer. It does not grant orders.create. Existing OWNER/MANAGER/CASHIER order capabilities remain unchanged.
+
+## Dispatch capabilities
+
+Existing dispatch.read and dispatch.complete grants now authorize the implemented Dispatch queue and READY→COMPLETED command for OWNER/MANAGER/DISPATCH. No permission migration or role model change is needed. CASHIER-only and KITCHEN-only lack these capabilities; combinations including DISPATCH union them naturally. Backend completion rechecks the live session/capability after locks; workspace visibility is only a convenience. Dispatch does not gain generic orders.read, menu administration or payment access. See [Dispatch](dispatch.md).

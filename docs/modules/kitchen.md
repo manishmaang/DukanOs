@@ -8,7 +8,7 @@ Kitchen has an Order View and a read-only Production View at `/#/kitchen`. It co
 
 Separate Queued and Preparing sections contain compact responsive order-card grids (three columns at ≥1180px, two at 700–1179px, one below 700px). Tokens remain prominent alongside age/NEXT/LATE indicators, kitchen-name/variant snapshots, quantities and prominent plain-text instructions. Business dates appear only for older-date orders or when active orders span multiple dates. Empty instructions render nothing. Same-dish lines are visually grouped; each portion/customization retains its own line. Kitchen display names fall back to item names at confirmation, not at read time.
 
-Both lists sort queued_at ASC, order UUID ASC, across all business dates. The oldest QUEUED order is marked NEXT; only its Start Order is enabled. Starting moves the whole order to Preparing and enables the next token, permitting parallel cooking after FIFO acceptance. Mark Ready removes an order from active Kitchen. There is no arbitrary status editor or full Dispatch workflow.
+Both lists sort queued_at ASC, order UUID ASC, across all business dates. The oldest QUEUED order is marked NEXT; only its Start Order is enabled. Starting moves the whole order to Preparing and enables the next token, permitting parallel cooking after FIFO acceptance. Mark Ready removes an order from active Kitchen. READY orders enter Dispatch for handover; there is no arbitrary status editor.
 
 Waiting time measures elapsed time since queued_at. Preparing time measures elapsed time since the PREPARING history entry. The browser samples serverTime and advances a monotonic local timer; it does not fetch every second just for the display. New queued arrivals receive an eight-second NEW highlight; initial page loading is not treated as a new arrival. No sound is required. Order actions are at least 48px high; reduced margins and padding increase density without reducing instructions to secondary text.
 
@@ -59,7 +59,7 @@ PostgreSQL tests cover migration of populated Orders Core, FIFO/UUID ties/previo
 
 ## Current limitations and pending work
 
-Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch/completion, sound, printing, payments, amendments and cancellation remain separate future milestones.
+Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; sound, printing, payments, amendments and cancellation remain future work.
 
 ## Late order attention
 
@@ -76,3 +76,7 @@ The panel calls the existing GET /api/menu/counter and PATCH /api/menu/counter/i
 The panel refreshes while open on five-second visible polling, focus, online/visibility return and existing menu notifications; sequence checks prevent stale reads overwriting writes. Conflicts refresh for review, without blindly retrying a mutation. Errors hide stale availability controls. Successful writes use the existing menu notification; independent POS devices refetch within their existing five-second window plus request time. Draft carts may retain a newly sold-out portion, but confirmation rejects it with ITEM_NOT_AVAILABLE. No menu administration permission is granted.
 
 Usability coverage adds threshold/configuration boundary tests, instruction grouping without source mutation, Kitchen Counter-only permission/audit tests, and browser density, hidden Production tokens, static reduced-motion late styles, availability search/restore and existing-cart rejection.
+
+## Dispatch handoff
+
+Mark Ready leaves the active Kitchen queue and appears in Dispatch on its next two-second authoritative refresh. Dispatch exclusively requests READY→COMPLETED with dispatch.complete; kitchen.update alone cannot hand orders over. READY time comes from the existing history row. Migration 011 preserves Kitchen FIFO, production aggregation, instructions and sold-out controls. See [Dispatch](dispatch.md).

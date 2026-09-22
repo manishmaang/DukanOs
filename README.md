@@ -1,10 +1,10 @@
 # DukanOS
 
-Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation and Kitchen Display System** implemented. Payments and Dispatch actions remain pending.
+Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen Display System and Dispatch handover** implemented. Payments remain pending.
 
 ## MVP checkpoint
 
-The completed MVP is preserved on GitHub as the annotated tag **`v0.1.0-mvp`**, marked on 2026-09-23 at commit `df2d141b11dd8463359dd3509b9cc9415b6c0a8a`. It includes staff authentication/RBAC, menu management and local images, Counter POS ordering, and Kitchen Order/Production views with operational availability and combined portion/dish titles. Dispatch and payments remain future work.
+The completed MVP is preserved on GitHub as the annotated tag **`v0.1.0-mvp`**, marked on 2026-09-23 at commit `df2d141b11dd8463359dd3509b9cc9415b6c0a8a`. It includes staff authentication/RBAC, menu management and local images, Counter POS ordering, and Kitchen Order/Production views with operational availability and combined portion/dish titles. Dispatch and payments were outside that checkpoint; current implementation status is described below.
 
 To revisit this exact source version on a separate branch, start with a clean working tree:
 
@@ -63,7 +63,7 @@ Liveness does not require DB availability. Readiness checks connectivity only. S
 
 `apps/api` — NestJS; `apps/web` — React POS/kitchen/dispatch/admin routes; `packages/shared-types` — public contracts; `database/migrations` — SQL; `docs` — persistent project context.
 
-Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC, menu, Counter order creation and Kitchen are implemented; the next proposed milestone is Dispatch. Do not begin it automatically.
+Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC, menu, Counter order creation, Kitchen and Dispatch are implemented; the next proposed milestone is Payments. Do not begin it automatically.
 
 ## Internet outages and hosting
 
@@ -163,7 +163,7 @@ Tokens reset by local calendar date at midnight. Tax is a configurable exclusive
 
 ## Kitchen Display System
 
-Apply `npm run db:migrate` (009 preserves existing orders/menu/users/images), then build and restart the API. Sign in as KITCHEN, OWNER, MANAGER or staff with a combined KITCHEN role. Open **Kitchen**. **Order View** shows queued tokens oldest first with NEXT; **Start Order** accepts only that token. Multiple accepted orders can cook in parallel. **Mark Ready** removes an order from active Kitchen; Dispatch completion is future work. Tokens show their business date because daily numbers repeat.
+Apply `npm run db:migrate` (009 preserves existing orders/menu/users/images), then build and restart the API. Sign in as KITCHEN, OWNER, MANAGER or staff with a combined KITCHEN role. Open **Kitchen**. **Order View** shows queued tokens oldest first with NEXT; **Start Order** accepts only that token. Multiple accepted orders can cook in parallel. **Mark Ready** removes an order from active Kitchen; Dispatch handles READY → COMPLETED handover. Tokens show their business date because daily numbers repeat.
 
 **Production View** shows To start and In preparation separately, with compact dish/portion totals and aggregated instruction quantities. Source tokens remain in the API but are hidden from Production UI. Preparation state belongs to the whole order. Notes remain independent per order line; prices/payment data are absent. Devices refresh automatically about every two seconds plus request time, and refetch after actions or reconnect. A connection failure pauses actions until a successful read. The server, LAN and PostgreSQL must remain available; internet is not required. See [Kitchen](docs/modules/kitchen.md) for endpoints and limits.
 
@@ -176,3 +176,11 @@ Apply `npm run db:migrate` for migration 010, then build/restart. Order View use
 Set optional `KITCHEN_LATE_THRESHOLD_MINUTES=15` in the server environment (integer 1–1440; restart required). At or above the threshold since queuedAt, both queued and preparing cards show static red LATE styling. Preparation does not reset total age and highlighting does not override FIFO. No flashing/animation is used.
 
 Kitchen → **Availability** opens search and whole-dish/per-portion sold-out/restore controls. A pure KITCHEN user gains only menu.availability.manage, not menu.manage. Changes affect Counter only and use existing version checks/audit. POS updates in its normal five-second refresh window; a sold-out portion already in a draft fails confirmation clearly. Existing confirmed orders remain unchanged.
+
+## Dispatch handover
+
+Apply migration 011 with `npm run db:migrate`, then build/restart the API. Existing READY orders remain intact. Sign in as DISPATCH, OWNER, MANAGER or operational staff whose roles include DISPATCH, then open **Dispatch** (`/#/dispatch`). READY orders appear oldest-ready first with token, READY age, dish/portion quantities and optional notes. After handing food over, press **Handed Over**. The order becomes COMPLETED and leaves the queue. This does not record or require payment; there is no undo.
+
+Set optional `DISPATCH_LATE_THRESHOLD_MINUTES=5` (integer 1–1440; restart required) for static late highlighting based on time since READY. Kitchen READY arrivals and other devices' handovers refresh in about two seconds plus request latency. Conflicts and reconnects refetch authoritative state; unavailable connections hide stale actions. CASHIER/KITCHEN alone cannot complete; combined operational roles switch workspaces without logout.
+
+See [Dispatch](docs/modules/dispatch.md) for APIs, history/concurrency and limitations. Run `npm run check`, `npm run test:integration` and, with local CHROME_BINARY configured, `npm run test:dispatch-browser`. Browser fixtures exercise three POS orders through Kitchen and handover on independent devices, with no external traffic or restaurant-data changes. Screenshots are written to `/tmp/dukanos-dispatch-desktop.png` and `/tmp/dukanos-dispatch-tablet.png`. Existing `test:menu-browser` and `test:kitchen-browser` cover regressions.

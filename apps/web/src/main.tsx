@@ -1,3 +1,4 @@
+import { Dispatch } from './Dispatch';
 import { Kitchen } from './Kitchen';
 import { MenuAdmin, MenuPreview } from './Menu';
 import { ChangePassword, StaffPasswordResets } from './PasswordManagement';
@@ -188,7 +189,14 @@ function App() {
                   key={link.path}
                   path={link.path}
                   element={
-                    link.path === '/kitchen' ? (
+                    link.path === '/dispatch' ? (
+                      <Dispatch
+                        key={user.id}
+                        canComplete={user.permissions.includes(
+                          'dispatch.complete',
+                        )}
+                      />
+                    ) : link.path === '/kitchen' ? (
                       <Kitchen
                         key={user.id}
                         canUpdate={user.permissions.includes('kitchen.update')}

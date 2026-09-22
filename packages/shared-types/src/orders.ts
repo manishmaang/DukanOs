@@ -42,3 +42,9 @@ export interface OrderList {
   orders: ConfirmedOrder[];
   nextCursor: string | null;
 }
+
+export interface OrderTransitionResult {
+  orderId: string;
+  status: 'PREPARING' | 'READY' | 'COMPLETED';
+  occurredAt: string;
+}
