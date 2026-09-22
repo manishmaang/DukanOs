@@ -317,7 +317,23 @@ const root = require('node:path').resolve(__dirname, '..');
       (await b.http('/kitchen/orders/' + ids[1] + '/start', 'POST')).body.code,
       'OLDER_ORDER_WAITING',
     );
+    assert.equal(
+      await a.read("document.querySelector('.kds-dish h3').textContent"),
+      'Manchurian',
+    );
     await a.click('Production View');
+    assert.deepEqual(
+      await a.read(
+        "[...document.querySelectorAll('.kds-production h3')].map(e=>e.textContent)",
+      ),
+      ['HALF MANCHURIAN', 'FULL SOYA CHAAP GRAVY'],
+    );
+    assert.equal(
+      await a.read(
+        "document.querySelectorAll('.kds-production > h3, .kds-production > p').length",
+      ),
+      0,
+    );
     assert.ok(
       await a.read(
         'document.querySelector(\'[aria-label="In preparation"]\').getBoundingClientRect().height<90',
@@ -500,10 +516,16 @@ const root = require('node:path').resolve(__dirname, '..');
 
     // Extra isolated fixtures exercise density and instruction splitting.
     const fixtureMenu = [];
-    for (const name of ['Veg Noodles', 'Biryani', 'French Fries', 'Rice']) {
+    for (const name of [
+      'Veg Noodles',
+      'Biryani',
+      'French Fries',
+      'Soya Chaap Butter Masala',
+    ]) {
       const dish = await ownerCall('/menu/items', {
         categoryId: category.id,
         name,
+        kitchenName: name === 'Veg Noodles' ? 'Wok noodles' : name,
         variants: [
           {
             name: 'Full',
@@ -551,14 +573,14 @@ const root = require('node:path').resolve(__dirname, '..');
     );
     await a.click('Production View');
     await a.wait(
-      "[...document.querySelectorAll('.kds-production h3')].some(e=>e.textContent==='Veg Noodles')",
+      "[...document.querySelectorAll('.kds-production h3')].some(e=>e.textContent==='FULL VEG NOODLES')",
     );
     assert.doesNotMatch(
       await a.read("document.querySelector('.kds').innerText"),
       /#\d|Source tokens/,
     );
     const split = await a.read(
-      "(()=>{const card=[...document.querySelectorAll('.kds-production')].find(e=>e.querySelector('h3').textContent==='Veg Noodles');return {total:card.querySelector('.kds-production-total strong').textContent,parts:[...card.querySelectorAll('.kds-breakdown li')].map(e=>[e.querySelector('span').textContent,e.querySelector('strong').textContent])};})()",
+      "(()=>{const card=[...document.querySelectorAll('.kds-production')].find(e=>e.querySelector('h3').textContent==='FULL VEG NOODLES');return {total:card.querySelector('.kds-production-total strong').textContent,parts:[...card.querySelectorAll('.kds-breakdown li')].map(e=>[e.querySelector('span').textContent,e.querySelector('strong').textContent])};})()",
     );
     assert.deepEqual(split, {
       total: '×6',
@@ -579,6 +601,17 @@ const root = require('node:path').resolve(__dirname, '..');
     );
     assert.equal(trace.sources.length, 4);
     assert.ok(trace.sources.every((s) => s.orderId && s.tokenNumber));
+    const checkTitleLayout = async () => {
+      const layout = await a.read(
+        "(()=>{const card=[...document.querySelectorAll('.kds-production')].find(e=>e.querySelector('h3').textContent==='FULL SOYA CHAAP BUTTER MASALA');const title=card.querySelector('h3'),quantity=card.querySelector('.kds-production-total strong'),t=title.getBoundingClientRect(),q=quantity.getBoundingClientRect();return {title:title.textContent,quantity:quantity.textContent,noBreakdown:card.querySelectorAll('.kds-breakdown li').length===0,noOverlap:t.right<=q.left,wrap:t.height>parseFloat(getComputedStyle(title).lineHeight),fits:card.scrollWidth<=card.clientWidth};})()",
+      );
+      assert.equal(layout.quantity, '×1');
+      assert.ok(layout.noBreakdown);
+      assert.ok(layout.noOverlap);
+      assert.ok(layout.fits);
+      return layout;
+    };
+    assert.ok((await checkTitleLayout()).wrap);
     shot = await a.send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(
       '/tmp/dukanos-kitchen-compact-production.png',
@@ -596,6 +629,7 @@ const root = require('node:path').resolve(__dirname, '..');
       ),
       2,
     );
+    await checkTitleLayout();
     assert.ok(await a.read('document.documentElement.scrollWidth<=innerWidth'));
     shot = await a.send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(
@@ -614,6 +648,8 @@ const root = require('node:path').resolve(__dirname, '..');
       ),
       1,
     );
+
+    await checkTitleLayout();
 
     // Create old confirmed fixtures normally through insert guards, never disable
     // immutability or rewrite a real order. All data belongs to this test schema.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-22 — Production card titles
+
+- Combined snapshotted portion and item names into one uppercase Production title beside the total; long names wrap independently of the quantity.
+- Kept instruction breakdowns, responsive grid, source associations and Order View unchanged. Added browser title/wrapping regression checks.
+
 ## 2026-09-22 — Compact Kitchen and operational availability
 
 ### Changed

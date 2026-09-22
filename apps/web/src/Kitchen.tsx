@@ -58,10 +58,10 @@ function Production({
       <div className="kds-production-grid">
         {groups.map((g) => (
           <article className="kds-card kds-production" key={g.key}>
-            <h3>{g.kitchenName}</h3>
-            <p className="kds-production-total">
-              {g.variantName} <strong>×{g.totalQuantity}</strong>
-            </p>
+            <div className="kds-production-total">
+              <h3>{`${g.variantName} ${g.itemName}`.toUpperCase()}</h3>
+              <strong>×{g.totalQuantity}</strong>
+            </div>
             <ul className="kds-breakdown">
               {instructionBreakdown(g.sources).map((part) => (
                 <li key={part.instruction}>
