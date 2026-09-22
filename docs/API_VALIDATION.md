@@ -34,3 +34,7 @@ Staff create/access mutations previously rechecked capabilities after the staff 
 ## Security scope and limitations
 
 This is an input and obvious-protection audit, not a penetration test. Existing scrypt hashing, opaque hashed sessions, HttpOnly/SameSite cookies, production Secure cookies, login/password throttles and no permissive CORS remain. TLS/proxy deployment, network controls, backup automation, MFA/device management and broader abuse/load testing remain pending. Authorized file uploads are size/pixel/staging bounded, but there is no global disk quota or upload-rate service. Filesystem/database consistency is compensating cleanup, not an atomic distributed transaction. No raw secrets or internal errors are returned.
+
+## Orders Core
+
+POST /orders/counter: JSON ConfirmOrderDto, UUIDv4 requestId, 1–100 nested lines, UUIDv4 variantId, integer quantity 1–99, optional nonnull plain instruction ≤500 characters. No supplied price/status/tax/source fields accepted. GET /orders accepts only optional status enum, calendar businessDate and UUIDv4 after cursor; result bounded to 100. GET /orders/:id uses UUIDv4 pipe; token route validates calendar date and positive PostgreSQL integer token. GET /orders/configuration is body/query-free. Normal auth/CSRF/capabilities and sanitized errors apply. ITEM_NOT_AVAILABLE includes affected line in safe plain text; no error metadata passthrough was added.

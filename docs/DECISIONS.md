@@ -237,3 +237,19 @@ Grant menu.availability.manage to OWNER/MANAGER/CASHIER. Reuse existing channel 
 ### Reason and consequences
 
 Configuration, prices and other channels retain their authorization boundary. Sold-out cards can be restored in place without a redesign. Whole-dish restoration enables all active priced Counter portions; precise partial availability uses individual controls. No automatic daily reset or instantaneous cross-device delivery is promised. Kitchen workflows remain deferred.
+
+## 011 — Transactional Counter confirmation and immutable sale snapshots
+
+Date: 2026-09-22.
+
+### Context and options considered
+
+Multiple cashiers need daily tokens, safe retries and current menu availability without payments or Kitchen actions. Considered persisted drafts versus local carts; per-item locks versus the existing menu serialization boundary; mutable current-menu references versus sale snapshots; hardcoded tax versus explicit restaurant configuration.
+
+### Decision
+
+Keep editable drafts in POS memory. Confirm in one PostgreSQL transaction sharing the menu write lock, with live authorization, actor-scoped request UUID/fingerprint, atomic daily counter allocation and immutable name/price/tax snapshots. Store pending request payload in per-user tab storage before sending. Use configured IANA timezone/calendar midnight, BigInt paise, optional exclusive order tax and one HALF_UP paise calculation. Keep all queued records immutable until audited lifecycle commands are introduced deliberately.
+
+### Reason and consequences
+
+This fits one restaurant and protects against duplicate confirmations, changing menu state and historical repricing without new infrastructure. Broad lock throughput is bounded by short local transactions. Persisted drafts, tax administration/inclusive tax, payments, customer association, lifecycle actions and full amendments are deferred. Closing the browser tab loses tab-scoped retry recovery; staff should check existing orders after uncertain results. KDS can consume the FIFO read contract now but must add an audited transition migration before changing status.

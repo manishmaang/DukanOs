@@ -2,7 +2,7 @@
 
 ## Repository
 
-- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
+- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu/Orders modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
 - `apps/web`: one React application, with hash routes for POS, kitchen, dispatch, and administration.
 - `packages/shared-types`: compile-time public contracts only; no runtime database models or business logic.
 - `database/migrations`: ordered, immutable SQL migrations.
@@ -13,7 +13,7 @@
 
 Use a modular monolith. Controllers validate transport input and delegate to application services; domain/application services enforce business rules. Future repositories encapsulate SQL. Each module owns its writes; cross-module operations use explicit application orchestration and a shared transaction connection when atomicity is required. Do not use independent transactions for portions of one financial operation. Avoid introducing a generic repository/event framework before it is needed.
 
-Frontend → API contracts → controllers → application/domain logic → PostgreSQL. Shared types must not depend on backend or frontend code. Authorization must be enforced by the API; route visibility is only UX. Health and login endpoints are explicitly public. AuthModule registers a global session/capability guard; UsersModule owns staff mutation logic. DatabaseModule provides the shared PostgreSQL pool and transaction helper. Session requests load current role/permission unions. Authenticated frontend routes are filtered by capabilities; no customer or financial APIs exist yet.
+Frontend → API contracts → controllers → application/domain logic → PostgreSQL. Shared types must not depend on backend or frontend code. Authorization must be enforced by the API; route visibility is only UX. Health and login endpoints are explicitly public. AuthModule registers a global session/capability guard; UsersModule owns staff mutation logic. DatabaseModule provides the shared PostgreSQL pool and transaction helper. Session requests load current role/permission unions. Authenticated frontend routes are filtered by capabilities; Orders confirmation/read APIs exist; payment and customer APIs do not.
 
 ## HTTP and environment
 
@@ -47,7 +47,7 @@ UsersModule exports PasswordManagementService for AuthController's self-service 
 
 ## Menu boundary
 
-MenuModule owns catalog writes, exact price validation, availability and menu audit. Its repository constructs public aggregates defined in shared-types; persistence rows are not HTTP contracts. The Menu workspace loads one catalog aggregate; POS consumes an active/priced Counter read model including sold-out portions and performs no order writes. Menu depends on DatabaseModule and shared auth request/permission metadata. All runtime calls remain same-origin/local PostgreSQL. No Zomato/Swiggy client exists: provider mappings belong to future adapters. Modifiers are deferred (see Menu).
+MenuModule owns catalog writes, exact price validation, availability and menu audit. Its repository constructs public aggregates defined in shared-types; persistence rows are not HTTP contracts. The Menu workspace loads one catalog aggregate; POS consumes an active/priced Counter read model including sold-out portions and calls Orders for transactional confirmation. Menu depends on DatabaseModule and shared auth request/permission metadata. All runtime calls remain same-origin/local PostgreSQL. No Zomato/Swiggy client exists: provider mappings belong to future adapters. Modifiers are deferred (see Menu).
 
 ## Atomic dish editor
 
@@ -63,10 +63,14 @@ Uploads stage a normalized file before metadata insertion. The existing dish POS
 
 Back up PostgreSQL **and** the persistent uploads directory together, preferably during a paused-write maintenance window. Restore both before starting the application. Database-only backups do not contain photo bytes. Backup automation remains future work.
 
-Visual POS is fixed to COUNTER and uses the existing operational read model. It refreshes on mount/focus/visibility return, same-tab menu events, cross-tab BroadcastChannel messages and a visible-tab five-second interval. Request sequencing ignores old responses; failed refreshes replace stale listings with a connection error. Replacement keys create fresh image URLs; responses may be privately cached for one hour. No hard reload, cloud service, socket server or external asset is required. Future ordering must revalidate current menu configuration server-side.
+Visual POS is fixed to COUNTER and uses the existing operational read model. It refreshes on mount/focus/visibility return, same-tab menu events, cross-tab BroadcastChannel messages and a visible-tab five-second interval. Request sequencing ignores old responses; failed refreshes replace stale listings with a connection error. Replacement keys create fresh image URLs; responses may be privately cached for one hour. No hard reload, cloud service, socket server or external asset is required. Orders revalidates current menu configuration server-side under the shared menu transaction lock.
 
 ## API input contracts and operational availability
 
 The central ValidationPipe remains class-validator/class-transformer based, with whitelist rejection, explicit transformation and no implicit type coercion. InputBoundary requires explicit JSON/multipart contracts, rejects bodies on bodyless routes and queries on non-query routes. Query-bearing actions bind DTOs; route pipes validate identifiers/channel grammar. Parser failures are sanitized by HttpErrorFilter. See [API_VALIDATION.md](API_VALIDATION.md) for the reviewed endpoint matrix.
 
 POS uses a Counter-specific read model including sold-out priced portions, keeping the existing sellable-only channel endpoint unchanged. A narrow availability capability grants cashiers operational flags without opening Menu configuration. Same menu transactions/versions/audit protect edits; simple five-second polling and tab notifications propagate state without new infrastructure. Media cleanup adds immediate failed-staging compensation, dry-run and failure counts; referenced files remain protected by the existing lock/FK strategy.
+
+## Orders boundary
+
+OrdersModule imports MenuModule and shares the confirmation transaction connection with Menu application methods. Orders owns tokens, snapshots, totals and history. BigInt paise implements exact arithmetic; no money library or runtime shared-type logic is introduced. POS retains its visual menu and adds a cart component; pending confirmation identity is kept in per-user tab storage. Tax/timezone are validated server environment settings loaded at startup. Future Kitchen consumes Orders DTOs and must call audited Orders lifecycle commands, not mutate order tables directly. See decision 011.

@@ -1,6 +1,6 @@
 # DukanOS
 
-Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access management and menu management** implemented. Operational ordering, payments, and kitchen workflows remain pending.
+Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management and Counter order creation** implemented. Payments and kitchen workflows remain pending.
 
 ## Requirements
 
@@ -50,7 +50,7 @@ Liveness does not require DB availability. Readiness checks connectivity only. S
 
 `apps/api` — NestJS; `apps/web` — React POS/kitchen/dispatch/admin routes; `packages/shared-types` — public contracts; `database/migrations` — SQL; `docs` — persistent project context.
 
-Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC and menu foundation are implemented; the next proposed milestone is POS ordering. Follow the bootstrap phases rather than implementing all domains simultaneously.
+Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC and menu foundation are implemented; Counter order creation is also implemented; the next proposed milestone is Kitchen. Follow the bootstrap phases rather than implementing all domains simultaneously.
 
 ## Internet outages and hosting
 
@@ -108,7 +108,7 @@ Recovery requires trusted local filesystem and database access. Ordinary staff s
 
 A CASHIER can view the POS menu and change Counter availability, but cannot change prices or menu configuration. KITCHEN retains API read access and no administration. Editing category names/descriptions or activation uses the sidebar's Edit action. Inactive categories hide all their dishes. Saving a price does not silently enable sales. Reactivating a dish restores its saved channel flags; review them before saving.
 
-If another administrator changes the dish, your save is rejected without partial updates. Your draft remains visible; use Reload menu and review current values before retrying. Menu drafts are not stored across sessions. No fake menu data is seeded. Channel configuration still uses explicit migrations; no provider integration exists. Modifiers and ordering remain deferred.
+If another administrator changes the dish, your save is rejected without partial updates. Your draft remains visible; use Reload menu and review current values before retrying. Menu drafts are not stored across sessions. No fake menu data is seeded. Channel configuration still uses explicit migrations; no provider integration exists. Structured modifiers remain deferred; Counter ordering uses free-text kitchen instructions.
 
 See [Menu APIs and rules](docs/modules/menu.md) and [database schema](docs/DATABASE.md). Menu read/write operations use the restaurant server and PostgreSQL only. `npm run check` and `npm run test:integration` cover nested saving, rollback, stable ordering, RBAC and migration preservation using isolated test schemas.
 
@@ -118,7 +118,7 @@ Set optional `DUKANOS_DATA_DIR` to an **absolute persistent path**, writable by 
 
 In Menu, open a dish, select its optional photo near the top, review the preview and Save Changes. JPEG/PNG/WebP up to 5 MiB and 24 megapixels are accepted, normalized into metadata-free WebP within 1024×1024. Replace by choosing a new file; Remove photo takes effect on save. No original file is retained. The same form explains why an item would be hidden from Counter: check category/item/portion activation, Counter price and availability. The existing `soya chap gravy` was saved inactive; turn **Item active** on and save to make its configured Counter portions visible.
 
-POS is fixed to Counter and supports availability controls; ordering is not implemented. Use category buttons and search, then tap a photo card for portion prices. Missing photos use a local placeholder. Updates refresh on entry/focus, menu-save notifications and every five seconds while POS is visible. No restart/cache clearing is required, and no internet image service is used.
+POS is fixed to Counter and supports availability controls plus order creation. Use category buttons and search, then tap a photo card for portion prices. Missing photos use a local placeholder. Updates refresh on entry/focus, menu-save notifications and every five seconds while POS is visible. No restart/cache clearing is required, and no internet image service is used.
 
 Run `npm run media:cleanup` with the same `.env` and service account to remove unused images older than 24 hours and retry obsolete-file cleanup. Each manager may stage at most 20 unattached photos. Save attaches the selected stage; abandoned uploads expire through cleanup. Back up **PostgreSQL plus DUKANOS_DATA_DIR/uploads/menu** consistently, preferably with writes paused; restore both. Backup automation and disconnected-browser editing are not implemented.
 
@@ -126,8 +126,24 @@ Optional real-browser regression: set `CHROME_BINARY` to an installed local Chro
 
 ## Counter sold-out controls and hardening
 
-Apply migration 007 (`npm run db:migrate`) to grant OWNER/MANAGER/CASHIER the narrow Counter availability permission. In POS, tap a dish: use **Mark all sold out / Make all available**, or change one portion. Sold-out cards remain visible; inactive menu entries do not. These controls change only Counter availability—not menu activation, prices, Zomato or Swiggy. Whole-dish restore enables all active priced Counter portions. Other visible devices refresh in about five seconds plus network time. Concurrent stale edits require review/retry; no orders are created.
+Apply migration 007 (`npm run db:migrate`) to grant OWNER/MANAGER/CASHIER the narrow Counter availability permission. In POS, tap a dish: use **Mark all sold out / Make all available**, or change one portion. Sold-out cards remain visible; inactive menu entries do not. These controls change only Counter availability—not menu activation, prices, Zomato or Swiggy. Whole-dish restore enables all active priced Counter portions. Other visible devices refresh in about five seconds plus network time. Concurrent stale availability edits require review/retry; these controls do not create orders.
 
 Preview safe media cleanup with `npm run media:cleanup -- --dry-run`; run without --dry-run to remove confirmed old unreferenced media. Reports distinguish candidates/removals/deferred failures. Cleanup never runs at startup. WebP uses quality 82/effort 4; maximum dimensions and orientation correction are unchanged. Keep backing up both database and uploads.
 
 The [API validation audit](docs/API_VALIDATION.md) documents every current endpoint family, transport/DTO limits and remaining security work. JSON mutations require application/json objects; unused body/query fields, null booleans, malformed IDs/nested inputs and unknown fields are rejected without returning submitted secrets. Local searches remain frontend-only.
+
+## Counter ordering
+
+Apply `npm run db:migrate`, build/start the application, and sign in as CASHIER, MANAGER or OWNER. Open POS, tap a dish, choose an available portion, quantity and optional kitchen instruction, then **Add to Order**. Edit quantities/notes or remove lines in Current Order. **Confirm Order** stores the order as QUEUED and shows its daily token and authoritative total. **New Order** starts the next cart. No payment is collected and Kitchen actions are not implemented yet.
+
+Prices and sellability are rechecked at confirmation. If a portion was sold out, review the identified line. After a network timeout, use **Retry confirmation**: it reuses the stored request identity and cannot create a second order. Keep that tab open until the result is resolved. Ordinary unsent carts are not persisted. To inspect confirmed data, use authenticated `/api/orders?status=QUEUED`, `/api/orders/:id` or `/api/orders/tokens/YYYY-MM-DD/47`.
+
+Local server environment (restart after changing):
+
+```dotenv
+RESTAURANT_TIMEZONE=Asia/Kolkata
+ORDER_TAX_RATE=0
+ORDER_TAX_LABEL=Tax
+```
+
+Tokens reset by local calendar date at midnight. Tax is a configurable exclusive percentage (0–100, up to two fractional digits), default zero, rounded once HALF_UP to paise. No tax-law rate is assumed. Historical configuration and totals are snapshotted. Totals are never rounded to whole rupees. See [Orders](docs/modules/orders.md) for idempotency, schema, immutability and next-Kitchen contracts.

@@ -743,3 +743,69 @@ small {
   grid-template-columns: 1fr auto;
   align-items: center;
 }
+
+.pos-order-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 1rem;
+  align-items: start;
+}
+.pos-order-layout .pos-menu {
+  min-width: 0;
+}
+.order-cart {
+  position: sticky;
+  top: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 1rem;
+  background: white;
+  max-height: 90vh;
+  overflow: auto;
+}
+.order-cart button,
+.portion-order button {
+  min-height: 44px;
+}
+.order-cart textarea,
+.portion-order textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 60px;
+}
+.cart-line {
+  padding: 1rem 0;
+  border-bottom: 1px solid #cbd5e1;
+}
+.cart-quantity {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+}
+.confirm-order {
+  width: 100%;
+  margin: 1rem 0;
+  font-weight: bold;
+}
+.order-token {
+  font-size: 2rem;
+  font-weight: bold;
+}
+.portion-order {
+  display: grid;
+  gap: 0.75rem;
+}
+@media (max-width: 760px) {
+  .pos-order-layout {
+    grid-template-columns: 1fr;
+  }
+  .order-cart {
+    position: static;
+    max-height: none;
+  }
+}
+.portion-order .cart-quantity input {
+  width: 5rem;
+}

@@ -59,3 +59,7 @@ Migration 004 adds menu.read for OWNER, MANAGER, CASHIER and KITCHEN. Existing m
 ## Input hardening
 
 See [API validation audit](../API_VALIDATION.md). Transport bodies/queries are explicitly constrained, implicit scalar conversion is disabled, DTO errors omit submitted values, and parser failures remain client-safe. Staff mutations revalidate the HTTP session after acquiring the staff transaction lock. Existing password hashing, cookie, mutation-header, role-combination and database constraints remain intact.
+
+## Orders Core integration
+
+Orders endpoints use existing orders.create/read guards and confirmation rechecks current permission/session after locking. OWNER/MANAGER/CASHIER create orders. Migration 008 grants orders.read to KITCHEN without creation permission.
