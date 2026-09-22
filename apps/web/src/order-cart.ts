@@ -1,5 +1,7 @@
 import type { CounterOrderInput } from '@dukanos/shared-types';
 export interface CartLine {
+  id: string;
+  menuItemId: string;
   variantId: string;
   itemName: string;
   variantName: string;
@@ -18,7 +20,9 @@ export function addLine(lines: CartLine[], line: CartLine): CartLine[] {
   const normalized = { ...line, instruction: line.instruction.trim() };
   const index = lines.findIndex(
     (l) =>
+      l.menuItemId === line.menuItemId &&
       l.variantId === line.variantId &&
+      cartPaise(l.price) === cartPaise(line.price) &&
       l.instruction === normalized.instruction,
   );
   if (index < 0) {
@@ -64,7 +68,6 @@ export function addLines(lines: CartLine[], additions: CartLine[]): CartLine[] {
 export function selectionLines(
   dish: import('@dukanos/shared-types').OperationalMenu['categories'][number]['items'][number],
   quantities: Record<string, number>,
-  instruction: string,
   notes: Record<string, string>,
 ): CartLine[] {
   return dish.variants.flatMap((variant) => {
@@ -78,13 +81,32 @@ export function selectionLines(
       return [];
     return [
       {
+        id: confirmationId(),
+        menuItemId: dish.id,
         variantId: variant.id,
         itemName: dish.name,
         variantName: variant.name,
         price: variant.price,
         quantity,
-        instruction: (notes[variant.id] ?? instruction).trim(),
+        instruction: (notes[variant.id] ?? '').trim(),
       },
     ];
   });
+}
+
+/** Presentation grouping only; source line identities/order and payload are unchanged. */
+export function groupCartLines(lines: CartLine[]) {
+  const groups = new Map<
+    string,
+    { menuItemId: string; name: string; lines: CartLine[] }
+  >();
+  for (const line of lines) {
+    let group = groups.get(line.menuItemId);
+    if (!group) {
+      group = { menuItemId: line.menuItemId, name: line.itemName, lines: [] };
+      groups.set(line.menuItemId, group);
+    }
+    group.lines.push(line);
+  }
+  return [...groups.values()];
 }

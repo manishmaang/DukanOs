@@ -1,3 +1,4 @@
+import { InstructionEditor } from './InstructionEditor';
 import { useEffect, useRef, useState } from 'react';
 import type { OperationalMenu } from '@dukanos/shared-types';
 import { MenuPhoto } from './MenuPhoto';
@@ -32,7 +33,6 @@ export function DishSelection({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [instruction, setInstruction] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   useEffect(() => {
@@ -56,7 +56,7 @@ export function DishSelection({
       );
     }
   }, [dish.variants, quantities]);
-  const selected = selectionLines(dish, quantities, instruction, notes);
+  const selected = selectionLines(dish, quantities, notes);
   const count = selected.reduce((n, l) => n + l.quantity, 0);
   const total = cartAmount(
     selected.reduce((n, l) => n + cartPaise(l.price) * BigInt(l.quantity), 0n),
@@ -110,7 +110,6 @@ export function DishSelection({
           <div className="portion-rows">
             {dish.variants.map((v) => {
               const quantity = v.available ? (quantities[v.id] ?? 0) : 0;
-              const customNote = notes[v.id] !== undefined;
               return (
                 <div
                   className={
@@ -157,23 +156,14 @@ export function DishSelection({
                   <div className="portion-row-actions">
                     <small>{v.available ? 'Available' : 'Sold out'}</small>
                     {canCreateOrders && v.available && (
-                      <button
-                        className="secondary-control"
+                      <InstructionEditor
+                        label={`${dish.name} / ${v.name}`}
+                        value={notes[v.id] ?? ''}
                         disabled={locked}
-                        aria-expanded={customNote}
-                        onClick={() =>
-                          setNotes((current) => {
-                            const next = { ...current };
-                            if (customNote) delete next[v.id];
-                            else next[v.id] = instruction;
-                            return next;
-                          })
+                        onChange={(value) =>
+                          setNotes((current) => ({ ...current, [v.id]: value }))
                         }
-                      >
-                        {customNote
-                          ? `Use shared note for ${v.name}`
-                          : `Add note for ${v.name}`}
-                      </button>
+                      />
                     )}
                     {canManageAvailability && (
                       <button
@@ -186,42 +176,10 @@ export function DishSelection({
                       </button>
                     )}
                   </div>
-                  {customNote && canCreateOrders && (
-                    <label className="portion-note">
-                      {v.name} instruction (replaces shared note)
-                      <textarea
-                        aria-label={`${v.name} instruction`}
-                        maxLength={500}
-                        rows={2}
-                        value={notes[v.id]}
-                        disabled={locked}
-                        onChange={(e) =>
-                          setNotes((current) => ({
-                            ...current,
-                            [v.id]: e.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  )}
                 </div>
               );
             })}
           </div>
-          {canCreateOrders && (
-            <label className="portion-shared-note">
-              Kitchen instruction for selected portions
-              <textarea
-                aria-label="Shared kitchen instruction"
-                rows={2}
-                maxLength={500}
-                value={instruction}
-                disabled={locked}
-                onChange={(e) => setInstruction(e.target.value)}
-                placeholder="Extra spicy, no onion…"
-              />
-            </label>
-          )}
           {actionError && <p role="alert">{actionError}</p>}
           {error && <p role="alert">{error}</p>}
         </div>
