@@ -86,3 +86,7 @@ KitchenState adds validated server-configured lateThresholdMinutes and restauran
 ## Dispatch boundary
 
 DispatchModule imports OrdersModule for READY→COMPLETED and owns only its operational read projection. Orders retains all lifecycle writes, locking, live capability checks and append-only history. READY/completion times come from unique history, not new timestamp columns or a second state machine. Dispatch reads one repeatable-read snapshot without Menu joins or financial fields, reuses the local two-second polling pattern and requires no external infrastructure. The React Dispatch workspace replaces the existing placeholder and preserves capability-union navigation. See decision 013.
+
+## Responsive presentation boundary
+
+Responsive/touch design is mandatory from the first frontend design (see RESPONSIVE_UI.md). The existing React/CSS stack provides adaptation without device-specific APIs or duplicated business logic. CartSurface keeps one mounted OrderCart: a nonmodal display on wide screens and native focus-managed dialog below 900px, preserving pending request/state across layout changes. Menu preserves one editor draft while narrow screens switch list/editor visibility. The application samples visualViewport geometry for keyboard-safe dialog bounds; dynamic viewport CSS and natural document scrolling provide fallback. Narrow workspace navigation uses native select with the same capability-filtered links. No new UI framework, remote asset or runtime network dependency is added.

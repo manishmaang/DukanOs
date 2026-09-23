@@ -84,3 +84,5 @@ Migration 008 grants KITCHEN orders.read for the Kitchen queue consumer. It does
 ## Dispatch capabilities
 
 Existing dispatch.read and dispatch.complete grants now authorize the implemented Dispatch queue and READY→COMPLETED command for OWNER/MANAGER/DISPATCH. No permission migration or role model change is needed. CASHIER-only and KITCHEN-only lack these capabilities; combinations including DISPATCH union them naturally. Backend completion rechecks the live session/capability after locks; workspace visibility is only a convenience. Dispatch does not gain generic orders.read, menu administration or payment access. See [Dispatch](dispatch.md).
+
+Staff responsibility labels and disclosure summaries have at least 44px touch areas; long names/role lists wrap within bounded forms. Phone/tablet create, access-change reason, role selection and password reset workflows follow [Responsive UI](../RESPONSIVE_UI.md). Authorization semantics are unchanged.

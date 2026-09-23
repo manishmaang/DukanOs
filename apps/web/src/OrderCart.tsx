@@ -1,3 +1,5 @@
+import { CartSurface } from './CartSurface';
+import type { ReactNode } from 'react';
 import { InstructionEditor } from './InstructionEditor';
 import { useEffect, useRef, useState } from 'react';
 import type {
@@ -28,6 +30,7 @@ export function OrderCart({
   locked: boolean;
   setLocked: (value: boolean) => void;
 }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [config, setConfig] = useState<OrderConfiguration>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -105,8 +108,25 @@ export function OrderCart({
       setBusy(false);
     }
   }
-  if (confirmed)
+  function surface(content: ReactNode) {
     return (
+      <CartSurface
+        open={mobileOpen}
+        setOpen={setMobileOpen}
+        summary={
+          confirmed
+            ? `Token #${confirmed.tokenNumber} confirmed`
+            : locked
+              ? 'Confirmation needs checking'
+              : `Current Order · ${lines.reduce((n, l) => n + l.quantity, 0)} items · ₹${rupees(cartAmount(subtotal + tax))} estimated`
+        }
+      >
+        {content}
+      </CartSurface>
+    );
+  }
+  if (confirmed)
+    return surface(
       <aside className="order-cart order-confirmed" aria-label="Current order">
         <div role="status">
           <h2>Order confirmed</h2>
@@ -116,13 +136,14 @@ export function OrderCart({
         </div>
         <button
           onClick={() => {
+            setMobileOpen(false);
             setConfirmed(undefined);
             setLocked(false);
           }}
         >
           New Order
         </button>
-      </aside>
+      </aside>,
     );
   const groups = groupCartLines(lines);
   function updateLine(
@@ -133,7 +154,7 @@ export function OrderCart({
       lines.map((line) => (line.id === id ? { ...line, ...change } : line)),
     );
   }
-  return (
+  return surface(
     <aside className="order-cart" aria-label="Current order">
       <div className="cart-heading">
         <h2>Current Order</h2>
@@ -288,6 +309,6 @@ export function OrderCart({
           )}
         </div>
       )}
-    </aside>
+    </aside>,
   );
 }

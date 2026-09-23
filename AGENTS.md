@@ -481,6 +481,11 @@ Verify:
 [ ] DECISIONS.md is updated if necessary
 [ ] CHANGELOG.md is updated
 [ ] No obsolete documentation remains
+[ ] For frontend work: mobile, tablet portrait, tablet landscape and desktop tested
+[ ] Touch targets are appropriate; no hover-only critical actions
+[ ] No unintended page-level horizontal scrolling; primary actions remain accessible
+[ ] Actual workflows completed at responsive sizes, including dialogs and keyboard-constrained heights
+[ ] Responsive browser regression coverage and visual review updated
 ```
 
 ---
@@ -572,3 +577,12 @@ When the module/milestone is complete:
 5. Always create the next module branch afresh from updated main, never by reusing the previous module branch.
 
 The user has given standing authorization for this branch, commit, push, and completed-module merge workflow. No additional routine confirmation is required. Report authentication, connectivity, conflicts needing user input, or branch-protection blockers accurately.
+
+
+## 24. Responsive and Touch UX Is a Core Requirement
+
+DukanOS must work on inexpensive phones, tablets and touch screens. No operational workflow may require a desktop. Before implementing ANY frontend feature or modifying an existing screen, determine during initial design how it works on phone, tablet portrait, tablet landscape, desktop/laptop and touch-only devices. Responsive support is not a later polish phase.
+
+Read and follow [docs/RESPONSIVE_UI.md](docs/RESPONSIVE_UI.md). Preserve usable touch targets (at least 44×44px, preferably 48px for operational actions), readable text, visible focus, keyboard access, no hover-only controls, no page-level horizontal scrolling, reachable primary actions and clean long-text wrapping. Adapt dialogs and scrolling to available dynamic viewport/keyboard space. Verify actual workflows, not just rendering, at the prescribed device classes and review screenshots. Frontend work is incomplete until the responsive checklist above passes.
+
+Every frontend completion summary must report **Responsive behavior: Mobile, Tablet (portrait and landscape), Desktop**, the workflows/browser sizes tested and any real-device/browser limitations. Future screens must follow this rule from their first design. Do not add device-specific backend business logic.

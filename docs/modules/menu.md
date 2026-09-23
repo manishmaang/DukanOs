@@ -67,7 +67,7 @@ The same dish form handles creation and editing: name, category, optional descri
 
 One Save Item/Save Changes sends one aggregate write. Channel-wide switches apply to priced active portions; individual cell controls support differing availability. Mixed states are indicated. Newly entered prices do not silently enable availability. Item active=false pauses every channel while preserving channel flags. Prices display without unnecessary whole-rupee decimal zeros using string formatting, never floating-point conversion. Validation identifies the portion/channel and leaves edits intact on failure. Switching dishes or reloading prompts only when it would discard unsaved dish changes; full-page unload also warns. A conflict requires reloading and reviewing the newer version, not automatic overwrite. Drafts are not persisted across sessions.
 
-Desktop/tablet layout uses a menu list beside the editor, with a horizontally scrollable price matrix when needed. Controls have 44px touch targets; narrow screens stack the panels. The save action is below the form and does not obscure prices. POS permits Counter availability changes through a separate operational capability. Menu administration creates no orders; POS confirmation is owned by Orders.
+At 900px and wider, the menu list remains beside the editor. Narrower screens switch between the list and focused editor with Back to menu list; going back preserves the draft, while selecting another dish retains the existing discard check. Below 1200px, the price matrix becomes stacked portion cards with explicit channel labels. Controls and checkbox labels provide at least 44px touch areas. The save action is below the form and does not obscure prices. POS permits Counter availability changes through a separate operational capability. Menu administration creates no orders; POS confirmation is owned by Orders.
 
 ## Modifiers deferred
 
@@ -145,3 +145,5 @@ The dialog now supports quantities for multiple portions and one batch Add, inde
 ## Kitchen availability access
 
 Migration 010 grants KITCHEN the existing menu.availability.manage capability. The Kitchen workspace opens a searchable availability-only panel and uses the same Counter read/mutation endpoints, expected item version, transaction and Menu audit as POS. Whole-dish and per-portion sold-out/restore affect Counter only. No new availability state, API or menu.manage grant exists. The panel hides prices/general editing; source menu configuration and all confirmed orders remain unchanged. Independent POS devices refresh within five seconds plus request time, and confirmation always rechecks sellability.
+
+See [Responsive UI](../RESPONSIVE_UI.md) for project-wide viewport/touch standards. Phone image/file controls fit the editor width; mobile POS uses the single live modal cart described in Orders. Category and variant names wrap rather than forcing page overflow.
