@@ -80,3 +80,5 @@ Usability coverage adds threshold/configuration boundary tests, instruction grou
 ## Dispatch handoff
 
 Mark Ready leaves the active Kitchen queue and appears in Dispatch on its next two-second authoritative refresh. Dispatch exclusively requests READY→COMPLETED with dispatch.complete; kitchen.update alone cannot hand orders over. READY time comes from the existing history row. Migration 011 preserves Kitchen FIFO, production aggregation, instructions and sold-out controls. See [Dispatch](dispatch.md).
+
+The responsive audit preserves existing Order/Production grid breakpoints and quantities. Availability uses a sticky Close header, phone-sized dynamic/visual-viewport bounds and wrapped long dish/portion names; short viewports retain scrolling access. See [Responsive UI](../RESPONSIVE_UI.md) for touch, keyboard and device requirements.

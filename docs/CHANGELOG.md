@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-23 — Responsive and touch audit
+
+- Made responsive/touch design and mobile, tablet portrait/landscape and desktop workflow verification permanent requirements in AGENTS.md and docs/RESPONSIVE_UI.md.
+- Added compact workspace selection, a single live phone/portrait POS cart dialog with persistent View Order, landscape menu/cart columns and keyboard-aware viewport handling.
+- Adapted Menu to focused narrow-screen editing and labelled stacked portion/channel pricing; enlarged staff, disclosure and category actions and hardened long-text/image/dialog layout.
+- Verified all eight required viewport sizes and four touch workflow classes, all 77 PostgreSQL integration tests, existing Menu/Kitchen/Dispatch browser regressions and the complete check suite. Physical mobile browser/keyboard verification remains a hardware follow-up.
+- Preserved existing Kitchen/Production/Dispatch grids and all backend/domain behavior. Added eight-size touch/browser audit with isolated local fixtures and screenshot review; no migrations or business-data changes.
+
 ## 2026-09-23 — Dispatch handover
 
 ### Added

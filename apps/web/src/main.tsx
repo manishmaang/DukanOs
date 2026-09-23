@@ -1,3 +1,4 @@
+import { useVisualViewport } from './useVisualViewport';
 import { Dispatch } from './Dispatch';
 import { Kitchen } from './Kitchen';
 import { MenuAdmin, MenuPreview } from './Menu';
@@ -11,7 +12,14 @@ import {
   type FormEvent,
 } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HashRouter, NavLink, Route, Routes } from 'react-router-dom';
+import {
+  HashRouter,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import type { AuthenticatedUser } from '@dukanos/shared-types';
 import { allowedWorkspaces } from './workspaces';
 import { api, ApiFailure, errorMessage } from './api';
@@ -70,6 +78,9 @@ function Login({ onLogin }: { onLogin: (user: AuthenticatedUser) => void }) {
   );
 }
 function App() {
+  useVisualViewport();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -143,6 +154,33 @@ function App() {
         />
       ) : (
         <>
+          <label className="workspace-switcher">
+            Workspace
+            <select
+              aria-label="Workspace"
+              value={
+                [
+                  '/',
+                  '/account/password',
+                  ...links.map((l) => l.path),
+                ].includes(location.pathname)
+                  ? location.pathname
+                  : ''
+              }
+              onChange={(event) => navigate(event.target.value)}
+            >
+              <option value="" disabled>
+                Choose workspace
+              </option>
+              <option value="/">Overview</option>
+              {links.map((link) => (
+                <option key={link.path} value={link.path}>
+                  {link.label}
+                </option>
+              ))}
+              <option value="/account/password">Change Password</option>
+            </select>
+          </label>
           <nav aria-label="Workspaces">
             <NavLink to="/" end>
               Overview

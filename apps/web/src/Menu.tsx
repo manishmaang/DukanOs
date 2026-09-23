@@ -472,7 +472,7 @@ function DishEditor({
                       v.active &&
                       channel.active;
                     return (
-                      <td key={c.channelCode}>
+                      <td key={c.channelCode} data-label={channel.name}>
                         <label className="price-input">
                           <span aria-hidden="true">₹</span>
                           <input
@@ -516,7 +516,7 @@ function DishEditor({
                       </td>
                     );
                   })}
-                  <td>
+                  <td data-label="Portion active">
                     <label className="menu-check">
                       <input
                         type="checkbox"
@@ -648,6 +648,7 @@ function DishEditor({
   );
 }
 export function MenuAdmin() {
+  const [showEditor, setShowEditor] = useState(false);
   const [catalog, setCatalog] = useState<MenuCatalog>();
   const [selected, setSelected] = useState<string>('');
   const [draftKey, setDraftKey] = useState(0);
@@ -685,8 +686,12 @@ export function MenuAdmin() {
     return !dirty || window.confirm('Discard your unsaved dish changes?');
   }
   function select(id: string) {
-    if (id === selected) return;
+    if (id === selected) {
+      setShowEditor(true);
+      return;
+    }
     if (!leaveDraft()) return;
+    setShowEditor(true);
     setSelected(id);
     setDirty(false);
     setNotice('');
@@ -713,7 +718,7 @@ export function MenuAdmin() {
     void refresh();
   }
   return (
-    <section className="menu-workspace">
+    <section className={`menu-workspace ${showEditor ? 'menu-editing' : ''}`}>
       <div className="menu-title">
         <div>
           <p className="eyebrow">YOUR RESTAURANT</p>
@@ -763,6 +768,7 @@ export function MenuAdmin() {
               className="add-dish"
               onClick={() => {
                 if (leaveDraft()) {
+                  setShowEditor(true);
                   setSelected('new');
                   setDirty(false);
                   setDraftKey((k) => k + 1);
@@ -880,6 +886,13 @@ export function MenuAdmin() {
             )}
           </aside>
           <div className="menu-detail">
+            <button
+              type="button"
+              className="menu-back secondary"
+              onClick={() => setShowEditor(false)}
+            >
+              Back to menu list
+            </button>
             {item || selected === 'new' ? (
               <DishEditor
                 key={selected + ':' + draftKey}

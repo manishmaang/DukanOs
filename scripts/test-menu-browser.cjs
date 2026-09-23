@@ -978,9 +978,8 @@ const { UsersService } = require(
         deviceScaleFactor: 1,
         mobile: false,
       });
-      await evaluate(
-        "document.querySelector('.order-cart').scrollIntoView({block:'start'})",
-      );
+      await evaluate("document.querySelector('.mobile-order-trigger').click()");
+      await wait("!!document.querySelector('.cart-dialog:modal')");
       assert.ok(
         await evaluate(
           "document.querySelector('.confirm-order').getBoundingClientRect().bottom<=innerHeight && document.documentElement.scrollWidth<=innerWidth",
