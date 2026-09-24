@@ -1,32 +1,27 @@
 # Payments
 
-## Purpose
+## Purpose and implementation
 
-Record tenders, additional payments, and refunds without losing financial history.
+Record money actually received against an open Bill, with immutable financial history. Bills are parent commercial tabs; Kitchen orders remain separate preparation rounds. CASH and UPI collections, partial/split payment, actor/time history, derived balances and safe retries are implemented in BillsModule/BillsService. There is no card, gateway, QR generation, UPI verification, credit, refund or payment-edit/delete API.
 
-## Current implementation
+## API and validation
 
-Domain functionality is not implemented. No domain APIs, migrations, or events exist for this module.
+POST /api/bills/:id/payments requires payments.collect + bills.read and accepts `{requestId: UUIDv4, method: CASH|UPI, amount: decimal-string}`. Amount must be positive, at most 999999999999.99 INR, with at most two fractional digits and no signs, exponent or nonfinite notation. Unknown fields, numbers instead of strings, malformed UUIDs/methods and nulls are rejected. Overpayment returns PAYMENT_EXCEEDS_DUE (409) with current due. Closed bills reject new collections. Same-key replays may retrieve an already successful result after bill closure.
 
-## Intended business rules
+## Ledger and financial integrity
 
-- Initial tenders: CASH, UPI, CARD; CREDIT is receivable financing rather than collected cash.
-- Allow split tender. Use numeric money and exact decimal application arithmetic.
-- Refunds reference original transactions and cannot exceed remaining refundable value.
-- Never count credit settlements as new sales; external gateway confirmation is not implied by recording a tender.
+Migration 012 payments rows contain permanent ID, bill FK, COLLECTION type, CASH/UPI method, exact numeric amount, authenticated actor, database timestamp and actor-scoped request UUID/hash. Update/delete triggers reject rewriting history. A positive/scale/bounds check avoids silent numeric rounding. Bill detail returns public payment facts, never request fingerprints. Payments do not advance Kitchen status or automatically close a bill.
 
-## Proposed entities / database tables
+Two callers collecting a remaining ₹200 are serialized under the existing restaurant transaction lock; the second checks current due and cannot overpay. Sessions/capabilities are rechecked under lock. The bill is locked before financial validation/write. A database trigger independently rejects closed-bill collection and excess due. Same actor/key/canonical amount/method/bill returns existing success; changed payload returns IDEMPOTENCY_CONFLICT. Requests persist with the ledger and have no expiry. A browser keeps an uncertain payment request in per-user/per-bill tab storage and locks changes until retry. Do not receive the money again when checking a pending result.
 
-payment_transactions, refunds; payment/provider attempt state if an actual gateway is added. These are design candidates, not current schema. See [DATABASE](../DATABASE.md).
+## Derived financial state
 
-## Dependencies
+Bill totals aggregate actual child-order grand totals, including their own tax snapshots; no second tax computation or cash rounding. net_paid = collections - refunds. Positive total minus net_paid is amount_due; a negative balance produces refund_due. UNPAID, PARTIALLY_PAID, PAID and REFUND_DUE are backend-derived states, independent of OPEN/CLOSED and Kitchen lifecycle. Zero-total bills are PAID with no fabricated ledger entry.
 
-Orders and Credit share atomic financial operations.
+## Permissions and LAN operation
 
-## Pending work
+OWNER/MANAGER/CASHIER receive payments.read/collect. KITCHEN cannot access financial details. Pure DISPATCH sees limited settlement status only and cannot collect; CASHIER+DISPATCH naturally combines capabilities and can open settlement from Dispatch. All operations use the local API/PostgreSQL and work with WAN down while LAN/server/database remain available. A UPI entry records the cashier's observation of receipt; it makes no claim of gateway verification.
 
-Resolve tax/discount/rounding policy; implement exact arithmetic and audited/idempotent tender/refund workflows with critical tests.
+## Permanent refund rule and pending work
 
-## Orders Core integration
-
-Counter orders now persist subtotal, zero discount, configured tax, zero rounding adjustment and grand total. They create no payment rows or payment status. Future Payments references order UUID and keeps payment state independent from the operational lifecycle.
+Customer refunds are always CASH from Counter, including refunds of originally UPI-paid bills. No UPI refunds and no refund controls in Kitchen or Dispatch. Schema allows the future REFUND/CASH shape but rejects refund inserts now. The next milestone must introduce legitimate amendment-derived refund entitlement, authorized/idempotent compensating entries and concurrent refund-limit checks. Past payments remain intact when an amendment changes a bill's effective total; derive new amount_due/refund_due from the revised total and unchanged ledger. No arbitrary refund path exists in this milestone.

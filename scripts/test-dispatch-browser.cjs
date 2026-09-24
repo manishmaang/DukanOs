@@ -342,7 +342,7 @@ const root = require('node:path').resolve(__dirname, '..');
     );
     assert.doesNotMatch(
       await a.read("document.querySelector('.dispatch').innerText"),
-      /₹|payment|subtotal|Start Order|Production|[0-9a-f]{8}-/i,
+      /subtotal|Start Order|Production|[0-9a-f]{8}-/i,
     );
     assert.ok(
       await a.read(

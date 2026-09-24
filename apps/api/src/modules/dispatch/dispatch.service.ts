@@ -13,12 +13,12 @@ export class DispatchService {
       );
       const rows = (
         await c.query(`SELECT o.id AS "orderId",o.business_date::text AS "businessDate",
-        o.token_number AS "tokenNumber",o.source,h.occurred_at AS "readyAt",
+        o.token_number AS "tokenNumber",o.bill_id AS "billId",b.service_type AS "serviceType",f.amount_due::text AS "amountDue",CASE WHEN f.refund_due>0 THEN 'REFUND_DUE' WHEN f.amount_due=0 THEN 'PAID' WHEN f.net_paid=0 THEN 'UNPAID' ELSE 'PARTIALLY_PAID' END AS "paymentStatus",o.source,h.occurred_at AS "readyAt",
         (SELECT jsonb_agg(jsonb_build_object('id',i.id,'menuItemId',i.menu_item_id,
           'itemName',i.item_name_snapshot,'variantName',i.variant_name_snapshot,
           'quantity',i.quantity,'instruction',i.instruction) ORDER BY i.position)
           FROM order_items i WHERE i.order_id=o.id) AS items
-        FROM orders o JOIN order_status_history h ON h.order_id=o.id AND h.to_status='READY'
+        FROM orders o JOIN bills b ON b.id=o.bill_id JOIN bill_balances f ON f.id=b.id JOIN order_status_history h ON h.order_id=o.id AND h.to_status='READY'
         WHERE o.status='READY' ORDER BY h.occurred_at,o.id`)
       ).rows;
       const orders = rows.map((r) => ({

@@ -1988,3 +1988,111 @@ header > div button {
     font-size: 14px;
   }
 }
+
+/* Bill settlement follows the same natural-scroll, touch-first form layout. */
+[hidden] {
+  display: none !important;
+}
+.bill-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.bill-toolbar h1 {
+  margin-right: auto;
+}
+.bill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+.bill-card {
+  border: 1px solid #bdcabe;
+  border-radius: 12px;
+  padding: 16px;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bill-card h2,
+.bill-card p {
+  margin: 0;
+}
+.bill-totals {
+  max-width: 520px;
+}
+.bill-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 12px 0;
+}
+.bill-totals dd {
+  margin: 0;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+.bill-payment {
+  max-width: 520px;
+  margin: 24px 0;
+}
+.bill-history,
+.bill-rounds {
+  padding-left: 24px;
+  overflow-wrap: anywhere;
+}
+.bill-history li {
+  margin: 12px 0;
+}
+.bill-history span {
+  display: block;
+}
+.cart-bill-selection {
+  padding-bottom: 8px;
+}
+.cart-bill-selection label {
+  margin-bottom: 8px;
+}
+.bill-collect-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px;
+}
+@media (max-width: 599px) {
+  .bill-toolbar button {
+    flex: 1;
+  }
+  .bills-workspace {
+    padding: 12px;
+  }
+}
+.cart-bill-selection {
+  padding: 12px 18px 0;
+  flex: none;
+}
+@media (min-width: 900px) {
+  .cart-bill-selection {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+.bills-workspace {
+  padding: 24px;
+}
+.bills-workspace h1 {
+  font-size: 2rem;
+  margin: 0;
+}
+.bills-workspace h2 {
+  font-size: 1.35rem;
+}
+@media (max-width: 599px) {
+  .bills-workspace {
+    padding: 12px;
+  }
+}

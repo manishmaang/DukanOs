@@ -14,6 +14,9 @@ export type RoleCode = 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' | 'DISPATCH';
 export type PermissionCode =
   | 'orders.create'
   | 'orders.read'
+  | 'bills.read'
+  | 'bills.manage'
+  | 'payments.read'
   | 'payments.collect'
   | 'kitchen.read'
   | 'kitchen.update'
@@ -56,3 +59,5 @@ export type * from './orders';
 export type * from './kitchen';
 
 export type * from './dispatch';
+
+export type * from './bills';

@@ -1,3 +1,5 @@
+import { Bills } from './Bills';
+import type { BillSummary } from '@dukanos/shared-types';
 import { DishSelection } from './DishSelection';
 import { OrderCart } from './OrderCart';
 import { addLines, cartPaise, type CartLine } from './order-cart';
@@ -20,11 +22,27 @@ export function MenuPreview({
   canManageAvailability = false,
   userId,
   canCreateOrders = false,
+  canReadBills = false,
+  canCollectPayments = false,
+  canManageBills = false,
 }: {
   canManageAvailability?: boolean;
   userId: string;
   canCreateOrders?: boolean;
+  canReadBills?: boolean;
+  canCollectPayments?: boolean;
+  canManageBills?: boolean;
 }) {
+  const [billView, setBillView] = useState(false);
+  const [billId, setBillId] = useState<string>();
+  const [selectedBill, setSelectedBill] = useState<BillSummary>();
+  useEffect(() => {
+    const id = new URLSearchParams(location.hash.split('?')[1]).get('bill');
+    if (id && canCreateOrders) {
+      setBillId(id);
+      setBillView(true);
+    }
+  }, [canCreateOrders]);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [orderLocked, setOrderLocked] = useState(false);
   const [menu, setMenu] = useState<OperationalMenu>();
@@ -136,128 +154,184 @@ export function MenuPreview({
     }))
     .filter((c) => c.items.length);
   return (
-    <div className="pos-order-layout">
-      <section className="pos-menu">
-        <div className="pos-menu-heading">
-          <div>
-            <h1>
-              POS <span className="pos-channel">Counter</span>
-            </h1>
-            <p className="menu-muted">
-              Tap a dish to choose a portion and build a Counter order.
-            </p>
-          </div>
-          <button onClick={() => setRevision((r) => r + 1)}>
-            Refresh menu
-          </button>
-        </div>
-        <label className="pos-search">
-          Search dishes
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Dish, category or portion"
-          />
-        </label>
-        <nav className="pos-categories" aria-label="Menu categories">
-          <button
-            aria-pressed={!activeCategory}
-            onClick={() => setCategory('')}
-          >
-            All dishes
-          </button>
-          {menu?.categories.map((c) => (
-            <button
-              key={c.id}
-              aria-pressed={activeCategory === c.id}
-              onClick={() => setCategory(c.id)}
-            >
-              {c.name}
-            </button>
-          ))}
-        </nav>
-        {notice && <p role="status">{notice}</p>}
-        {actionError && !dish && <p role="alert">{actionError}</p>}
-        {error && (
-          <p role="alert">
-            {error} Menu is unavailable until the connection is restored.
-          </p>
-        )}
-        {!menu && !error && <p role="status">Loading menu…</p>}
-        {menu && !categories?.length && (
-          <p role="status">
-            {text
-              ? 'No matching dishes.'
-              : 'No dishes are currently available at Counter.'}
-          </p>
-        )}
-        {categories?.map((c) => (
-          <section key={c.id}>
-            <h3>{c.name}</h3>
-            <div className="pos-grid">
-              {c.items.map((i) => (
-                <button
-                  className={
-                    'pos-card' +
-                    (i.variants.some((v) => v.available) ? '' : ' sold-out')
-                  }
-                  key={i.id}
-                  onClick={() => {
-                    setSelected(i.id);
-                    setActionError('');
-                  }}
-                >
-                  <MenuPhoto src={i.image?.url} name={i.name} />
-                  <span className="pos-card-info">
-                    <strong>{i.name}</strong>
-                    <span className="pos-availability">
-                      {i.variants.every((v) => !v.available)
-                        ? 'Sold out'
-                        : i.variants.every((v) => v.available)
-                          ? 'Available'
-                          : 'Some portions sold out'}
-                    </span>
-                    <span>
-                      {i.variants.length > 1 ? 'From ' : ''}₹
-                      {rupees(lowestPrice(i))}
-                    </span>
-                    <small>
-                      {i.variants.length}{' '}
-                      {i.variants.length === 1 ? 'portion' : 'portions'}
-                    </small>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        ))}
-        {dish && (
-          <DishSelection
-            key={dish.id}
-            dish={dish}
-            canCreateOrders={canCreateOrders}
-            canManageAvailability={canManageAvailability}
-            locked={orderLocked}
-            busy={busy}
-            actionError={actionError}
-            onDismiss={() => setSelected(undefined)}
-            onAvailability={(available, variantId) =>
-              void changeAvailability(dish, available, variantId)
-            }
-            onAdd={(additions) => setLines(addLines(lines, additions))}
-          />
-        )}
-      </section>
-      {canCreateOrders && (
-        <OrderCart
-          lines={lines}
-          setLines={setLines}
+    <>
+      {billView && (
+        <Bills
+          canCollect={canCollectPayments}
+          canManage={canManageBills}
           userId={userId}
-          locked={orderLocked}
-          setLocked={setOrderLocked}
+          initialId={billId}
+          onBack={() => {
+            setBillView(false);
+            history.replaceState(null, '', '#/pos');
+          }}
+          onAdd={(bill) => {
+            if (
+              lines.length &&
+              !window.confirm(
+                'Discard this draft and add items to the selected bill?',
+              )
+            )
+              return;
+            setLines([]);
+            history.replaceState(null, '', '#/pos');
+            setSelectedBill(bill);
+            setOrderLocked(false);
+            setBillView(false);
+          }}
         />
       )}
-    </div>
+      <div className="pos-order-layout" hidden={billView}>
+        <section className="pos-menu">
+          {canReadBills && !billView && (
+            <div className="bill-toolbar">
+              <button
+                disabled={orderLocked}
+                onClick={() => {
+                  setBillId(undefined);
+                  setBillView(true);
+                }}
+              >
+                Open Bills
+              </button>
+              {selectedBill && (
+                <p>
+                  Adding a new Kitchen round to Bill #{selectedBill.billNumber}{' '}
+                  · {selectedBill.reference}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="pos-menu-heading">
+            <div>
+              <h1>
+                POS <span className="pos-channel">Counter</span>
+              </h1>
+              <p className="menu-muted">
+                Tap a dish to choose a portion and build a Counter order.
+              </p>
+            </div>
+            <button onClick={() => setRevision((r) => r + 1)}>
+              Refresh menu
+            </button>
+          </div>
+          <label className="pos-search">
+            Search dishes
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Dish, category or portion"
+            />
+          </label>
+          <nav className="pos-categories" aria-label="Menu categories">
+            <button
+              aria-pressed={!activeCategory}
+              onClick={() => setCategory('')}
+            >
+              All dishes
+            </button>
+            {menu?.categories.map((c) => (
+              <button
+                key={c.id}
+                aria-pressed={activeCategory === c.id}
+                onClick={() => setCategory(c.id)}
+              >
+                {c.name}
+              </button>
+            ))}
+          </nav>
+          {notice && <p role="status">{notice}</p>}
+          {actionError && !dish && <p role="alert">{actionError}</p>}
+          {error && (
+            <p role="alert">
+              {error} Menu is unavailable until the connection is restored.
+            </p>
+          )}
+          {!menu && !error && <p role="status">Loading menu…</p>}
+          {menu && !categories?.length && (
+            <p role="status">
+              {text
+                ? 'No matching dishes.'
+                : 'No dishes are currently available at Counter.'}
+            </p>
+          )}
+          {categories?.map((c) => (
+            <section key={c.id}>
+              <h3>{c.name}</h3>
+              <div className="pos-grid">
+                {c.items.map((i) => (
+                  <button
+                    className={
+                      'pos-card' +
+                      (i.variants.some((v) => v.available) ? '' : ' sold-out')
+                    }
+                    key={i.id}
+                    onClick={() => {
+                      setSelected(i.id);
+                      setActionError('');
+                    }}
+                  >
+                    <MenuPhoto src={i.image?.url} name={i.name} />
+                    <span className="pos-card-info">
+                      <strong>{i.name}</strong>
+                      <span className="pos-availability">
+                        {i.variants.every((v) => !v.available)
+                          ? 'Sold out'
+                          : i.variants.every((v) => v.available)
+                            ? 'Available'
+                            : 'Some portions sold out'}
+                      </span>
+                      <span>
+                        {i.variants.length > 1 ? 'From ' : ''}₹
+                        {rupees(lowestPrice(i))}
+                      </span>
+                      <small>
+                        {i.variants.length}{' '}
+                        {i.variants.length === 1 ? 'portion' : 'portions'}
+                      </small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+          {dish && (
+            <DishSelection
+              key={dish.id}
+              dish={dish}
+              canCreateOrders={canCreateOrders}
+              canManageAvailability={canManageAvailability}
+              locked={orderLocked}
+              busy={busy}
+              actionError={actionError}
+              onDismiss={() => setSelected(undefined)}
+              onAvailability={(available, variantId) =>
+                void changeAvailability(dish, available, variantId)
+              }
+              onAdd={(additions) => setLines(addLines(lines, additions))}
+            />
+          )}
+        </section>
+        {canCreateOrders && (
+          <OrderCart
+            bill={selectedBill}
+            onNewBill={() => setSelectedBill(undefined)}
+            onViewBill={(id) => {
+              setBillId(id);
+              history.replaceState(null, '', `#/pos?bill=${id}`);
+              setBillView(true);
+              setOrderLocked(false);
+            }}
+            lines={lines}
+            setLines={setLines}
+            userId={userId}
+            locked={orderLocked}
+            setLocked={setOrderLocked}
+          />
+        )}
+      </div>
+    </>
   );
 }

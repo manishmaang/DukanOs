@@ -673,6 +673,7 @@ const root = require('node:path').resolve(__dirname, '..');
     });
     const template = await ownerCall('/orders/counter', {
       requestId: randomUUID(),
+      serviceType: 'DINE_IN',
       lines: [
         {
           variantId: longDish.variants[0].id,

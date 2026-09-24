@@ -121,7 +121,7 @@ test(
         half = item.variants.find((v) => v.name === 'Half').id;
       const input = (
         lines = [{ variantId: full, quantity: 2, instruction: 'Extra spicy' }],
-      ) => ({ requestId: randomUUID(), lines });
+      ) => ({ requestId: randomUUID(), serviceType: 'DINE_IN', lines });
       const confirm = (body = input(), role) =>
         call('post', '/orders/counter', body, role);
       const refresh = async () =>
@@ -191,7 +191,7 @@ test(
             '/orders?status=QUEUED',
             undefined,
             'KITCHEN',
-          ).expect(200);
+          ).expect(403);
           for (const quantity of [0, -1, 1.5, 100, 99999999, '2', null])
             await confirm(input([{ variantId: full, quantity }])).expect(400);
           for (const body of [

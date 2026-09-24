@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { InstructionEditor } from './InstructionEditor';
 import { useEffect, useRef, useState } from 'react';
 import type {
+  BillSummary,
+  ServiceType,
   ConfirmedOrder,
   CounterOrderInput,
   OrderConfiguration,
@@ -18,18 +20,26 @@ import {
 } from './order-cart';
 import { rupees } from './menu-editor';
 export function OrderCart({
+  bill,
+  onNewBill,
+  onViewBill,
   lines,
   setLines,
   userId,
   locked,
   setLocked,
 }: {
+  bill?: BillSummary;
+  onNewBill: () => void;
+  onViewBill: (id: string) => void;
   lines: CartLine[];
   setLines: (lines: CartLine[]) => void;
   userId: string;
   locked: boolean;
   setLocked: (value: boolean) => void;
 }) {
+  const [serviceType, setServiceType] = useState<ServiceType>('DINE_IN');
+  const [reference, setReference] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [config, setConfig] = useState<OrderConfiguration>();
   const [error, setError] = useState('');
@@ -72,7 +82,12 @@ export function OrderCart({
     setError('');
     try {
       if (!pending.current) {
-        const request = orderInput(lines, confirmationId());
+        const request = {
+          ...orderInput(lines, confirmationId()),
+          ...(bill
+            ? { billId: bill.id }
+            : { serviceType, reference: reference.trim() }),
+        };
         // Store before sending so refresh/network retries keep the same request identity.
         sessionStorage.setItem(storageKey, JSON.stringify(request));
         pending.current = request;
@@ -136,12 +151,24 @@ export function OrderCart({
         </div>
         <button
           onClick={() => {
+            onNewBill();
+            setReference('');
             setMobileOpen(false);
             setConfirmed(undefined);
             setLocked(false);
           }}
         >
           New Order
+        </button>
+        <button
+          className="secondary"
+          onClick={() => {
+            setMobileOpen(false);
+            setConfirmed(undefined);
+            onViewBill(confirmed.billId);
+          }}
+        >
+          View Bill / Payment
         </button>
       </aside>,
     );
@@ -156,6 +183,43 @@ export function OrderCart({
   }
   return surface(
     <aside className="order-cart" aria-label="Current order">
+      {!locked && (
+        <div className="cart-bill-selection">
+          {bill ? (
+            <p>
+              Bill #{bill.billNumber} ·{' '}
+              {bill.reference ||
+                bill.serviceType?.replace('_', ' ') ||
+                'Legacy bill'}
+            </p>
+          ) : (
+            <>
+              <label>
+                Service
+                <select
+                  aria-label="Service type"
+                  value={serviceType}
+                  onChange={(e) =>
+                    setServiceType(e.target.value as ServiceType)
+                  }
+                >
+                  <option value="DINE_IN">Dine In</option>
+                  <option value="TAKEAWAY">Takeaway</option>
+                </select>
+              </label>
+              <label>
+                Table / Reference (optional)
+                <input
+                  aria-label="Table / Reference"
+                  maxLength={80}
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+        </div>
+      )}
       <div className="cart-heading">
         <h2>Current Order</h2>
         {!!lines.length && (

@@ -34,7 +34,13 @@ function Items({ order }: { order: DispatchOrder }) {
     </div>
   );
 }
-export function Dispatch({ canComplete }: { canComplete: boolean }) {
+export function Dispatch({
+  canComplete,
+  canCollect = false,
+}: {
+  canComplete: boolean;
+  canCollect?: boolean;
+}) {
   const [state, setState] = useState<DispatchState | null>(null);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -165,14 +171,42 @@ export function Dispatch({ canComplete }: { canComplete: boolean }) {
                   <time>{order.businessDate}</time>
                 )}
                 {order.source !== 'COUNTER' && <p>{order.source}</p>}
+                <p>
+                  {order.serviceType?.replace('_', ' ') ??
+                    'Legacy · service unknown'}{' '}
+                  ·{' '}
+                  {order.paymentStatus === 'PAID'
+                    ? 'PAID'
+                    : `DUE ₹${order.amountDue}`}
+                </p>
+                {canCollect &&
+                  order.serviceType === 'TAKEAWAY' &&
+                  order.paymentStatus !== 'PAID' && (
+                    <a
+                      className="bill-collect-link"
+                      href={`#/pos?bill=${order.billId}`}
+                    >
+                      Collect Payment
+                    </a>
+                  )}
                 <Items order={order} />
                 {canComplete && (
                   <button
                     className="dispatch-action"
-                    disabled={!!pending}
+                    disabled={
+                      !!pending ||
+                      (order.serviceType === 'TAKEAWAY' &&
+                        order.amountDue !== '0' &&
+                        order.amountDue !== '0.00')
+                    }
                     onClick={() => void complete(order)}
                   >
-                    {pending === order.orderId ? 'Updating…' : 'Handed Over'}
+                    {pending === order.orderId
+                      ? 'Updating…'
+                      : order.serviceType === 'TAKEAWAY' &&
+                          order.paymentStatus !== 'PAID'
+                        ? 'Payment Required'
+                        : 'Handed Over'}
                   </button>
                 )}
               </article>

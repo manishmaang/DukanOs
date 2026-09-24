@@ -1,4 +1,4 @@
-/** Handover projection: immutable sale names, no financial fields. */
+/** Handover projection: sale names and limited bill settlement context only. */
 export interface DispatchLine {
   id: string;
   menuItemId: string;
@@ -8,6 +8,10 @@ export interface DispatchLine {
   instruction: string;
 }
 export interface DispatchOrder {
+  billId: string;
+  serviceType: 'DINE_IN' | 'TAKEAWAY' | null;
+  amountDue: string;
+  paymentStatus: import('./bills').PaymentStatus;
   orderId: string;
   businessDate: string;
   tokenNumber: number;

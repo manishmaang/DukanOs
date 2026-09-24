@@ -1,3 +1,4 @@
+const { legacyOrder } = require('../fixtures/legacy-order.cjs');
 require('reflect-metadata');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -105,15 +106,18 @@ test(
       const soya = await make('Soya Chaap Gravy', ['Full']);
       const half = manchurian.variants.find((v) => v.name === 'Half').id,
         full = soya.variants[0].id;
+      let upgraded = false;
       const confirm = async (lines, role = 'CASHIER') =>
-        (
-          await call(
-            'post',
-            '/orders/counter',
-            { requestId: randomUUID(), lines },
-            role,
-          ).expect(201)
-        ).body;
+        !upgraded
+          ? legacyOrder(sql, identities[role].id, lines)
+          : (
+              await call(
+                'post',
+                '/orders/counter',
+                { requestId: randomUUID(), serviceType: 'DINE_IN', lines },
+                role,
+              ).expect(201)
+            ).body;
       const one = await confirm([
         { variantId: half, quantity: 1, instruction: 'Nothing spicy' },
         { variantId: full, quantity: 1 },
@@ -165,6 +169,29 @@ test(
           );
           await sql.query('COMMIT');
           assert.deepEqual(await snapshot(), before);
+          for (const file of fs
+            .readdirSync('database/migrations')
+            .sort()
+            .filter(
+              (f) =>
+                f.endsWith('.sql') && f > '009' + String.fromCharCode(65535),
+            ))
+            await sql.query(
+              fs.readFileSync('database/migrations/' + file, 'utf8'),
+            );
+          upgraded = true;
+          for (const order of [one, two, three])
+            Object.assign(
+              order,
+              (
+                await call(
+                  'get',
+                  '/orders/' + order.id,
+                  undefined,
+                  'CASHIER',
+                ).expect(200)
+              ).body,
+            );
         },
       );
       await t.test(
@@ -207,7 +234,7 @@ test(
           );
           assert.doesNotMatch(
             JSON.stringify(s),
-            /price|subtotal|tax|payment|grandTotal|requestHash/i,
+            /price|subtotal|tax|paymentLedger|grandTotal|requestHash/i,
           );
           const p = (await call('get', '/kitchen/production').expect(200)).body;
           assert.deepEqual(p.queued, s.production.queued);

@@ -46,3 +46,9 @@ GET /kitchen/orders and /kitchen/production accept no body or query and require 
 ## Dispatch
 
 GET /dispatch/orders requires dispatch.read and rejects body/query input. POST /dispatch/orders/:id/complete requires dispatch.complete, UUIDv4, the mutation header and no body/query (including empty JSON). Orders rechecks the live session/capability inside the transaction and permits only READY→COMPLETED. Duplicates/wrong states produce sanitized 409 errors; queue reads expose operational snapshots only. No arbitrary status input exists.
+
+## Bills/Payments (012)
+
+POST /orders/counter additionally accepts either billId (UUIDv4) or serviceType (DINE_IN/TAKEAWAY) with optional reference (string <=80); service/reference cannot accompany billId. New confirmations without service/bill context fail. Historical committed requests can replay their original fingerprint.
+
+GET /bills accepts only optional search string <=80 and after UUIDv4 (known cursor); max 100 results. GET /bills/:id has no query/body and validates UUIDv4. POST /bills/:id/payments validates JSON {requestId UUIDv4, method CASH|UPI, amount decimal string with <=12 integer digits and <=2 decimals}; backend requires >0 and <=current due. POST /bills/:id/close accepts no body/query. All unknown fields, arrays/scalar bodies, nulls and unsupported methods/types are rejected through existing NestJS DTO/input guards. Financial reads/collection/closure use distinct capabilities and mutation transactions recheck active session/grants. Pure Kitchen/Dispatch cannot use financial-detail APIs.

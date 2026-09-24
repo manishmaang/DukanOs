@@ -2,6 +2,9 @@ export type OrderStatus =
   'DRAFT' | 'QUEUED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED';
 export interface CounterOrderInput {
   requestId: string;
+  billId?: string;
+  serviceType?: 'DINE_IN' | 'TAKEAWAY';
+  reference?: string;
   lines: { variantId: string; quantity: number; instruction?: string }[];
 }
 export interface OrderConfiguration {
@@ -12,6 +15,7 @@ export interface OrderConfiguration {
   rounding: 'HALF_UP_PAISE';
 }
 export interface ConfirmedOrder {
+  billId: string;
   id: string;
   source: 'COUNTER';
   status: OrderStatus;

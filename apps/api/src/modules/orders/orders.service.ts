@@ -1,3 +1,4 @@
+import { BillsService } from '../bills/bills.service';
 import {
   BadRequestException,
   ConflictException,
@@ -20,6 +21,7 @@ export class OrdersService {
   constructor(
     private readonly db: DatabaseService,
     private readonly menu: MenuService,
+    private readonly bills: BillsService,
   ) {}
   config() {
     return this.configuration;
@@ -34,7 +36,14 @@ export class OrdersService {
       instruction: (l.instruction ?? '').trim(),
     }));
     const fingerprint = createHash('sha256')
-      .update(JSON.stringify(lines))
+      .update(
+        JSON.stringify({
+          lines,
+          billId: input.billId?.toLowerCase() ?? null,
+          serviceType: input.serviceType ?? null,
+          reference: input.reference?.trim() ?? '',
+        }),
+      )
       .digest('hex');
     return this.db.transaction(async (client) => {
       // Same lock as all Menu writes; also serializes same-request confirmation retries.
@@ -65,7 +74,19 @@ export class OrdersService {
         [actor.user.id, input.requestId],
       );
       if (existing.rows[0]) {
-        if (existing.rows[0].request_hash !== fingerprint)
+        const legacyReplay =
+          !input.billId &&
+          input.serviceType === undefined &&
+          input.reference === undefined &&
+          existing.rows[0].request_hash ===
+            createHash('sha256').update(JSON.stringify(lines)).digest('hex') &&
+          (
+            await client.query(
+              'SELECT 1 FROM orders o JOIN bills b ON b.id=o.bill_id WHERE o.id=$1 AND b.legacy',
+              [existing.rows[0].id],
+            )
+          ).rowCount;
+        if (!legacyReplay && existing.rows[0].request_hash !== fingerprint)
           throw new ConflictException({
             code: 'IDEMPOTENCY_CONFLICT',
             message:
@@ -73,6 +94,17 @@ export class OrdersService {
           });
         return this.read(client, existing.rows[0].id);
       }
+      if (
+        (input.billId &&
+          (input.serviceType !== undefined || input.reference !== undefined)) ||
+        (!input.billId && !input.serviceType)
+      )
+        throw new BadRequestException({
+          code: 'INVALID_BILL_SELECTION',
+          message:
+            'Choose Dine In or Takeaway for a new bill, or select an existing bill.',
+        });
+      if (input.billId) await this.bills.lockOpen(client, input.billId);
       const menu = await this.menu.counterForConfirmation(client);
       const items = lines.map((line, index) => {
         const item = menu.categories
@@ -111,10 +143,20 @@ export class OrdersService {
           [timing.business_date],
         )
       ).rows[0]!.last_token;
+      const billId =
+        input.billId ??
+        (await this.bills.createForOrder(
+          client,
+          actor.user.id,
+          timing.business_date,
+          timing.queued_at,
+          input.serviceType!,
+          input.reference?.trim() ?? '',
+        ));
       const id = randomUUID();
       await client.query(
-        `INSERT INTO orders(id,source,status,business_date,token_number,confirmed_by,request_id,request_hash,queued_at,subtotal,tax_total,grand_total,tax_rate,tax_label,timezone,tax_mode,tax_rounding)
-      VALUES($1,'COUNTER','QUEUED',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'EXCLUSIVE','HALF_UP_PAISE')`,
+        `INSERT INTO orders(bill_id,id,source,status,business_date,token_number,confirmed_by,request_id,request_hash,queued_at,subtotal,tax_total,grand_total,tax_rate,tax_label,timezone,tax_mode,tax_rounding)
+      VALUES($14,$1,'COUNTER','QUEUED',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'EXCLUSIVE','HALF_UP_PAISE')`,
         [
           id,
           timing.business_date,
@@ -129,6 +171,7 @@ export class OrdersService {
           this.configuration.taxRate,
           this.configuration.taxLabel,
           this.configuration.timezone,
+          billId,
         ],
       );
       for (const [index, i] of items.entries())
@@ -159,7 +202,7 @@ export class OrdersService {
   private async read(client: PoolClient, id: string): Promise<ConfirmedOrder> {
     const row = (
       await client.query(
-        `SELECT id,source,status,business_date::text AS "businessDate",token_number AS "tokenNumber",queued_at AS "queuedAt",confirmed_by AS "confirmedBy",subtotal::text,discount_total::text AS "discountTotal",tax_total::text AS "taxTotal",rounding_adjustment::text AS "roundingAdjustment",grand_total::text AS "grandTotal",jsonb_build_object('timezone',timezone,'taxLabel',tax_label,'taxRate',tax_rate::text,'taxMode',tax_mode,'rounding',tax_rounding) AS tax FROM orders WHERE id=$1`,
+        `SELECT bill_id AS "billId",id,source,status,business_date::text AS "businessDate",token_number AS "tokenNumber",queued_at AS "queuedAt",confirmed_by AS "confirmedBy",subtotal::text,discount_total::text AS "discountTotal",tax_total::text AS "taxTotal",rounding_adjustment::text AS "roundingAdjustment",grand_total::text AS "grandTotal",jsonb_build_object('timezone',timezone,'taxLabel',tax_label,'taxRate',tax_rate::text,'taxMode',tax_mode,'rounding',tax_rounding) AS tax FROM orders WHERE id=$1`,
         [id],
       )
     ).rows[0];

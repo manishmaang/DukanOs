@@ -1,6 +1,6 @@
 # DukanOS
 
-Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen Display System and Dispatch handover** implemented. Payments remain pending.
+Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen Display System, Dispatch handover, Bills/Tabs and Cash/UPI payments** implemented.
 
 ## MVP checkpoint
 
@@ -63,7 +63,7 @@ Liveness does not require DB availability. Readiness checks connectivity only. S
 
 `apps/api` — NestJS; `apps/web` — React POS/kitchen/dispatch/admin routes; `packages/shared-types` — public contracts; `database/migrations` — SQL; `docs` — persistent project context.
 
-Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC, menu, Counter order creation, Kitchen and Dispatch are implemented; the next proposed milestone is Payments. Do not begin it automatically.
+Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC, menu, Counter order creation, Kitchen and Dispatch are implemented; Bills and Cash/UPI settlement are implemented; the next proposed milestone is Amendments + Cash Refunds. Do not begin it automatically.
 
 ## Internet outages and hosting
 
@@ -179,7 +179,7 @@ Kitchen → **Availability** opens search and whole-dish/per-portion sold-out/re
 
 ## Dispatch handover
 
-Apply migration 011 with `npm run db:migrate`, then build/restart the API. Existing READY orders remain intact. Sign in as DISPATCH, OWNER, MANAGER or operational staff whose roles include DISPATCH, then open **Dispatch** (`/#/dispatch`). READY orders appear oldest-ready first with token, READY age, dish/portion quantities and optional notes. After handing food over, press **Handed Over**. The order becomes COMPLETED and leaves the queue. This does not record or require payment; there is no undo.
+Apply migration 011 with `npm run db:migrate`, then build/restart the API. Existing READY orders remain intact. Sign in as DISPATCH, OWNER, MANAGER or operational staff whose roles include DISPATCH, then open **Dispatch** (`/#/dispatch`). READY orders appear oldest-ready first with token, READY age, dish/portion quantities and optional notes. After handing food over, press **Handed Over**. The order becomes COMPLETED and leaves the queue. Dine In may be served unpaid; Takeaway requires the current Bill due to be zero. This action does not record payment and has no undo.
 
 Set optional `DISPATCH_LATE_THRESHOLD_MINUTES=5` (integer 1–1440; restart required) for static late highlighting based on time since READY. Kitchen READY arrivals and other devices' handovers refresh in about two seconds plus request latency. Conflicts and reconnects refetch authoritative state; unavailable connections hide stale actions. CASHIER/KITCHEN alone cannot complete; combined operational roles switch workspaces without logout.
 
@@ -190,3 +190,19 @@ See [Dispatch](docs/modules/dispatch.md) for APIs, history/concurrency and limit
 Phone, tablet portrait/landscape and desktop support is a core requirement; see [the permanent UI standard and audit](docs/RESPONSIVE_UI.md). Below 900px, use the Workspace selector. POS shows a persistent **View Order** action opening a touch-friendly cart with **Back to dishes**; landscape tablets keep menu/cart side by side. Menu switches list/editor on narrow screens and shows labelled portion/channel pricing cards instead of a wide table. Keyboard-aware dialogs, large touch targets and long-text wrapping preserve normal operations.
 
 Set CHROME_BINARY to local Chromium and run `npm run test:responsive-browser` for all eight documented sizes and representative touch workflows. Fixtures use temporary PostgreSQL schemas/uploads and block external browser traffic. Screenshots/report are written under `/tmp/dukanos-responsive-*`. Run existing Menu/Kitchen/Dispatch browser suites for regressions. Emulation does not replace physical Android/iOS keyboard and browser testing.
+
+## Bills, Dine In/Takeaway and payments
+
+Apply migration 012 using `npm run db:migrate`, then build/restart the API. Existing orders become marked legacy bills; no service type or historical payment is invented. Review legacy financial history before collecting any displayed balance.
+
+1. In POS, add dishes, choose **Dine In** or **Takeaway** in Current Order, and optionally enter **Table / Reference** (for example Table 4). Confirm creates a Bill and first Kitchen token atomically.
+2. Use **View Bill / Payment**, or **Open Bills** to find a tab. **Add Items** creates another token under that bill; prior tokens stay unchanged.
+3. Record money received using **Cash** or **UPI**, including partial amounts. The system records receipt; it does not verify UPI or generate QR codes. Bill history shows actor/time and immutable collections.
+4. Dine In tokens may be served unpaid. Takeaway handover is blocked until its whole current bill due is zero. CASHIER+DISPATCH can use **Collect Payment** from Dispatch; pure DISPATCH cannot collect.
+5. After every round completes and balance settles, explicitly **Close Bill**. Payment alone leaves a tab open. Closed bills reject more food/collections.
+
+If a payment response is uncertain, **Retry payment** checks the exact same request; do not take the money again. Reloading the same tab restores recovery at the bill URL. Closing the tab loses this recovery data, so inspect payment history before submitting a replacement.
+
+All settlement APIs and assets run locally with no internet dependency. Refunds, payment corrections/voids, amendments, Card, credit and gateways remain unavailable. Future legitimate customer refunds will be **CASH ONLY from Counter**, including originally UPI-paid bills. See [Bills](docs/modules/bills.md) and [Payments](docs/modules/payments.md).
+
+`CHROME_BINARY=/path/to/local/chromium npm run test:bills-browser` runs isolated touch workflows at 390×844, 768×1024, 1024×768 and 1440×900 plus all eight boundary layouts, with external traffic blocked.

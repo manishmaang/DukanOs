@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-24 — Bills, service types and collections
+
+- Added parent Bills with Dine In/Takeaway, references, independent daily numbering, multiple Kitchen rounds and explicit settled/all-rounds-completed closure.
+- Added append-only Cash/UPI partial collection, authoritative financial projections, actor/time history, transaction/constraint guards and recoverable idempotent requests.
+- Added responsive POS Open Bills, Add Items and settlement; Dispatch displays limited due/service and gates Takeaway only. Kitchen retains preparation semantics and loses generic financial read access.
+- Migration 012 preserves existing snapshots/history and maps old orders to marked unknown-service legacy bills without fabricated payments. Documented cash-only future refunds; refunds/amendments remain disabled.
+- Verified the complete check suite, all 89 PostgreSQL integration tests, existing browser regressions and new four-device-class Bill scenarios. Applied migration 012 locally with checksum preservation checks and no fabricated payments; updated earlier fixtures for bill context.
+
 ## 2026-09-23 — Responsive and touch audit
 
 - Made responsive/touch design and mobile, tablet portrait/landscape and desktop workflow verification permanent requirements in AGENTS.md and docs/RESPONSIVE_UI.md.

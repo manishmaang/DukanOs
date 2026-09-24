@@ -291,3 +291,21 @@ Use existing dispatch.read/dispatch.complete capabilities and Orders lifecycle l
 ### Reason and consequences
 
 One source of lifecycle truth preserves snapshots and avoids duplicated timestamps or audit systems. Existing READY orders require no backfill. Concurrent completion produces one transition and a safe conflict/refetch for other devices. There is no casual undo, payment prerequisite, partial handover or completed-history dashboard. Future correction/payment warnings need explicit rules; no new module starts automatically.
+
+## 014 — Bills own settlement; Kitchen orders remain preparation rounds
+
+Date: 2026-09-24.
+
+### Context and options considered
+
+Dine In and Takeaway may add rounds while prior tokens are completed, and pay at different times/methods. Considered reopening a token versus a separate bill, per-order tender versus bill ledger, automatic versus explicit closure, and guessed historical payments/service versus marked legacy records.
+
+### Decision
+
+Introduce Bill as a parent of immutable Kitchen orders. First confirmation atomically creates the bill and token; later confirmations append new tokens to an open bill. Bill totals aggregate snapshotted order grand totals. Cash/UPI collections are append-only bill ledger entries, with actor-scoped idempotency and authoritative derived balances. Explicit close requires settlement and all rounds complete for both service types. Dine In may serve unpaid; every Takeaway handover requires current bill due zero. Share the restaurant write transaction lock and retain database guards. Kitchen loses generic financial order-read permission but retains dedicated operational reads.
+
+Legacy orders receive marked OPEN bills with unknown service and no fabricated ledger. Future refunds are CASH ONLY at Counter. Reserve their ledger shape, but reject all refund posting until legitimate amendment-derived entitlements and compensating operations are implemented.
+
+### Reason and consequences
+
+Separating commercial settlement from preparation preserves FIFO/tokens and supports additional rounds without reopening history. One authoritative ledger supports partial payments and future revised bill totals without rewriting receipts. Coarse locking fits one local restaurant and protects add/close/payment/handover races; finer locks can follow measured need. Explicit close avoids accidental closure after early payment. Legacy ledger due cannot prove historical unpaid money and requires operator review. Refunds, corrections, voids, amendments, credit and gateways remain unavailable. POS uses natural-flow responsive bill cards/forms and durable tab-scoped pending requests rather than introducing a new UI framework.

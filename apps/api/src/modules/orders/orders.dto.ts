@@ -23,6 +23,14 @@ export class OrderLineDto {
   instruction?: string;
 }
 export class ConfirmOrderDto {
+  @ValidateIf((_o, v) => v !== undefined) @IsUUID('4') billId?: string;
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsIn(['DINE_IN', 'TAKEAWAY'])
+  serviceType?: 'DINE_IN' | 'TAKEAWAY';
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsString()
+  @MaxLength(80)
+  reference?: string;
   @IsUUID('4') requestId!: string;
   @IsArray()
   @ArrayMinSize(1)
