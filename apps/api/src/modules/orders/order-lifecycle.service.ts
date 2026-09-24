@@ -86,6 +86,18 @@ export class OrderLifecycleService {
               'Start the oldest waiting token first. The queue will refresh.',
           });
       }
+      if (to === 'COMPLETED') {
+        const unpaid = await c.query(
+          "SELECT 1 FROM orders o JOIN bills b ON b.id=o.bill_id JOIN bill_balances f ON f.id=b.id WHERE o.id=$1 AND b.service_type='TAKEAWAY' AND f.amount_due>0",
+          [id],
+        );
+        if (unpaid.rowCount)
+          throw new ConflictException({
+            code: 'PAYMENT_REQUIRED',
+            message:
+              'Collect the remaining Takeaway bill balance before handover.',
+          });
+      }
       // The database checks the same policy and atomically applies status from history.
       const history = (
         await c.query<{ occurred_at: Date }>(

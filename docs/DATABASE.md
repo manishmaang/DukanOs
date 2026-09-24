@@ -2,7 +2,7 @@
 
 ## Implemented schema
 
-Scaffold infrastructure, Auth/Users, Menu and Orders tables are implemented. Other domain entities below remain proposed, **not migrated tables**.
+Scaffold infrastructure, Auth/Users, Menu, Orders, Bills and Payments tables are implemented. Other domain entities below remain proposed, **not migrated tables**.
 
 ### schema_migrations
 
@@ -20,15 +20,14 @@ Run `npm run db:migrate` from the repository root. A transaction-scoped advisory
 
 Use UUID primary keys, timestamptz timestamps, explicit FKs and restrictive deletion for historical/financial records. Only introduce tables with their implementing feature and tests.
 
-| Module            | Proposed entities and integrity                                                                                                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Orders extensions | Future immutable amendments/revisions; base Orders schema is implemented below.                                                                                                                   |
-| Payments          | payment_transactions (order FK, tender, positive numeric amount, idempotency key), refunds (original payment FK, positive numeric amount, actor/reason), no destructive updates to posted entries |
-| Kitchen           | order-owned queue timestamps and audited priority records; derive aggregation from active item revisions without losing order linkage                                                             |
-| Customers         | customers (name and indexed normalized mobile; do not assume shared family phone numbers are unique), optional preferences and communication consent                                              |
-| Credit            | credit_accounts (unique customer FK, eligibility and optional nonnegative limit), ledger_entries (account/order/payment linkage, signed numeric amount, unique operation reference)               |
-| Integrations      | provider_orders (unique provider/external ID, internal order FK), external item/modifier mappings, processing records for deduplication                                                           |
-| Reports           | initially queries/projections over source records; no independent sales ledger or duplicate financial authority                                                                                   |
+| Module            | Proposed entities and integrity                                                                                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Orders extensions | Future immutable amendments/revisions; base Orders schema is implemented below.                                                                                                     |
+| Kitchen           | order-owned queue timestamps and audited priority records; derive aggregation from active item revisions without losing order linkage                                               |
+| Customers         | customers (name and indexed normalized mobile; do not assume shared family phone numbers are unique), optional preferences and communication consent                                |
+| Credit            | credit_accounts (unique customer FK, eligibility and optional nonnegative limit), ledger_entries (account/order/payment linkage, signed numeric amount, unique operation reference) |
+| Integrations      | provider_orders (unique provider/external ID, internal order FK), external item/modifier mappings, processing records for deduplication                                             |
+| Reports           | initially queries/projections over source records; no independent sales ledger or duplicate financial authority                                                                     |
 
 Future financial values are proposed as numeric(14,2) in PostgreSQL and strings in JSON. Menu uses checked numeric instead, to reject excessive scale without silent rounding. Orders arithmetic uses BigInt paise; currency is INR and exclusive configurable tax is rounded HALF_UP once to paise. Credit entries increase debt for purchases and decrease it for repayments/reversals. Posted transactions are append-only, with linked reversals. Do not count repayments as sales.
 
@@ -36,7 +35,7 @@ Future financial values are proposed as numeric(14,2) in PostgreSQL and strings 
 
 - Confirm Counter order (implemented): validate availability/prices, persist sale/tax snapshots, daily token, status history and request identity atomically. No tender or credit debt is created.
 - Amend order: lock order, verify expected version/status, append item revisions and amendment reason, compute exact delta, record linked payment/refund/credit adjustment atomically as applicable. External payment calls require a separate durable state machine, not a long-held DB transaction.
-- Refund: lock original payment, check remaining refundable balance against all posted refunds, insert refund with unique operation key.
+- Future refund: lock bill and legitimate amendment entitlement, check remaining refund due and prior compensating entries, insert CASH-only refund with unique operation key.
 - Credit purchase/settlement: lock credit account before checking balance/limit; insert ledger and tender records together.
 - Kitchen transition/priority: lock order or compare version, validate transition, append actor/history, update state once.
 - Provider acceptance: unique provider/order ID plus atomic mapping/order persistence makes retries safe.
@@ -121,7 +120,7 @@ Orders: UUID PK; source FK to sales_channels (currently constrained COUNTER); ch
 
 Order items: UUID PK, restrictive order/menu/variant FKs, position unique per order (1–100), checked quantity 1–99, item/kitchen/variant name snapshots, exact unit price/line subtotal and up to 500-character instruction. Variant/item matching is checked by insert trigger; line subtotal equals quantity×price. Order status history: UUID PK, order/actor FKs, checked from/to transition, timestamp and nonblank reason; indexed by order/time/ID. Updates/deletes are forbidden. The initial history insert seals the aggregate; insert guards reject subsequent item appends; migration 009 allows only validated lifecycle history appends. Deferred validation forbids committing an unsealed order. Deferred constraints require 1–100 items, sum matching subtotal and initial DRAFT→QUEUED history with the confirmation actor/time.
 
-Confirmed financial fields and items remain immutable. Migration 009 replaces the status guard with audited START/READY enforcement. No cancellation or token recycling operation is exposed. Daily counter updates must increase and deletion is forbidden, preventing token reuse. Token allocation uses atomic daily UPSERT inside confirmation; the menu advisory lock serializes validation/snapshots against catalog writes. Failed confirmation rolls back allocation. Confirmed records retain keys permanently. No payment/customer tables or fake financial transactions are created.
+Confirmed financial fields and items remain immutable. Migration 009 replaces the status guard with audited START/READY enforcement. No cancellation or token recycling operation is exposed. Daily counter updates must increase and deletion is forbidden, preventing token reuse. Token allocation uses atomic daily UPSERT inside confirmation; the menu advisory lock serializes validation/snapshots against catalog writes. Failed confirmation rolls back allocation. Confirmed records retain keys permanently. Migration 008 created no payment/customer tables or fake financial transactions; migration 012 adds the parent bill ledger described below.
 
 ## Kitchen lifecycle — 009_kitchen_lifecycle.sql
 
@@ -138,3 +137,15 @@ Adds only role_permissions(KITCHEN, menu.availability.manage), using ON CONFLICT
 Replaces only protect_order_lifecycle and validate_order_transition to additionally accept READY→COMPLETED. Existing triggers atomically apply status from validated history; unique order_history_destination_idx continues to prevent duplicate destination history. Financial/item immutability, initial sealing, actor FKs, append-only history and FIFO START remain intact. Existing rows (including READY orders), IDs, timestamps, menu/images/users/audits and role grants are untouched. No new tables or columns.
 
 Adds partial order_history_ready_queue_idx(occurred_at,order_id) WHERE to_status='READY'. Dispatch joins READY orders to their unique READY history record and sorts by its timestamp then order UUID across dates. Completion time and actor are derived from the unique COMPLETED history row, avoiding a redundant completed_at column. The shared transaction lock/session/capability checks apply before completion. See decision 013 and Dispatch for errors and rollback semantics.
+
+## Bills and Payments — 012_bills_payments.sql
+
+- bills: UUID PK, unique business_date/bill_number, DINE_IN/TAKEAWAY for new bills, explicit legacy marker with null service only for imported orders, 80-character reference, OPEN/CLOSED, opening and closing actors/timestamps. Closing is guarded against unsettled balance/active rounds; metadata/history cannot be rewritten or deleted.
+- bill_daily_numbers: date PK and positive last_number, allocated atomically inside first order confirmation, with guards preventing rewind/deletion. Bill numbering is independent of order_daily_tokens.
+- orders.bill_id: NOT NULL restrictive FK, index (bill_id,queued_at,id). Each old order maps to one marked legacy bill; only this new relationship is backfilled. Existing fields/history remain unchanged, no payment invented. New insert requires open bill; existing immutable-order guard protects bill membership.
+- payments: UUID PK; restrictive bill/user FKs; COLLECTION/REFUND type; CASH/UPI method; positive checked numeric <=999999999999.99 and scale <=2; REFUND implies CASH; actor/time; request UUID/hash with actor-scoped uniqueness; bill/time/id index. Trigger rejects updates/deletes, closed-bill/excess collections and all currently unimplemented refund inserts.
+- bill_balances view: exact sums over confirmed order snapshots and payment ledger; total/collected/refunded/net_paid/amount_due/refund_due, without persisted derived payment status.
+- Takeaway history trigger checks bill due before READY→COMPLETED, preserving existing order history/FIFO guards. Legacy null-service and Dine In are not payment-gated.
+- Grants bills.read/manage and payments.read/collect to OWNER/MANAGER/CASHIER; removes KITCHEN orders.read. Kitchen keeps operational read capability and receives no financial data.
+
+All application commercial writes follow lock 742019323, actor/session, then bill/order rows as required. Repeatable-read projections return consistent bill/queue snapshots. Future amendments must derive an effective revised total through explicit immutable records; ledger collections stay intact. Cash-only refunds require a later authorized migration/workflow, not manual row edits.

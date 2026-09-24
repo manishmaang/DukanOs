@@ -545,6 +545,7 @@ const root = require('node:path').resolve(__dirname, '..');
     ])
       await ownerCall('/orders/counter', {
         requestId: randomUUID(),
+        serviceType: 'DINE_IN',
         lines: [
           { variantId: fixtureMenu[0].variants[0].id, quantity, instruction },
         ],
@@ -552,6 +553,7 @@ const root = require('node:path').resolve(__dirname, '..');
     for (const dish of fixtureMenu.slice(1))
       await ownerCall('/orders/counter', {
         requestId: randomUUID(),
+        serviceType: 'DINE_IN',
         lines: [{ variantId: dish.variants[0].id, quantity: 1 }],
       });
     await a.send('Emulation.setDeviceMetricsOverride', {

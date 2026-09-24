@@ -229,6 +229,9 @@ function App() {
                   element={
                     link.path === '/dispatch' ? (
                       <Dispatch
+                        canCollect={user.permissions.includes(
+                          'payments.collect',
+                        )}
                         key={user.id}
                         canComplete={user.permissions.includes(
                           'dispatch.complete',
@@ -247,6 +250,13 @@ function App() {
                     ) : link.path === '/pos' &&
                       user.permissions.includes('menu.read') ? (
                       <MenuPreview
+                        canReadBills={user.permissions.includes('bills.read')}
+                        canCollectPayments={user.permissions.includes(
+                          'payments.collect',
+                        )}
+                        canManageBills={user.permissions.includes(
+                          'bills.manage',
+                        )}
                         key={user.id}
                         userId={user.id}
                         canCreateOrders={user.permissions.includes(

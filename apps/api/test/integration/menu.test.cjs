@@ -1193,6 +1193,7 @@ test(
             .set('X-DukanOS-Request', '1')
             .send({
               requestId: randomUUID(),
+              serviceType: 'DINE_IN',
               lines: [{ variantId: d.variants[0].id, quantity: 1 }],
             })
             .expect(409);

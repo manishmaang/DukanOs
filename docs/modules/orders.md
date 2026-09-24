@@ -2,7 +2,7 @@
 
 ## Purpose and current implementation
 
-Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. Kitchen START/READY and Dispatch completion are implemented through Orders-owned lifecycle commands. No draft rows, payments, customers, cancellations or amendments are exposed yet.
+Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. Kitchen START/READY and Dispatch completion are implemented through Orders-owned lifecycle commands. No draft rows, customers, cancellations or amendments are exposed. Collections belong to parent Bills, independently of Kitchen lifecycle.
 
 ## Lifecycle and immutability
 
@@ -10,7 +10,7 @@ Policy: DRAFT → QUEUED → PREPARING → READY → COMPLETED. DRAFT/QUEUED may
 
 ## Confirmation and concurrency
 
-POST /api/orders/counter takes `{requestId: UUIDv4, lines:[{variantId:UUIDv4, quantity:1..99, instruction?:string}]}`. One to 100 lines; instructions at most 500 characters, trimmed plain text. Unknown fields, authoritative client prices, noninteger quantities and null instructions are rejected. Menu resolves active category/item/variant/COUNTER channel, configured price and availability. ITEM_NOT_AVAILABLE identifies the affected 1-based line and available name or variant ID. No partial order or token is committed on failure.
+POST /api/orders/counter takes `{requestId: UUIDv4, lines:[{variantId:UUIDv4, quantity:1..99, instruction?:string}], serviceType?:DINE_IN|TAKEAWAY, reference?:string, billId?:UUIDv4}`. Choose serviceType/optional reference for a new bill OR billId alone for an existing open bill. One to 100 lines; instructions at most 500 characters, trimmed plain text. Unknown fields, authoritative client prices, noninteger quantities and null instructions are rejected. Menu resolves active category/item/variant/COUNTER channel, configured price and availability. ITEM_NOT_AVAILABLE identifies the affected 1-based line and available name or variant ID. No partial order or token is committed on failure.
 
 The transaction takes Menu's advisory lock 742019323, locks the actor row, rechecks live session/capability, checks replay, resolves current Counter data, calculates exact totals, allocates token, inserts order/items/history, then commits. The session row is share-locked through commit. Menu price/availability writes and confirmations serialize; whichever obtains the lock first defines the observed state. This intentionally broad lock suits one small restaurant. No external calls occur inside confirmation. Direct database administration must coordinate with this lock; application workflows always do.
 
@@ -20,7 +20,7 @@ UUID is the permanent identity. `(business_date, token_number)` is unique. `REST
 
 ## Idempotency
 
-A browser-generated UUID requestId is unique per authenticated creator. SHA-256 of the ordered normalized lines binds the key to the payload. Same actor/key/same payload returns the original snapshot even after menu/tax changes; different payload returns IDEMPOTENCY_CONFLICT. Different actors have separate key scopes. Records/keys are retained with orders, without automatic expiry. Validation failures roll back and do not reserve a key. The shared transaction lock and database unique constraint prevent simultaneous duplicate creation.
+A browser-generated UUID requestId is unique per authenticated creator. SHA-256 of normalized lines and bill/service/reference context binds the key to the payload. Legacy committed requests retain a narrowly scoped old-fingerprint replay path. Same actor/key/same payload returns the original snapshot even after menu/tax changes; different payload returns IDEMPOTENCY_CONFLICT. Different actors have separate key scopes. Records/keys are retained with orders, without automatic expiry. Validation failures roll back and do not reserve a key. The shared transaction lock and database unique constraint prevent simultaneous duplicate creation.
 
 Before sending, POS stores the exact request in per-user sessionStorage. While outcome is uncertain, editing/new submissions are locked and Retry sends the same request. Page reload in the same tab recovers that request. Success clears it and shows token/total; New Order explicitly starts the next draft. Ordinary unsent drafts are memory-only; closing the tab loses them. Closing a tab with an ambiguous request also loses its tab-scoped recovery data: use the order read API to check before starting a replacement. No disconnected-browser queue is implemented.
 
@@ -32,7 +32,7 @@ All money uses checked PostgreSQL numeric and decimal JSON strings. Backend and 
 
 Local server environment configuration (restart required): ORDER_TAX_RATE is a plain percentage 0–100 with at most two fractional digits, default 0; ORDER_TAX_LABEL defaults to Tax. Only order-wide EXCLUSIVE tax is implemented: tax = subtotal × rate / 100, rounded once HALF_UP to paise. Grand total = subtotal + tax. Rate, label, timezone, mode, rounding method and amounts are stored on each order. Configuration changes do not affect prior orders. This is configurable arithmetic, not an assertion about applicable tax law. Inclusive/per-item/multiple tax components and tax administration UI are deferred. Production operator must supply applicable billing configuration. POS shows estimated totals; current server prices/configuration apply at confirmation and returned totals are authoritative.
 
-Payment state is independent and not yet persisted or computed; there are no payment transactions or PAID claims. Walk-in orders need no customer. Future Payments can reference order UUID; a customer FK can be added when Customers exists. No speculative customer table/reference is created.
+Payment state is independently derived at the parent Bill. Walk-in orders need no customer. Payments reference bill UUID; a customer FK can be added when Customers exists. No speculative customer table/reference is created.
 
 ## APIs and capabilities
 
@@ -48,11 +48,11 @@ All routes below have /api prefix and normal authenticated session/mutation-head
 
 List filters are optional; omit businessDate for pending work spanning midnight. Pass nextCursor as after with the same filters for the next page. Current persisted statuses are QUEUED, PREPARING, READY and COMPLETED; later lifecycle values remain reserved. No history mutation API is exposed. Public shared contracts contain no request fingerprint or persistence credentials.
 
-OWNER/MANAGER/CASHIER already have orders.create/read. Migration 008 additionally grants orders.read to KITCHEN for the next queue consumer, without order creation or menu administration. Existing kitchen.read/update grants authorize the implemented Kitchen workspace/actions. DISPATCH uses its dedicated operational projection, without generic orders.read access. Multi-role unions work normally.
+OWNER/MANAGER/CASHIER already have orders.create/read. Migration 008 originally granted orders.read to KITCHEN; migration 012 removes this financial read grant while retaining dedicated Kitchen projections. Existing kitchen.read/update grants authorize the implemented Kitchen workspace/actions. DISPATCH uses its dedicated operational projection, without generic orders.read access. Multi-role unions work normally.
 
 ## Kitchen boundary
 
-Kitchen consumes operational-only projections via GET /api/kitchen/orders and /production, with no financial fields. Orders exports OrderLifecycleService for explicit START/READY commands. A transaction sharing confirmation's advisory lock enforces FIFO, locks/rechecks actor session and capability, validates canTransition and appends actor/time/reason history. Database triggers independently enforce FIFO and apply status without permitting financial changes. Preparing time is derived from history. Kitchen polls the combined read snapshot every two seconds and refetches after actions/reconnect. Generic order read endpoints remain available with their existing financial contracts; Kitchen UI uses its dedicated projections. See [Kitchen](kitchen.md).
+Kitchen consumes operational-only projections via GET /api/kitchen/orders and /production, with no financial fields. Orders exports OrderLifecycleService for explicit START/READY commands. A transaction sharing confirmation's advisory lock enforces FIFO, locks/rechecks actor session and capability, validates canTransition and appends actor/time/reason history. Database triggers independently enforce FIFO and apply status without permitting financial changes. Preparing time is derived from history. Kitchen polls the combined read snapshot every two seconds and refetches after actions/reconnect. Generic order read endpoints retain financial contracts for authorized cashier/management users; Kitchen has access only to dedicated operational projections. See [Kitchen](kitchen.md).
 
 ## Verification
 
@@ -85,3 +85,7 @@ Kitchen's configurable late indicator uses total age since queuedAt and never ch
 Dispatch reads READY-only snapshots ordered by unique READY history time/UUID and calls OrderLifecycleService for READY→COMPLETED under dispatch.complete. The existing lock/session/capability/status checks and history-driven transaction are shared with Kitchen. Migration 011 extends guards; completion records exactly one actor/time/reason history entry, preserves financial/item snapshots and has no payment prerequisite. Completed time is derived from the unique COMPLETED history record. No amendment, cancellation or undo is introduced. See [Dispatch](dispatch.md) for APIs, concurrency, polling and error behavior.
 
 Responsive/touch rules and device verification requirements are maintained centrally in [Responsive UI](../RESPONSIVE_UI.md). Dish dialogs use dynamic/visual viewport bounds and whole-dialog scrolling at very short heights. Phone cart rows put the portion name above large quantity controls and price. No confirmation, idempotency, financial or persistence behavior changes.
+
+## Bill integration
+
+Every order belongs to a Bill after migration 012. First confirmation creates bill and token atomically; later rounds lock/recheck the selected OPEN bill and create new tokens without editing prior rounds. ConfirmedOrder includes billId. Full sale/tax snapshots remain immutable. Dine In completion means served and is allowed unpaid; Takeaway completion requires zero current parent-bill due. Explicit bill closing waits for all rounds complete and financial settlement. See [Bills](bills.md) for legacy backfill, APIs and concurrency. Future amendments must preserve ledger history and derive additional due or cash refund due from a revised effective total.

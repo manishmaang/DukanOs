@@ -59,7 +59,7 @@ PostgreSQL tests cover migration of populated Orders Core, FIFO/UUID ties/previo
 
 ## Current limitations and pending work
 
-Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; sound, printing, payments, amendments and cancellation remain future work.
+Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; Bills/payment collection are separate modules; sound, printing, amendments and cancellation remain future work.
 
 ## Late order attention
 
@@ -82,3 +82,7 @@ Usability coverage adds threshold/configuration boundary tests, instruction grou
 Mark Ready leaves the active Kitchen queue and appears in Dispatch on its next two-second authoritative refresh. Dispatch exclusively requests READY→COMPLETED with dispatch.complete; kitchen.update alone cannot hand orders over. READY time comes from the existing history row. Migration 011 preserves Kitchen FIFO, production aggregation, instructions and sold-out controls. See [Dispatch](dispatch.md).
 
 The responsive audit preserves existing Order/Production grid breakpoints and quantities. Availability uses a sticky Close header, phone-sized dynamic/visual-viewport bounds and wrapped long dish/portion names; short viewports retain scrolling access. See [Responsive UI](../RESPONSIVE_UI.md) for touch, keyboard and device requirements.
+
+## Bills boundary
+
+Orders remain individual preparation rounds when several tokens share a Bill. Kitchen does not manage settlement or display financial data. Migration 012 removes generic orders.read from KITCHEN, preserving kitchen.read/update and operational projections. Dine In serving versus Takeaway settlement gating is enforced by Dispatch/Orders at handover; FIFO, production aggregation, instructions and START/READY are unchanged.

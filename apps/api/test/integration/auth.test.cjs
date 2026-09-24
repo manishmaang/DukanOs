@@ -164,6 +164,8 @@ test(
             .expect(201);
           employee = response.body;
           assert.deepEqual(employee.permissions, [
+            'bills.manage',
+            'bills.read',
             'kitchen.read',
             'kitchen.update',
             'menu.availability.manage',
@@ -171,6 +173,7 @@ test(
             'orders.create',
             'orders.read',
             'payments.collect',
+            'payments.read',
           ]);
           ({ cookie: staffCookie } = await login('worker'));
           for (const path of ['pos', 'kitchen'])
