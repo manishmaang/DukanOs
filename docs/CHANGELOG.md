@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-25 — Audible operational alerts
+
+### Added
+
+- Optional local Web Audio payment reminder and Kitchen timer patterns, explicit activation, device-local mute preference and Test sound.
+- Coalesced non-overlapping playback with 60-second payment / 20-second Kitchen repeat limits, workspace/capability scope and resolution suppression.
+- Audio coordinator tests and Chromium activation/playback/offline regression coverage; physical-device smoke checklist.
+
+### Changed
+
+- Mounted alert projections continue polling in running background tabs for authoritative reconciliation; visual alerts remain mandatory and suspended-browser alarms are not guaranteed.
+- No schema, backend, financial, reminder scheduling or Kitchen lifecycle changes.
+
 ## 2026-09-24 — Bills, service types and collections
 
 - Added parent Bills with Dine In/Takeaway, references, independent daily numbering, multiple Kitchen rounds and explicit settled/all-rounds-completed closure.

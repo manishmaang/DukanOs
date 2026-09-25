@@ -10,7 +10,7 @@ Separate Queued and Preparing sections contain compact responsive order-card gri
 
 Both lists sort queued_at ASC, order UUID ASC, across all business dates. The oldest QUEUED order is marked NEXT; only its Start Order is enabled. Starting moves the whole order to Preparing and enables the next token, permitting parallel cooking after FIFO acceptance. Mark Ready removes an order from active Kitchen. READY orders enter Dispatch for handover; there is no arbitrary status editor.
 
-Waiting time measures elapsed time since queued_at. Preparing time measures elapsed time since the PREPARING history entry. The browser samples serverTime and advances a monotonic local timer; it does not fetch every second just for the display. New queued arrivals receive an eight-second NEW highlight; initial page loading is not treated as a new arrival. No sound is required. Order actions are at least 48px high; reduced margins and padding increase density without reducing instructions to secondary text.
+Waiting time measures elapsed time since queued_at. Preparing time measures elapsed time since the PREPARING history entry. The browser samples serverTime and advances a monotonic local timer; it does not fetch every second just for the display. New queued arrivals receive an eight-second NEW highlight; initial page loading is not treated as a new arrival. Order arrivals do not trigger sound; optional timer tones are separate. Order actions are at least 48px high; reduced margins and padding increase density without reducing instructions to secondary text.
 
 ## Production View
 
@@ -59,7 +59,7 @@ PostgreSQL tests cover migration of populated Orders Core, FIFO/UUID ties/previo
 
 ## Current limitations and pending work
 
-Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; Bills/payment collection are separate modules; sound, printing, amendments and cancellation remain future work.
+Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; Bills/payment collection are separate modules; printing, amendments and order cancellation remain future work.
 
 ## Late order attention
 
@@ -90,3 +90,5 @@ Orders remain individual preparation rounds when several tokens share a Bill. Ki
 ## Persistent operational timers (013)
 
 Kitchen now has a secondary timer strip separate from Order/Production cards. + Timer offers 1/2/3/5-minute presets, custom minutes, a label and optional active order/item association. Server-generated absolute timestamps survive reload/new devices. Due timers remain visibly TIMER DONE / OVERDUE until acknowledged or cancelled, with actor/time and concurrency-safe resolution. Timers never change FIFO, quantities, instructions, availability, Order View transitions or production aggregation. No financial reminder data is shown in Kitchen. See [Operational alerts](alerts.md) for schema, capabilities, local countdown fallback and reconciliation.
+
+Kitchen timer sound is opt-in through Enable Sound / Test sound in the timer strip. Three short local beeps repeat at most every 20 seconds while overdue; acknowledgement/cancellation suppress audio immediately. Multiple due timers share a single pattern. Device mute never resolves a timer. See [audible alerts](alerts.md#secondary-audible-alerts) for unlock, offline/reconnect and background limits.
