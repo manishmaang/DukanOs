@@ -1,3 +1,4 @@
+import { SoundControl, useAlertSound } from './OperationalAudio';
 import { useEffect, useRef, useState } from 'react';
 import type {
   KitchenOrder,
@@ -19,6 +20,11 @@ export function KitchenTimers({
   const { entries, offline, refresh, now } = useOperationalAlerts<KitchenTimer>(
     '/kitchen/timers',
     userId,
+  );
+  const silence = useAlertSound(
+    'KITCHEN_TIMER',
+    entries.map((t) => ({ id: t.id, dueAt: t.dueAt })),
+    now,
   );
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('Microwave');
@@ -82,10 +88,12 @@ export function KitchenTimers({
     if (sending.current || offline) return;
     sending.current = true;
     setBusy(true);
+    const restore = silence(id);
     try {
       await api(`/kitchen/timers/${id}/${action}`, 'POST');
       setError('');
     } catch (e) {
+      restore();
       setError(errorMessage(e));
     } finally {
       sending.current = false;
@@ -100,6 +108,7 @@ export function KitchenTimers({
     >
       <div className="timer-heading">
         <h2>Timers ({entries.length})</h2>
+        <SoundControl kind="KITCHEN_TIMER" />
         {canManage && (
           <button className="secondary" onClick={() => setOpen(!open)}>
             {open ? 'Close timer form' : '+ Timer'}

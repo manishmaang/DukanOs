@@ -1,3 +1,4 @@
+import { OperationalAudioProvider } from './OperationalAudio';
 import { useVisualViewport } from './useVisualViewport';
 import { Dispatch } from './Dispatch';
 import { Kitchen } from './Kitchen';
@@ -155,7 +156,7 @@ function App() {
           }}
         />
       ) : (
-        <>
+        <OperationalAudioProvider key={user.id} permissions={user.permissions}>
           <label className="workspace-switcher">
             Workspace
             <select
@@ -324,7 +325,7 @@ function App() {
               />
             </Routes>
           </main>
-        </>
+        </OperationalAudioProvider>
       )}
       <footer>Single-location restaurant workspace</footer>
     </div>

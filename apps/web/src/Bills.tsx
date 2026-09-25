@@ -1,3 +1,4 @@
+import { useOperationalAudio } from './OperationalAudio';
 import { ReminderSetting } from './PaymentReminders';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
@@ -26,6 +27,7 @@ export function Bills({
   onAdd: (bill: BillSummary) => void;
   onBack: () => void;
 }) {
+  const { engine: audio } = useOperationalAudio();
   const [list, setList] = useState<BillList>();
   const [bill, setBill] = useState<BillDetail>();
   const [id, setId] = useState(initialId ?? '');
@@ -103,6 +105,7 @@ export function Bills({
         request,
       );
       setBill(next);
+      if (next.amountDue === '0.00') audio.silence('PAYMENT_REMINDER', next.id);
       sessionStorage.removeItem(storageKey);
       setPending(undefined);
       setValue('');

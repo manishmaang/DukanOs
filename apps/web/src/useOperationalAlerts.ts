@@ -67,7 +67,7 @@ export function useOperationalAlerts<T>(path: string, userId: string) {
     }
     void refresh();
     const poll = setInterval(() => {
-      if (!document.hidden) void refresh();
+      void refresh();
     }, 2000);
     const timer = setInterval(() => tick((n) => n + 1), 1000);
     const wake = () => void refresh();

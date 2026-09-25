@@ -164,10 +164,13 @@ const root = require('node:path').resolve(__dirname, '..');
       c.fail = false;
       c.held = [];
       c.payloads = [];
+      c.mutations = [];
       c.handlers.push((m) => {
         if (m.method === 'Runtime.exceptionThrown')
           failures.push(m.params.exceptionDetails.text);
         if (m.method !== 'Fetch.requestPaused') return;
+        if (m.params.request.method !== 'GET')
+          c.mutations.push(m.params.request.url);
         const r = m.params,
           local =
             r.request.url.startsWith(origin) ||
@@ -239,6 +242,16 @@ const root = require('node:path').resolve(__dirname, '..');
         height: 1000,
         deviceScaleFactor: 1,
         mobile: false,
+      });
+      await c.send('Page.enable');
+      await c.send('Page.addScriptToEvaluateOnNewDocument', {
+        source: `window.__tones=[];window.__contexts=0;
+          const NativeAudio=window.AudioContext;
+          window.AudioContext=class extends NativeAudio {
+            constructor(...args){super(...args);window.__contexts++;}
+            resume(){if(window.__blockAudio)return Promise.reject(new Error('Simulated activation block'));return super.resume();}
+            createOscillator(){const node=super.createOscillator();const start=node.start.bind(node);node.start=(...args)=>{window.__tones.push({frequency:node.frequency.value,at:performance.now()});return start(...args)};return node;}
+          };`,
       });
       await c.send('Page.navigate', { url: origin });
       await c.wait("!!document.querySelector('input[name=username]')");
@@ -464,20 +477,64 @@ const root = require('node:path').resolve(__dirname, '..');
       assert.equal(r.status, 200);
     }
     async function navigate(client, hash, selector) {
-      await client.send('Page.navigate', { url: origin + '/#' + hash });
+      await client.send('Page.navigate', {
+        url: origin + '/?testNavigation=' + randomUUID() + '#' + hash,
+      });
       await client.wait(
         `!!document.querySelector(${JSON.stringify(selector)})`,
       );
     }
-    for (const [width, height] of [
+    const workflows = [
       [390, 844],
       [768, 1024],
       [1024, 768],
       [1440, 900],
-    ]) {
+    ];
+    const selectedWidth = process.env.ALERT_BROWSER_WIDTH;
+    if (selectedWidth)
+      assert.ok(
+        workflows.some(([w]) => String(w) === selectedWidth),
+        'Unknown ALERT_BROWSER_WIDTH',
+      );
+    for (const [width, height] of workflows.filter(
+      ([w]) => !selectedWidth || String(w) === selectedWidth,
+    )) {
       c = primary;
       await resize(width, height);
       await go('/pos', '.pos-card');
+      if (width === 390) {
+        assert.equal(await c.read('window.__contexts'), 0);
+        await c.read('window.__blockAudio=true');
+        await button('Enable Sound');
+        await c.wait(
+          "document.querySelector('.sound-controls').textContent.includes('Sound is unavailable')",
+        );
+        assert.equal(await c.read('window.__tones.length'), 0);
+        await c.read('window.__blockAudio=false');
+      }
+      await button('Enable Sound');
+      await c.wait(
+        '!!document.querySelector(\'[aria-label="Mute sound alerts"]\')',
+      );
+      const writesBeforeTest = c.mutations.length;
+      await button('Test sound');
+      await c.wait('window.__tones.length>=2');
+      assert.deepEqual(
+        await c.read('window.__tones.slice(-2).map(t=>t.frequency)'),
+        [660, 880],
+      );
+      assert.equal(
+        c.mutations.length,
+        writesBeforeTest,
+        'Test sound must not mutate server state',
+      );
+      assert.equal(
+        await c.read("localStorage.getItem('dukanos-sound-alerts')"),
+        'on',
+      );
+      await button('Sound: ON · Mute');
+      await button('Enable Sound');
+      await c.read('window.__tones=[]');
       const reference = 'Table 4 ' + width;
       const first = await addRound(width, 'DINE_IN', reference, true);
       await button('View Bill / Payment');
@@ -531,12 +588,26 @@ const root = require('node:path').resolve(__dirname, '..');
       await c.wait(
         "document.querySelector('.payment-reminders')?.textContent.includes('Offline')&&document.querySelector('.payment-reminders .alert-due')!==null",
       );
+      await c.wait('window.__tones.length===2');
+      await new Promise((r) => setTimeout(r, 2500));
+      assert.equal(
+        await c.read('window.__tones.length'),
+        2,
+        'polling must not replay payment tone',
+      );
+      assert.deepEqual(
+        await c.read('window.__tones.map(t=>t.frequency)'),
+        [660, 880],
+      );
       await tap('.payment-reminders > summary');
       await inspect('reminder-offline-due', width, height, true);
       // B settles with Cash via the real Bill UI; A retains only last-synced due until reconnect.
       c = cashierB;
       await resize(width, height);
       await navigate(c, '/pos?bill=' + first.billId, '.bill-payment');
+      assert.equal(await c.read('window.__tones.length'), 0);
+      await button('Enable Sound');
+      await c.wait('window.__tones.length===2');
       await c.fill('[aria-label="Payment amount"]', '150');
       await button('Record Payment');
       await c.wait(
@@ -590,6 +661,21 @@ const root = require('node:path').resolve(__dirname, '..');
       assert.equal(timers[0].durationSeconds, 120);
       await c.send('Page.reload');
       await c.wait(`!!document.querySelector('[data-timer-id="${id}"]')`);
+      assert.equal(
+        await c.read('window.__contexts'),
+        0,
+        'reload remembers preference but requires activation',
+      );
+      assert.equal(
+        await c.read("localStorage.getItem('dukanos-sound-alerts')"),
+        'on',
+      );
+      await button('Enable Sound');
+      assert.equal(
+        await c.read('window.__tones.length'),
+        0,
+        'future timer is silent',
+      );
       await navigate(cookB, '/kitchen', '.kitchen-timers');
       await cookB.wait(`!!document.querySelector('[data-timer-id="${id}"]')`);
       await admin.query(
@@ -614,6 +700,38 @@ const root = require('node:path').resolve(__dirname, '..');
       await cookB.wait(
         "document.querySelector('.kitchen-timers').textContent.includes('TIMER DONE')",
       );
+      await c.wait('window.__tones.length===3');
+      assert.deepEqual(
+        await c.read('window.__tones.map(t=>t.frequency)'),
+        [880, 880, 1100],
+      );
+      await new Promise((r) => setTimeout(r, 2500));
+      assert.equal(
+        await c.read('window.__tones.length'),
+        3,
+        'timer poll does not replay sound',
+      );
+      if (width === 390) {
+        await c.send('Emulation.setFocusEmulationEnabled', { enabled: false });
+        await c.read(
+          "Object.defineProperty(document,'hasFocus',{value:()=>false,configurable:true})",
+        );
+        await new Promise((r) => setTimeout(r, 18000));
+        await c.wait('window.__tones.length===6');
+        const distance = await c.read(
+          'window.__tones[3].at-window.__tones[0].at',
+        );
+        assert.ok(
+          distance >= 19500 && distance < 25000,
+          'Kitchen repeats at 20 seconds without a focus guard',
+        );
+        await c.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+      }
+      const active = c;
+      c = cookB;
+      await button('Enable Sound');
+      await c.wait('window.__tones.length===3');
+      c = active;
       await inspect('timer-offline-due', width, height, true);
       await cookB.click('Acknowledge');
       await cookB.wait("!document.querySelector('[data-timer-id]')");
@@ -632,8 +750,16 @@ const root = require('node:path').resolve(__dirname, '..');
       await c.wait("!!document.querySelector('[data-timer-id]')");
       await button('Cancel timer');
       await c.wait("!document.querySelector('[data-timer-id]')");
+      const count = await c.read('window.__tones.length');
+      await new Promise((r) => setTimeout(r, 2500));
+      assert.equal(
+        await c.read('window.__tones.length'),
+        count,
+        'resolved timer remains silent',
+      );
       await complete(timerOrder);
       await go('/pos', '.pos-card');
+      await button('Sound: ON · Mute');
       console.log(
         `Alerts PASS ${width}x${height}: Dine In rounds, split UPI/Cash, reminders across devices and offline reconciliation; persisted associated 2min timer, reload, due/ack/reconcile, custom cancel.`,
       );
@@ -682,7 +808,7 @@ const root = require('node:path').resolve(__dirname, '..');
       JSON.stringify(report, null, 2),
     );
     console.log(
-      'Operational alerts browser PASS: four touch workflows, eight sizes, local backend failure/reconciliation, no external traffic.',
+      `Operational alerts/audio browser PASS: ${selectedWidth || 'all four'} touch workflows, eight sizes, real Web Audio activation/patterns, offline reconciliation, no external traffic.`,
     );
   } finally {
     for (const c of clients) c.socket.close();

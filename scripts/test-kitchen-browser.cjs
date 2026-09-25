@@ -609,6 +609,9 @@ const root = require('node:path').resolve(__dirname, '..');
     assert.equal(trace.sources.length, 4);
     assert.ok(trace.sources.every((s) => s.orderId && s.tokenNumber));
     const checkTitleLayout = async () => {
+      await a.wait(
+        "[...document.querySelectorAll('.kds-production h3')].some(e=>e.textContent==='FULL SOYA CHAAP BUTTER MASALA')",
+      );
       const layout = await a.read(
         "(()=>{const card=[...document.querySelectorAll('.kds-production')].find(e=>e.querySelector('h3').textContent==='FULL SOYA CHAAP BUTTER MASALA');const title=card.querySelector('h3'),quantity=card.querySelector('.kds-production-total strong'),t=title.getBoundingClientRect(),q=quantity.getBoundingClientRect();return {title:title.textContent,quantity:quantity.textContent,noBreakdown:card.querySelectorAll('.kds-breakdown li').length===0,noOverlap:t.right<=q.left,wrap:t.height>parseFloat(getComputedStyle(title).lineHeight),fits:card.scrollWidth<=card.clientWidth};})()",
       );
