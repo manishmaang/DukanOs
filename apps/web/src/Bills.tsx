@@ -1,3 +1,4 @@
+import { ReminderSetting } from './PaymentReminders';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   BillDetail,
@@ -13,9 +14,11 @@ export function Bills({
   initialId,
   onAdd,
   onBack,
+  canManageReminders,
   canCollect,
   canManage,
 }: {
+  canManageReminders: boolean;
   canCollect: boolean;
   canManage: boolean;
   userId: string;
@@ -26,6 +29,9 @@ export function Bills({
   const [list, setList] = useState<BillList>();
   const [bill, setBill] = useState<BillDetail>();
   const [id, setId] = useState(initialId ?? '');
+  useEffect(() => {
+    if (initialId) setId(initialId);
+  }, [initialId]);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -333,12 +339,30 @@ export function Bills({
                 </button>
               </form>
             )}
+          {canManageReminders &&
+            bill.serviceType === 'DINE_IN' &&
+            bill.status === 'OPEN' &&
+            bill.amountDue !== '0.00' && (
+              <ReminderSetting key={bill.id} billId={bill.id} />
+            )}
           <h2>Kitchen rounds</h2>
           <ul className="bill-rounds">
-            {bill.orders.map((o) => (
+            {bill.orders.map((o, index) => (
               <li key={o.id}>
-                Token #{o.tokenNumber} · {o.businessDate} · {o.status} · ₹
-                {rupees(o.grandTotal)}
+                <h3>Round {index + 1}</h3>
+                <small>
+                  Token #{o.tokenNumber} · {o.businessDate} · {o.status}
+                </small>
+                {o.items.map((item) => (
+                  <div className="bill-round-item" key={item.id}>
+                    <strong>{item.itemName}</strong>
+                    <span>
+                      {item.variantName} ×{item.quantity}
+                    </span>
+                    {item.instruction && <p>{item.instruction}</p>}
+                  </div>
+                ))}
+                <strong>₹{rupees(o.grandTotal)}</strong>
               </li>
             ))}
           </ul>

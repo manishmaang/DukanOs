@@ -25,3 +25,9 @@ OWNER/MANAGER/CASHIER receive payments.read/collect. KITCHEN cannot access finan
 ## Permanent refund rule and pending work
 
 Customer refunds are always CASH from Counter, including refunds of originally UPI-paid bills. No UPI refunds and no refund controls in Kitchen or Dispatch. Schema allows the future REFUND/CASH shape but rejects refund inserts now. The next milestone must introduce legitimate amendment-derived refund entitlement, authorized/idempotent compensating entries and concurrent refund-limit checks. Past payments remain intact when an amendment changes a bill's effective total; derive new amount_due/refund_due from the revised total and unchanged ledger. No arbitrary refund path exists in this milestone.
+
+## Atomic POS confirmation collections (013)
+
+In addition to standalone Bill collection, Orders orchestrates optional Cash/UPI receipts on its existing transaction connection. Current bill due is quoted before the touch payment step, then recomputed under the shared lock at confirmation. expectedDue must match; received Cash + UPI must be positive and <= due. Zero entries are omitted rather than creating fake payments. Cash/UPI full, partial Cash, partial UPI, split and Pay Later are supported; no money is implied by Pay Later.
+
+Each positive ledger row retains actor/time and an optional confirmation_order_id FK. A unique confirmation order/method index and same-order/bill/actor insert guard protect provenance. Primary duplicate-submission protection is the permanent actor/request confirmation fingerprint, including canonical payment fields. Bill/order/token/ledger commit or roll back together. UI clearly says to record only money already received; UPI has no external verification. Settlement triggers pause persistent payment reminders immediately; partial payment preserves recurrence. Refund posting remains prohibited.

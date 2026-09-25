@@ -75,3 +75,7 @@ Existing dispatch.read and dispatch.complete grants now authorize the implemente
 ## Bills and financial permissions
 
 Migration 012 grants bills.read/manage and payments.read/collect to OWNER/MANAGER/CASHIER. It removes generic financial orders.read from KITCHEN, which keeps dedicated kitchen.read/update. Pure DISPATCH sees limited due/service/status through Dispatch only. Operational unions provide collection + handover to CASHIER+DISPATCH. No role-name bypass is added; Bill/payment mutations recheck live session and capability under the transaction lock.
+
+## Reminder and timer capabilities (013)
+
+OWNER/MANAGER/CASHIER receive bills.reminders.read/manage; OWNER/MANAGER/KITCHEN receive kitchen.timers.read/manage. Pure Dispatch receives neither. Role unions and live session/capability checks apply unchanged; the POS reminder tray and Kitchen timer controls are capability filtered. Financial reminder projections never go to pure Kitchen. See Operational alerts.

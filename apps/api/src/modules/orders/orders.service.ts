@@ -9,7 +9,11 @@ import {
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
-import type { ConfirmedOrder, OrderList } from '@dukanos/shared-types';
+import type {
+  ConfirmedOrder,
+  OrderList,
+  OrderQuote,
+} from '@dukanos/shared-types';
 import { DatabaseService } from '../../database/database.service';
 import { MenuService } from '../menu/menu.service';
 import type { AuthRequest } from '../auth/access';
@@ -26,10 +30,17 @@ export class OrdersService {
   config() {
     return this.configuration;
   }
-  async confirm(
+  confirm(input: ConfirmOrderDto, actor: AuthRequest): Promise<ConfirmedOrder> {
+    return this.process(input, actor, false) as Promise<ConfirmedOrder>;
+  }
+  quote(input: ConfirmOrderDto, actor: AuthRequest): Promise<OrderQuote> {
+    return this.process(input, actor, true) as Promise<OrderQuote>;
+  }
+  private async process(
     input: ConfirmOrderDto,
     actor: AuthRequest,
-  ): Promise<ConfirmedOrder> {
+    quoteOnly: boolean,
+  ): Promise<ConfirmedOrder | OrderQuote> {
     const lines = input.lines.map((l) => ({
       variantId: l.variantId.toLowerCase(),
       quantity: l.quantity,
@@ -38,6 +49,15 @@ export class OrdersService {
     const fingerprint = createHash('sha256')
       .update(
         JSON.stringify({
+          ...(input.payment
+            ? {
+                payment: {
+                  expectedDue: amount(paise(input.payment.expectedDue)),
+                  cash: amount(paise(input.payment.cash)),
+                  upi: amount(paise(input.payment.upi)),
+                },
+              }
+            : {}),
           lines,
           billId: input.billId?.toLowerCase() ?? null,
           serviceType: input.serviceType ?? null,
@@ -73,8 +93,9 @@ export class OrdersService {
         'SELECT id,request_hash FROM orders WHERE confirmed_by=$1 AND request_id=$2',
         [actor.user.id, input.requestId],
       );
-      if (existing.rows[0]) {
+      if (!quoteOnly && existing.rows[0]) {
         const legacyReplay =
+          !input.payment &&
           !input.billId &&
           input.serviceType === undefined &&
           input.reference === undefined &&
@@ -131,6 +152,32 @@ export class OrdersService {
       });
       const sum = items.reduce((n, i) => n + paise(i.lineSubtotal), 0n);
       const total = totals(sum, this.configuration.taxRate);
+      const existingDue = input.billId
+        ? (await this.bills.summary(client, input.billId)).amountDue
+        : '0.00';
+      const due = paise(existingDue) + paise(total.grandTotal);
+      if (quoteOnly)
+        return {
+          roundTotal: total.grandTotal,
+          existingDue,
+          amountDue: amount(due),
+        };
+      if (input.payment) {
+        await this.bills.authorize(client, actor, 'payments.collect');
+        if (paise(input.payment.expectedDue) !== due)
+          throw new ConflictException({
+            code: 'PAYABLE_CHANGED',
+            message:
+              'Bill due or menu prices changed. Review the payment amount again before confirming.',
+          });
+        const received = paise(input.payment.cash) + paise(input.payment.upi);
+        if (received <= 0n || received > due)
+          throw new BadRequestException({
+            code: 'INVALID_PAYMENT',
+            message:
+              'Record a positive collection no greater than the current bill due.',
+          });
+      }
       const timing = (
         await client.query<{ queued_at: Date; business_date: string }>(
           'SELECT t AS queued_at,(t AT TIME ZONE $1)::date::text AS business_date FROM (SELECT clock_timestamp() AS t) stamp',
@@ -196,6 +243,15 @@ export class OrdersService {
         "INSERT INTO order_status_history(id,order_id,from_status,to_status,actor_id,occurred_at,reason) VALUES($1,$2,'DRAFT','QUEUED',$3,$4,'Counter confirmation')",
         [randomUUID(), id, actor.user.id, timing.queued_at],
       );
+      if (input.payment)
+        await this.bills.collectForConfirmation(
+          client,
+          billId,
+          id,
+          input.payment,
+          fingerprint,
+          actor.user.id,
+        );
       return this.read(client, id);
     });
   }

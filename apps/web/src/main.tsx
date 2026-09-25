@@ -116,6 +116,8 @@ function App() {
   async function logout() {
     try {
       await api('/auth/logout', 'POST');
+      for (const key of Object.keys(sessionStorage))
+        if (key.startsWith('dukanos-alerts:')) sessionStorage.removeItem(key);
       sessionRequest.current++;
       setUser(null);
     } catch (error) {
@@ -239,6 +241,13 @@ function App() {
                       />
                     ) : link.path === '/kitchen' ? (
                       <Kitchen
+                        userId={user.id}
+                        canReadTimers={user.permissions.includes(
+                          'kitchen.timers.read',
+                        )}
+                        canManageTimers={user.permissions.includes(
+                          'kitchen.timers.manage',
+                        )}
                         key={user.id}
                         canUpdate={user.permissions.includes('kitchen.update')}
                         canManageAvailability={user.permissions.includes(
@@ -250,6 +259,12 @@ function App() {
                     ) : link.path === '/pos' &&
                       user.permissions.includes('menu.read') ? (
                       <MenuPreview
+                        canReadReminders={user.permissions.includes(
+                          'bills.reminders.read',
+                        )}
+                        canManageReminders={user.permissions.includes(
+                          'bills.reminders.manage',
+                        )}
                         canReadBills={user.permissions.includes('bills.read')}
                         canCollectPayments={user.permissions.includes(
                           'payments.collect',

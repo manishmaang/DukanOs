@@ -26,6 +26,13 @@ export interface BillDetail extends BillSummary {
     businessDate: string;
     status: OrderStatus;
     grandTotal: string;
+    items: {
+      id: string;
+      itemName: string;
+      variantName: string;
+      quantity: number;
+      instruction: string;
+    }[];
   }[];
   payments: {
     id: string;

@@ -86,3 +86,7 @@ The responsive audit preserves existing Order/Production grid breakpoints and qu
 ## Bills boundary
 
 Orders remain individual preparation rounds when several tokens share a Bill. Kitchen does not manage settlement or display financial data. Migration 012 removes generic orders.read from KITCHEN, preserving kitchen.read/update and operational projections. Dine In serving versus Takeaway settlement gating is enforced by Dispatch/Orders at handover; FIFO, production aggregation, instructions and START/READY are unchanged.
+
+## Persistent operational timers (013)
+
+Kitchen now has a secondary timer strip separate from Order/Production cards. + Timer offers 1/2/3/5-minute presets, custom minutes, a label and optional active order/item association. Server-generated absolute timestamps survive reload/new devices. Due timers remain visibly TIMER DONE / OVERDUE until acknowledged or cancelled, with actor/time and concurrency-safe resolution. Timers never change FIFO, quantities, instructions, availability, Order View transitions or production aggregation. No financial reminder data is shown in Kitchen. See [Operational alerts](alerts.md) for schema, capabilities, local countdown fallback and reconciliation.

@@ -15,6 +15,12 @@ import { OrdersService } from './orders.service';
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
+  @Post('counter/quote')
+  @JsonInput()
+  @RequirePermissions('orders.create', 'bills.read', 'payments.read')
+  quote(@Body() input: ConfirmOrderDto, @Req() actor: AuthRequest) {
+    return this.orders.quote(input, actor);
+  }
   @Post('counter')
   @JsonInput()
   @RequirePermissions('orders.create')

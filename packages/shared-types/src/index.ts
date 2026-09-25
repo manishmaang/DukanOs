@@ -12,6 +12,10 @@ export type MoneyAmount = string;
 
 export type RoleCode = 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' | 'DISPATCH';
 export type PermissionCode =
+  | 'bills.reminders.read'
+  | 'bills.reminders.manage'
+  | 'kitchen.timers.read'
+  | 'kitchen.timers.manage'
   | 'orders.create'
   | 'orders.read'
   | 'bills.read'
@@ -61,3 +65,5 @@ export type * from './kitchen';
 export type * from './dispatch';
 
 export type * from './bills';
+
+export type * from './alerts';

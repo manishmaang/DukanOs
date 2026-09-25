@@ -1,3 +1,4 @@
+import { ConfirmationPayment } from './ConfirmationPayment';
 import { CartSurface } from './CartSurface';
 import type { ReactNode } from 'react';
 import { InstructionEditor } from './InstructionEditor';
@@ -21,6 +22,7 @@ import {
 import { rupees } from './menu-editor';
 export function OrderCart({
   bill,
+  canCollect,
   onNewBill,
   onViewBill,
   lines,
@@ -30,6 +32,7 @@ export function OrderCart({
   setLocked,
 }: {
   bill?: BillSummary;
+  canCollect: boolean;
   onNewBill: () => void;
   onViewBill: (id: string) => void;
   lines: CartLine[];
@@ -38,6 +41,7 @@ export function OrderCart({
   locked: boolean;
   setLocked: (value: boolean) => void;
 }) {
+  const [review, setReview] = useState<CounterOrderInput>();
   const [serviceType, setServiceType] = useState<ServiceType>('DINE_IN');
   const [reference, setReference] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -75,14 +79,14 @@ export function OrderCart({
   const tax = config
     ? (subtotal * cartPaise(config.taxRate) + 5000n) / 10000n
     : 0n;
-  async function confirm() {
+  async function confirm(selected?: CounterOrderInput) {
     if (sending.current) return;
     sending.current = true;
     setBusy(true);
     setError('');
     try {
       if (!pending.current) {
-        const request = {
+        const request = selected ?? {
           ...orderInput(lines, confirmationId()),
           ...(bill
             ? { billId: bill.id }
@@ -98,11 +102,13 @@ export function OrderCart({
         'POST',
         pending.current,
       );
+      setReview(undefined);
       setConfirmed(order);
       setLines([]);
       sessionStorage.removeItem(storageKey);
       pending.current = undefined;
     } catch (e) {
+      setReview(undefined);
       const definitive =
         e instanceof ApiFailure &&
         [400, 409, 413, 415].includes(e.status) &&
@@ -110,6 +116,7 @@ export function OrderCart({
       if (definitive) {
         sessionStorage.removeItem(storageKey);
         pending.current = undefined;
+        setReview(undefined);
         setLocked(false);
       }
       setError(
@@ -165,12 +172,29 @@ export function OrderCart({
           onClick={() => {
             setMobileOpen(false);
             setConfirmed(undefined);
+            setReference('');
             onViewBill(confirmed.billId);
           }}
         >
           View Bill / Payment
         </button>
       </aside>,
+    );
+  if (review)
+    return surface(
+      <>
+        <ConfirmationPayment
+          request={review}
+          canCollect={canCollect}
+          busy={busy}
+          onConfirm={(request) => void confirm(request)}
+          onBack={() => {
+            setReview(undefined);
+            setLocked(false);
+          }}
+        />
+        {error && <p role="alert">{error}</p>}
+      </>,
     );
   const groups = groupCartLines(lines);
   function updateLine(
@@ -348,7 +372,7 @@ export function OrderCart({
                 <summary>Pricing details</summary>
                 <p>
                   Current Counter prices and configured tax apply at
-                  confirmation. No payment is collected.
+                  confirmation. Review payment before submitting.
                 </p>
               </details>
             </>
@@ -362,7 +386,20 @@ export function OrderCart({
                 (locked && !pending.current) ||
                 (!locked && (!lines.length || !config))
               }
-              onClick={() => void confirm()}
+              onClick={() => {
+                if (pending.current) {
+                  void confirm();
+                  return;
+                }
+                setError('');
+                setLocked(true);
+                setReview({
+                  ...orderInput(lines, confirmationId()),
+                  ...(bill
+                    ? { billId: bill.id }
+                    : { serviceType, reference: reference.trim() }),
+                });
+              }}
             >
               {busy
                 ? 'Confirming…'

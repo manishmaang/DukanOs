@@ -149,3 +149,13 @@ Adds partial order_history_ready_queue_idx(occurred_at,order_id) WHERE to_status
 - Grants bills.read/manage and payments.read/collect to OWNER/MANAGER/CASHIER; removes KITCHEN orders.read. Kitchen keeps operational read capability and receives no financial data.
 
 All application commercial writes follow lock 742019323, actor/session, then bill/order rows as required. Repeatable-read projections return consistent bill/queue snapshots. Future amendments must derive an effective revised total through explicit immutable records; ledger collections stay intact. Cash-only refunds require a later authorized migration/workflow, not manual row edits.
+
+## Confirmation provenance and operational alerts — 013_confirmation_alerts.sql
+
+Forward-only additions preserve existing records. payments gains nullable confirmation_order_id (orders FK), partial unique (confirmation_order_id,method), and an insert guard requiring matching bill/confirming actor. Existing standalone receipts remain null and immutable. order_items gains unique(order_id,id) for the timer's composite association FK.
+
+bill_reminders has bill_id PK/FK, checked interval_minutes 1–1440, nullable next_due_at, creator/creation time, last manual updater/update time and positive version. Insert/update requires a Dine In bill; an active timestamp requires open positive due. Order/payment/close triggers transactionally pause or resume schedules as balances change, retaining the preference. Version increments on updates and snooze uses expected version. Partial due index supports active reads. Recurrence derives from the anchor, without occurrence rows or GET side effects.
+
+kitchen_timers has UUID PK, optional order/item restrictive FKs (composite ensures ownership), checked nonblank label <=120, integer duration 60–86400, exact started/due relationship, ACTIVE/ACKNOWLEDGED/CANCELLED, creator/request UUID/hash uniqueness and resolution actor/time consistency. Active due_at/id index supports polling. Triggers prohibit identity/time/duration edits, terminal rewrites/deletes and premature acknowledgement. API additionally requires associated orders to be currently QUEUED/PREPARING at creation. Due state derives from timestamps.
+
+Adds bills.reminders.read/manage for OWNER/MANAGER/CASHIER and kitchen.timers.read/manage for OWNER/MANAGER/KITCHEN; multi-role unions unchanged. New financial and alert mutations retain restaurant lock 742019323, live actor/session checks and shared-connection transactions. No existing migration is edited; no seed, data reset or historical settlement inference occurs.

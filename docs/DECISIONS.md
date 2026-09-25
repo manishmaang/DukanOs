@@ -309,3 +309,19 @@ Legacy orders receive marked OPEN bills with unknown service and no fabricated l
 ### Reason and consequences
 
 Separating commercial settlement from preparation preserves FIFO/tokens and supports additional rounds without reopening history. One authoritative ledger supports partial payments and future revised bill totals without rewriting receipts. Coarse locking fits one local restaurant and protects add/close/payment/handover races; finer locks can follow measured need. Explicit close avoids accidental closure after early payment. Legacy ledger due cannot prove historical unpaid money and requires operator review. Refunds, corrections, voids, amendments, credit and gateways remain unavailable. POS uses natural-flow responsive bill cards/forms and durable tab-scoped pending requests rather than introducing a new UI framework.
+
+## 015 — Atomic confirmation receipts and durable timestamp-based alerts
+
+Date: 2026-09-25.
+
+### Context and options considered
+
+Cashiers need payment capture during order confirmation; independent payment calls risk partial success. Kitchen clocks and Dine In reminders must survive device changes and alert locally through a temporary backend outage. Considered separate confirmation/payment commits, browser-only timers, cloud/background notification delivery and durable domain schedules with local polling.
+
+### Decision
+
+Reuse the Orders transaction for optional bill receipts, bound to its idempotency fingerprint. Quote current payable amount and require expectedDue on collection to avoid silently recording an amount different from the reviewed receipt. Persist one reminder preference/anchor per Dine In bill and separate immutable-duration Kitchen timers. Balance triggers pause/resume reminders in the business transaction. Recurrence and due states derive from absolute timestamps; two-second authoritative polling and per-user cached snapshots support local display fallback, with full replacement on reconnect.
+
+### Reason and consequences
+
+This extends the existing single-server design without distributed orchestration or notification infrastructure. Bill settlement, order history and FIFO remain authoritative. A zero balance pauses rather than deletes reminder preference; new positive due restarts its interval. Active alerts remain visible until the defined action/settlement. Local fallback cannot authorize writes, guarantee alarms in suspended browsers, or open a fresh authenticated session with the backend down. Duplicate timer creation and acknowledgement are safe; no arbitrary elapsed-timer editing. Amendments/refunds remain separate future work.

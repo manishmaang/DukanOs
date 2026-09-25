@@ -9,6 +9,7 @@ import {
 import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type {
+  ConfirmationPayment,
   BillDetail,
   BillList,
   BillSummary,
@@ -132,6 +133,13 @@ export class BillsService {
         [id],
       )
     ).rows;
+    for (const order of orders)
+      order.items = (
+        await c.query(
+          `SELECT id,item_name_snapshot AS "itemName",variant_name_snapshot AS "variantName",quantity,instruction FROM order_items WHERE order_id=$1 ORDER BY position`,
+          [order.id],
+        )
+      ).rows;
     const payments = (
       await c.query(
         `SELECT p.id,p.type,p.method,p.amount::text,p.performed_by AS "performedBy",u.name AS "actorName",p.created_at AS "createdAt" FROM payments p JOIN users u ON u.id=p.performed_by WHERE p.bill_id=$1 ORDER BY p.created_at,p.id`,
@@ -172,6 +180,33 @@ export class BillsService {
         bills.push(await this.summary(c, r.id));
       return { bills, nextCursor: rows.length > 100 ? bills[99]!.id : null };
     });
+  }
+  /** Called by Orders only on its existing authorized confirmation transaction. */
+  async collectForConfirmation(
+    c: PoolClient,
+    billId: string,
+    orderId: string,
+    payment: ConfirmationPayment,
+    fingerprint: string,
+    actorId: string,
+  ) {
+    for (const method of ['CASH', 'UPI'] as const) {
+      const value = payment[method === 'CASH' ? 'cash' : 'upi'];
+      if (paise(value) > 0n)
+        await c.query(
+          `INSERT INTO payments(id,bill_id,type,method,amount,performed_by,request_id,request_hash,confirmation_order_id) VALUES($1,$2,'COLLECTION',$3,$4,$5,$6,$7,$8)`,
+          [
+            randomUUID(),
+            billId,
+            method,
+            amount(paise(value)),
+            actorId,
+            randomUUID(),
+            fingerprint,
+            orderId,
+          ],
+        );
+    }
   }
   collect(id: string, input: CollectPaymentDto, actor: AuthRequest) {
     return this.db.transaction(async (c) => {

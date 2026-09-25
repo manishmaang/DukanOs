@@ -94,3 +94,9 @@ Responsive/touch design is mandatory from the first frontend design (see RESPONS
 ## Bills and settlement boundary
 
 BillsModule owns commercial tabs, append-only collection ledger, authoritative financial projection and close rules. OrdersModule imports BillsModule to share the existing confirmation transaction for bill creation/open validation. Bills aggregates immutable Orders snapshots through SQL without importing OrdersModule, avoiding a dependency cycle. Dispatch reads only bill/service/due/status context and calls Orders for guarded handover; Kitchen remains financial-free. No new infrastructure/dependency is required. See decision 014 and modules/bills.md for lock order, legacy mapping and amendment/cash-refund boundary.
+
+## Confirmation orchestration and local operational alerts
+
+Orders shares its existing transaction connection with bill ledger insertion for optional confirmation receipts; quote and confirmation use identical menu/tax resolution. No independent transaction or external service sits between order creation and selected payment. AlertsModule owns separate reminder/timer commands and projections and imports BillsModule for existing live transaction authorization; it does not own Order lifecycle or financial totals. Database balance triggers synchronize reminder eligibility in the original financial transaction. Read projections expose public contracts, never payment fingerprints.
+
+React shares a small polling/cache/clock hook between the POS reminder tray and Kitchen timer strip. Cache is a last-known display fallback only, scoped per user/tab. Whole-snapshot replacement on successful polling removes stale alerts. No service worker, background notification worker, cloud scheduling, offline write queue or event bus is introduced. See decision 015 and modules/alerts.md.

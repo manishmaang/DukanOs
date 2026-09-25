@@ -17,12 +17,12 @@ const root = require('node:path').resolve(__dirname, '..');
 (async () => {
   const admin = new Client({ connectionString: process.env.DATABASE_URL });
   await admin.connect();
-  const schema = 'bills_browser_' + randomUUID().replaceAll('-', '');
+  const schema = 'alerts_browser_' + randomUUID().replaceAll('-', '');
   await admin.query(`CREATE SCHEMA "${schema}"`);
   const url = new URL(process.env.DATABASE_URL);
   url.searchParams.set('options', `-csearch_path=${schema}`);
   process.env.DATABASE_URL = url.toString();
-  const profile = fs.mkdtempSync('/tmp/dukanos-bills-');
+  const profile = fs.mkdtempSync('/tmp/dukanos-alerts-');
   process.env.DUKANOS_DATA_DIR = profile + '/media';
   let app, chrome, browser;
   const clients = [];
@@ -58,7 +58,7 @@ const root = require('node:path').resolve(__dirname, '..');
     for (const [username, roles] of Object.entries({
       cashier: ['CASHIER'],
       cook: ['KITCHEN'],
-      multi: ['CASHIER', 'DISPATCH'],
+      multi: ['CASHIER', 'KITCHEN', 'DISPATCH'],
       dispatcher: ['DISPATCH'],
     }))
       await users.create({ username, name: username, password, roles }, owner);
@@ -178,7 +178,7 @@ const root = require('node:path').resolve(__dirname, '..');
           r.request.method === 'POST'
         )
           c.payloads.push(JSON.parse(r.request.postData));
-        const kitchen = r.request.url.endsWith('/api/dispatch/orders');
+        const kitchen = r.request.url.includes('/api/');
         if (kitchen && c.hold) {
           c.held.push(r.requestId);
           return;
@@ -248,7 +248,11 @@ const root = require('node:path').resolve(__dirname, '..');
       await c.wait("!!document.querySelector('nav')");
       return c;
     }
-    const c = await device('multi');
+    let c = await device('multi');
+    const primary = c;
+    const cashierB = await device('cashier');
+    const cookB = await device('cook');
+    await admin.query(`SET search_path TO "${schema}"`);
     const sizes = [
       [360, 800],
       [390, 844],
@@ -359,7 +363,7 @@ const root = require('node:path').resolve(__dirname, '..');
           captureBeyondViewport: false,
         });
         fs.writeFileSync(
-          `/tmp/dukanos-bills-${label}-${width}.png`,
+          `/tmp/dukanos-alerts-${label}-${width}.png`,
           Buffer.from(shot.data, 'base64'),
         );
       }
@@ -387,8 +391,12 @@ const root = require('node:path').resolve(__dirname, '..');
       reference,
       two = false,
       dish = 'Manchurian',
+      payment = 'later',
     ) {
       for (const name of two ? ['Manchurian', 'Noodles'] : [dish]) {
+        await c.wait(
+          `[...document.querySelectorAll('.pos-card')].some(e=>e.textContent.includes(${JSON.stringify(name)}))`,
+        );
         await c.read(
           `(()=>{document.querySelectorAll('[data-bill-dish]').forEach(e=>e.removeAttribute('data-bill-dish'));const card=[...document.querySelectorAll('.pos-card')].find(e=>e.textContent.includes(${JSON.stringify(name)}));card.dataset.billDish='1';})()`,
         );
@@ -409,18 +417,57 @@ const root = require('node:path').resolve(__dirname, '..');
       await c.wait(
         "!!document.querySelector('.payment-review .payment-choices')",
       );
-      await button('Pay Later');
+      if (payment === 'split') {
+        await button('Partial / Split');
+        await c.fill('[aria-label="Confirmation UPI"]', '150');
+        await inspect(
+          'confirmation-split',
+          width,
+          await c.read('innerHeight'),
+          true,
+        );
+        await button('Confirm split payment');
+      } else if (payment === 'cash' || payment === 'upi') {
+        const text = await c.read(
+          `[...document.querySelectorAll('.payment-choices button')].find(b=>b.textContent.startsWith('${payment === 'cash' ? 'Cash' : 'UPI'} ₹')).textContent`,
+        );
+        if (payment === 'cash' && width === 390)
+          await c.read(
+            "(()=>{const original=window.fetch;let drop=true;window.fetch=async(...args)=>{const r=await original(...args);if(drop&&args[0]==='/api/orders/counter'){drop=false;throw new TypeError('simulated lost confirmation payment response');}return r;};})()",
+          );
+        await button(text);
+        if (payment === 'cash' && width === 390) {
+          await c.wait(
+            "document.querySelector('.confirm-order')?.textContent==='Retry confirmation'",
+          );
+          await c.send('Page.reload');
+          await c.wait(
+            "document.querySelector('.confirm-order')?.textContent==='Retry confirmation'",
+          );
+          await tap('.mobile-order-trigger');
+          await button('Retry confirmation');
+        }
+      } else await button('Pay Later');
       await c.wait("!!document.querySelector('.order-token')");
       const orders = (await c.http('/orders')).body.orders;
       return orders.at(-1);
     }
-    async function openBill(reference) {
-      await button('Open Bills');
-      await c.wait('!!document.querySelector(\'[aria-label="Find bill"]\')');
-      await c.fill('[aria-label="Find bill"]', reference);
-      await c.wait("document.querySelectorAll('.bill-card').length===1");
-      await button('Open bill');
-      await c.wait("!!document.querySelector('.bill-totals')");
+    async function complete(order) {
+      await prepare(order);
+      const r = await fetch(
+        origin + `/api/dispatch/orders/${order.id}/complete`,
+        {
+          method: 'POST',
+          headers: { Cookie: cookie, 'X-DukanOS-Request': '1' },
+        },
+      );
+      assert.equal(r.status, 200);
+    }
+    async function navigate(client, hash, selector) {
+      await client.send('Page.navigate', { url: origin + '/#' + hash });
+      await client.wait(
+        `!!document.querySelector(${JSON.stringify(selector)})`,
+      );
     }
     for (const [width, height] of [
       [390, 844],
@@ -428,23 +475,29 @@ const root = require('node:path').resolve(__dirname, '..');
       [1024, 768],
       [1440, 900],
     ]) {
+      c = primary;
       await resize(width, height);
       await go('/pos', '.pos-card');
       const reference = 'Table 4 ' + width;
       const first = await addRound(width, 'DINE_IN', reference, true);
-      await button('New Order');
-      await prepare(first);
-      await go('/dispatch', '.dispatch-card');
+      await button('View Bill / Payment');
+      await c.wait("!!document.querySelector('.bill-totals')");
       assert.ok(
         await c.read(
-          "document.querySelector('.dispatch-card').textContent.includes('DUE')",
+          "document.querySelector('.bill-rounds').textContent.includes('Manchurian')&&document.querySelector('.bill-rounds').textContent.includes('Half ×1')&&document.querySelector('.bill-rounds').textContent.includes('Noodles')",
         ),
       );
-      await button('Handed Over');
-      await c.wait("!document.querySelector('.dispatch-card')");
-      await go('/pos', '.pos-card');
-      await openBill(reference);
-      await inspect('open-dine-bill', width, height, true);
+      await tap('.reminder-setting summary');
+      await button('5 min');
+      await button('Set reminder');
+      await c.wait(
+        "document.querySelector('.reminder-setting').textContent.includes('reminder saved')",
+      );
+      await navigate(cashierB, '/pos', '.pos-card');
+      await cashierB.wait(
+        `!!sessionStorage.getItem('dukanos-alerts:'+${JSON.stringify((await cashierB.http('/auth/me')).body.id)}+':/reminders/active')`,
+      );
+      await complete(first);
       await button('Add Items');
       await c.wait("!document.querySelector('.bills-workspace')");
       const second = await addRound(
@@ -453,149 +506,183 @@ const root = require('node:path').resolve(__dirname, '..');
         undefined,
         false,
         'Soya Chaap Gravy',
+        'split',
       );
-      assert.deepEqual(
-        first.items.map((i) => i.itemName),
-        ['Manchurian', 'Noodles'],
-      );
-      assert.equal(second.items[0].itemName, 'Soya Chaap Gravy');
       assert.equal(second.billId, first.billId);
-      assert.notEqual(first.tokenNumber, second.tokenNumber);
-      await button('New Order');
-      await prepare(second);
-      await go('/dispatch', '.dispatch-card');
-      await button('Handed Over');
-      await c.wait("!document.querySelector('.dispatch-card')");
-      await go('/pos', '.pos-card');
-      await openBill(reference);
       assert.equal(
-        (await c.http('/bills/' + first.billId)).body.billTotal,
-        '300.00',
+        (await c.http('/bills/' + first.billId)).body.amountDue,
+        '150.00',
       );
-      await c.fill('[aria-label="Payment amount"]', '100');
-      await select('[aria-label="Payment method"]', 'UPI');
-      if (width === 390) {
-        await resize(width, 420);
-        await inspect('payment-keyboard', width, 420, true);
-        await resize(width, height);
-        await c.read(
-          "(()=>{const original=window.fetch;let drop=true;window.fetch=async(...args)=>{const result=await original(...args);if(drop&&String(args[0]).endsWith('/payments')&&args[1]?.method==='POST'){drop=false;throw new TypeError('simulated lost payment response');}return result;};})()",
-        );
-      }
+      await button('View Bill / Payment');
+      await c.wait("!!document.querySelector('.bill-rounds')");
+      await inspect('bill-round-food', width, height, true);
+      await complete(second);
+      // Bring the isolated fixture's next alert close, then lose backend access on A.
+      const due = (
+        await admin.query(
+          "UPDATE bill_reminders SET next_due_at=clock_timestamp()+interval '4 seconds' WHERE bill_id=$1 RETURNING next_due_at",
+          [first.billId],
+        )
+      ).rows[0].next_due_at.toISOString();
+      await c.wait(
+        `[...Object.keys(sessionStorage)].some(k=>k.startsWith('dukanos-alerts:')&&sessionStorage.getItem(k).includes(${JSON.stringify(due)}))`,
+      );
+      c.fail = true;
+      await c.wait(
+        "document.querySelector('.payment-reminders')?.textContent.includes('Offline')&&document.querySelector('.payment-reminders .alert-due')!==null",
+      );
+      await tap('.payment-reminders > summary');
+      await inspect('reminder-offline-due', width, height, true);
+      // B settles with Cash via the real Bill UI; A retains only last-synced due until reconnect.
+      c = cashierB;
+      await resize(width, height);
+      await navigate(c, '/pos?bill=' + first.billId, '.bill-payment');
+      await c.fill('[aria-label="Payment amount"]', '150');
       await button('Record Payment');
-      if (width === 390) {
-        await c.wait("document.body?.textContent.includes('Retry payment')");
-        assert.equal(
-          (await c.http('/bills/' + first.billId)).body.payments.length,
-          1,
-        );
-        await c.send('Page.reload');
-        await c.wait("document.body?.textContent.includes('Retry payment')");
-        await button('Retry payment');
-      }
-      await c.wait(
-        "document.querySelector('.bill-payment-status')?.textContent==='PARTIALLY PAID'",
-      );
-      assert.equal(
-        (await c.http('/bills/' + first.billId)).body.payments.length,
-        1,
-      );
-      await c.wait(
-        '!!document.querySelector(\'[aria-label="Payment amount"]\')',
-      );
-      await c.fill('[aria-label="Payment amount"]', '200');
-      await select('[aria-label="Payment method"]', 'CASH');
-      // Same intended collection, two immediate taps/click events.
-      await c.read(
-        "(()=>{const e=document.querySelector('.bill-payment button');e.click();e.click();})()",
-      );
       await c.wait(
         "document.querySelector('.bill-payment-status')?.textContent==='PAID'",
       );
-      const paid = (await c.http('/bills/' + first.billId)).body;
-      assert.equal(paid.netPaid, '300.00');
-      assert.equal(paid.payments.length, 2);
-      assert.equal(paid.status, 'OPEN');
-      await inspect('settled-dine-bill', width, height, true);
+      await c.wait("!document.querySelector('.payment-reminders')");
+      primary.fail = false;
+      c = primary;
+      await c.wait("!document.querySelector('.payment-reminders')");
+      await c.wait(
+        "document.querySelector('.bill-payment-status')?.textContent==='PAID'",
+      );
       await button('Close Bill');
       await c.wait(
-        "document.querySelector('.bills-workspace')?.textContent.includes('CLOSED')",
+        "document.querySelector('.bills-workspace').textContent.includes('CLOSED')",
       );
       await button('Back to POS');
-      const takeaway = await addRound(width, 'TAKEAWAY', 'Takeaway ' + width);
-      await button('New Order');
-      await prepare(takeaway);
-      await go('/dispatch', '.dispatch-card');
-      assert.equal(
-        await c.read("document.querySelector('.dispatch-action').disabled"),
-        true,
-      );
-      await inspect('takeaway-payment-required', width, height, true);
-      const denied = await c.http(
-        `/dispatch/orders/${takeaway.id}/complete`,
-        'POST',
-      );
-      assert.equal(denied.status, 409);
-      assert.equal(denied.body.code, 'PAYMENT_REQUIRED');
-      if (width === 390) {
-        const pure = await device('dispatcher');
-        await pure.read("location.hash='/dispatch'");
-        await pure.wait("!!document.querySelector('.dispatch-card')");
-        assert.equal(
-          await pure.read("!!document.querySelector('.bill-collect-link')"),
+      // Full Cash then UPI confirmation. Keep one queued Soya Chaap for associated timers.
+      let timerOrder;
+      for (const method of ['cash', 'upi']) {
+        const placed = await addRound(
+          width,
+          'DINE_IN',
+          'Paid ' + method,
           false,
+          'Soya Chaap Gravy',
+          method,
         );
-        assert.equal(
-          await pure.read(
-            "document.querySelector('.dispatch-action').disabled",
-          ),
-          true,
-        );
-        assert.equal(
-          (await pure.http('/bills/' + takeaway.billId)).status,
-          403,
-        );
-        await c.send('Page.bringToFront');
+        const bill = (await c.http('/bills/' + placed.billId)).body;
+        assert.equal(bill.amountDue, '0.00');
+        assert.equal(bill.payments[0].method, method.toUpperCase());
+        if (method === 'upi') timerOrder = placed;
+        else await complete(placed);
+        await button('New Order');
       }
-      await tap('.bill-collect-link');
-      await c.wait("!!document.querySelector('.bill-payment')");
-      await c.fill('[aria-label="Payment amount"]', '100');
-      await select('[aria-label="Payment method"]', 'UPI');
-      await button('Record Payment');
+      await go('/kitchen', '.kds');
+      await c.wait("!!document.querySelector('.kitchen-timers')");
       await c.wait(
-        "document.querySelector('.bill-payment-status')?.textContent==='PAID'",
+        "!document.querySelector('.kitchen-timers').textContent.includes('Offline')",
       );
-      await go('/dispatch', '.dispatch-card');
-      await button('Handed Over');
-      await c.wait("!document.querySelector('.dispatch-card')");
+      await button('+ Timer');
+      await c.fill('[aria-label="Timer label"]', 'Soya Chaap Microwave');
+      await button('2 min');
+      await select('[aria-label="Timer order"]', timerOrder.id);
+      await select('[aria-label="Timer item"]', timerOrder.items[0].id);
+      await inspect('timer-create', width, height, true);
+      await button('Start timer');
+      await c.wait("document.querySelectorAll('[data-timer-id]').length===1");
+      let timers = (await c.http('/kitchen/timers')).body.entries;
+      const id = timers[0].id;
+      assert.equal(timers[0].durationSeconds, 120);
+      await c.send('Page.reload');
+      await c.wait(`!!document.querySelector('[data-timer-id="${id}"]')`);
+      await navigate(cookB, '/kitchen', '.kitchen-timers');
+      await cookB.wait(`!!document.querySelector('[data-timer-id="${id}"]')`);
+      await admin.query(
+        'ALTER TABLE kitchen_timers DISABLE TRIGGER immutable_kitchen_timer',
+      );
+      const stamp = (
+        await admin.query(
+          "WITH stamp AS(SELECT clock_timestamp() t) UPDATE kitchen_timers SET started_at=t-interval '116 seconds',due_at=t+interval '4 seconds' FROM stamp WHERE id=$1 RETURNING due_at",
+          [id],
+        )
+      ).rows[0].due_at.toISOString();
+      await admin.query(
+        'ALTER TABLE kitchen_timers ENABLE TRIGGER immutable_kitchen_timer',
+      );
+      await c.wait(
+        `[...Object.keys(sessionStorage)].some(k=>k.startsWith('dukanos-alerts:')&&sessionStorage.getItem(k).includes(${JSON.stringify(stamp)}))`,
+      );
+      c.fail = true;
+      await c.wait(
+        "document.querySelector('.kitchen-timers').textContent.includes('Offline')&&document.querySelector('.kitchen-timers .alert-due')!==null",
+      );
+      await cookB.wait(
+        "document.querySelector('.kitchen-timers').textContent.includes('TIMER DONE')",
+      );
+      await inspect('timer-offline-due', width, height, true);
+      await cookB.click('Acknowledge');
+      await cookB.wait("!document.querySelector('[data-timer-id]')");
+      c.fail = false;
+      await c.wait("!document.querySelector('[data-timer-id]')");
+      await c.wait(
+        "!document.querySelector('.kitchen-timers').textContent.includes('Offline')",
+      );
+      await button('+ Timer');
+      await c.fill(
+        '[aria-label="Timer label"]',
+        'Long custom timer ' + 'Bread '.repeat(15),
+      );
+      await c.fill('[aria-label="Timer minutes"]', '7');
+      await button('Start timer');
+      await c.wait("!!document.querySelector('[data-timer-id]')");
+      await button('Cancel timer');
+      await c.wait("!document.querySelector('[data-timer-id]')");
+      await complete(timerOrder);
       await go('/pos', '.pos-card');
-      await openBill('Takeaway ' + width);
-      await button('Close Bill');
-      await c.wait(
-        "document.querySelector('.bills-workspace')?.textContent.includes('CLOSED')",
-      );
-      await button('Back to POS');
       console.log(
-        `Bills workflow PASS ${width}x${height}: unpaid Dine In serving, additional token, partial UPI/Cash, close; Takeaway gate, multi-role collection/handover.`,
+        `Alerts PASS ${width}x${height}: Dine In rounds, split UPI/Cash, reminders across devices and offline reconciliation; persisted associated 2min timer, reload, due/ack/reconcile, custom cancel.`,
       );
     }
-    // Long-reference and all boundary viewport layouts, with no extra feature behavior.
-    await go('/pos', '.pos-card');
-    await addRound(1440, 'DINE_IN', 'Window table ' + 'L'.repeat(65));
-    await button('View Bill / Payment');
-    await c.wait("!!document.querySelector('.bill-totals')");
+    c = primary;
+    await go('/kitchen', '.kds');
+    await button('+ Timer');
+    await c.fill(
+      '[aria-label="Timer label"]',
+      'Long microwave label ' + 'Soya Chaap '.repeat(8),
+    );
     for (const [width, height] of sizes) {
       await resize(width, height);
-      await inspect('long-bill', width, height, true);
+      await inspect('timer-boundary', width, height, true);
     }
+    await button('Close timer form');
+    await go('/pos', '.pos-card');
+    await resize(1440, 900);
+    await c.read(
+      "[...document.querySelectorAll('.pos-card')].find(e=>e.textContent.includes('Soya Chaap')).click()",
+    );
+    await c.wait("!!document.querySelector('.pos-portions')");
+    await button('Clear selection').catch(() => {});
+    await tap('.pos-portions button[aria-label="Increase Full quantity"]');
+    await tap('.portion-add');
+    await tap('.confirm-order');
+    await c.wait(
+      "!!document.querySelector('.payment-review .payment-choices')",
+    );
+    await button('Partial / Split');
+    for (const [width, height] of sizes) {
+      await resize(width, height);
+      if (
+        width < 900 &&
+        !(await c.read("!!document.querySelector('dialog:modal')"))
+      )
+        await tap('.mobile-order-trigger');
+      await inspect('payment-boundary', width, height, true);
+    }
+    await resize(390, 420);
+    await inspect('payment-keyboard', 390, 420, false);
     assert.deepEqual(external, []);
     assert.deepEqual(failures, []);
     fs.writeFileSync(
-      '/tmp/dukanos-bills-results.json',
+      '/tmp/dukanos-alerts-results.json',
       JSON.stringify(report, null, 2),
     );
     console.log(
-      'Bills browser PASS: responsive touch scenarios, payment retry after reload, double submission, pure Dispatch restriction, eight sizes, external traffic blocked.',
+      'Operational alerts browser PASS: four touch workflows, eight sizes, local backend failure/reconciliation, no external traffic.',
     );
   } finally {
     for (const c of clients) c.socket.close();
@@ -610,6 +697,6 @@ const root = require('node:path').resolve(__dirname, '..');
     fs.rmSync(profile, { recursive: true, force: true });
   }
 })().catch((e) => {
-  console.error(e.message);
+  console.error(e.stack);
   process.exitCode = 1;
 });

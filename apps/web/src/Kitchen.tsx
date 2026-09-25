@@ -1,3 +1,4 @@
+import { KitchenTimers } from './KitchenTimers';
 import { KitchenAvailability } from './KitchenAvailability';
 import { instructionBreakdown, isLate } from './kitchen-presentation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -79,9 +80,15 @@ function Production({
   );
 }
 export function Kitchen({
+  userId,
+  canReadTimers,
+  canManageTimers,
   canUpdate,
   canManageAvailability,
 }: {
+  userId: string;
+  canReadTimers: boolean;
+  canManageTimers: boolean;
   canUpdate: boolean;
   canManageAvailability: boolean;
 }) {
@@ -208,6 +215,13 @@ export function Kitchen({
           )}
         </div>
       </div>
+      {canReadTimers && (
+        <KitchenTimers
+          userId={userId}
+          canManage={canManageTimers}
+          orders={[...(state?.queued ?? []), ...(state?.preparing ?? [])]}
+        />
+      )}
       {feedback && (
         <p role="status" className="notice">
           {mode === 'production'

@@ -221,3 +221,28 @@
 - Widened POS to a 1480px maximum workspace with a compact dish-grouped cart, independently scrolling items and persistent totals/confirmation.
 - Replaced shared/default-visible instructions with independent optional portion/line editors; cart notes can be added, edited or removed without reopening a dish.
 - Added stable frontend line identities, item-based presentation grouping and price-aware merge checks while preserving the confirmation API and database semantics.
+
+## 2026-09-25
+
+### Added
+
+- Server-priced POS payment review with atomic Cash/UPI full, partial/split and Pay Later confirmation; payment-bound idempotency and changed-payable rejection.
+- Persistent Dine In reminder intervals/snooze, automatic settlement pause/new-round resume, capability-filtered multi-device tray and known-state offline fallback.
+- Persistent Kitchen timers with presets/custom duration, optional order/item association, due/overdue alerts and concurrent safe acknowledgement/cancellation.
+- Migration 013, operational-alert contracts/documentation and transactional/browser regression coverage.
+
+### Changed
+
+- Bill rounds now show immutable food/portion/quantity/instruction snapshots, with tokens secondary.
+- Existing POS browser regressions explicitly select Pay Later after the new review step. Kitchen lifecycle/aggregation, Dispatch handover rules and all historical sale/payment records remain unchanged.
+
+### Fixed
+
+- Opening a Bill URL while POS is already mounted now selects that Bill; viewing a confirmed Bill clears its completed cart context before a new sale.
+- Reminder tray placement avoids payment-field overlap; Kitchen timer strips no longer inherit the general page minimum height.
+- Browser harnesses tolerate Chromium's cancelled interception IDs during reload without hiding other failures.
+
+### Verified
+
+- Complete check suite, all 95 PostgreSQL tests and Menu/POS, Kitchen, Dispatch, Bills, responsive and new operational-alert browser suites passed. Four touch workflow sizes, eight layout sizes, offline fallback/reconciliation and combined-payment retry were exercised with external requests blocked.
+- Local migration 013 preserved all 23 existing tables after accounting for intentional grants/new nullable provenance; the restarted application passed readiness/protected-endpoint checks. Physical device/background alarm behavior remains outside Chromium emulation coverage.
