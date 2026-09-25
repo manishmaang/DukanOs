@@ -275,6 +275,10 @@ const root = require('node:path').resolve(__dirname, '..');
     async function confirm(token) {
       await cashier.click('Confirm Order');
       await cashier.wait(
+        "!!document.querySelector('.payment-review .payment-choices')",
+      );
+      await cashier.click('Pay Later');
+      await cashier.wait(
         `document.querySelector('.order-token')?.textContent==='TOKEN #${token}'`,
       );
     }
@@ -490,6 +494,7 @@ const root = require('node:path').resolve(__dirname, '..');
     await cashier.wait(
       "document.querySelector('.order-cart').textContent.includes('no longer available')",
     );
+    await cashier.click('Back to order');
     await cashier.read(
       "[...document.querySelectorAll('.pos-card')].find(e=>e.textContent.includes('Soya Chaap Gravy')).click()",
     );

@@ -206,3 +206,13 @@ If a payment response is uncertain, **Retry payment** checks the exact same requ
 All settlement APIs and assets run locally with no internet dependency. Refunds, payment corrections/voids, amendments, Card, credit and gateways remain unavailable. Future legitimate customer refunds will be **CASH ONLY from Counter**, including originally UPI-paid bills. See [Bills](docs/modules/bills.md) and [Payments](docs/modules/payments.md).
 
 `CHROME_BINARY=/path/to/local/chromium npm run test:bills-browser` runs isolated touch workflows at 390×844, 768×1024, 1024×768 and 1440×900 plus all eight boundary layouts, with external traffic blocked.
+
+### Confirmation payments, payment reminders and Kitchen timers
+
+After adding food, **Confirm Order** opens a server-priced payment review. Choose full Cash, full UPI, Partial / Split (either field or both), or Pay Later. Record only money actually received; UPI is not verified externally. Existing bill due is included with the new round. A changed payable amount requires reviewing again; retries recover the same order and receipts. Takeaway cannot be handed over while due remains.
+
+**View Bill / Payment** shows the actual food in each round. On an unpaid open Dine In bill, expand **Payment reminder**, choose 5/10/15/custom minutes and **Set reminder**. The POS tray shows due alerts; **Snooze** persists for all devices. Full payment hides it everywhere after polling. A later unpaid round resumes the saved interval while the bill remains open.
+
+In **Kitchen → + Timer**, choose 1/2/3/5/custom minutes, a label and optionally an active order/item. **Start timer** persists it. Reload or another Kitchen device sees the same deadline. **TIMER DONE / OVERDUE** remains until **Acknowledge** or **Cancel timer**. Known clocks continue during backend failure and reconcile afterward; new writes require connection. Closed/suspended browsers cannot guarantee alarms. No sounds, cloud push, notification permission, amendments or refunds are included.
+
+Apply migration 013 with `npm run db:migrate` before running the updated build. It adds alert tables and optional confirmation-payment provenance without resetting data. Verification command: `CHROME_BINARY=/path/to/chromium npm run test:alerts-browser` (isolated PostgreSQL fixtures, external traffic blocked). See [Operational alerts](docs/modules/alerts.md) for contracts, permissions and limitations.

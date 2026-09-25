@@ -22,7 +22,18 @@ export class OrderLineDto {
   @MaxLength(500)
   instruction?: string;
 }
+export class ConfirmationPaymentDto {
+  @IsString()
+  @Matches(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/)
+  expectedDue!: string;
+  @IsString() @Matches(/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/) cash!: string;
+  @IsString() @Matches(/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/) upi!: string;
+}
 export class ConfirmOrderDto {
+  @ValidateIf((_o, v) => v !== undefined)
+  @ValidateNested()
+  @Type(() => ConfirmationPaymentDto)
+  payment?: ConfirmationPaymentDto;
   @ValidateIf((_o, v) => v !== undefined) @IsUUID('4') billId?: string;
   @ValidateIf((_o, v) => v !== undefined)
   @IsIn(['DINE_IN', 'TAKEAWAY'])

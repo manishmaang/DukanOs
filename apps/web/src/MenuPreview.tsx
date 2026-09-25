@@ -1,3 +1,5 @@
+import { useLocation } from 'react-router-dom';
+import { PaymentReminders } from './PaymentReminders';
 import { Bills } from './Bills';
 import type { BillSummary } from '@dukanos/shared-types';
 import { DishSelection } from './DishSelection';
@@ -25,6 +27,8 @@ export function MenuPreview({
   canReadBills = false,
   canCollectPayments = false,
   canManageBills = false,
+  canReadReminders = false,
+  canManageReminders = false,
 }: {
   canManageAvailability?: boolean;
   userId: string;
@@ -32,17 +36,20 @@ export function MenuPreview({
   canReadBills?: boolean;
   canCollectPayments?: boolean;
   canManageBills?: boolean;
+  canReadReminders?: boolean;
+  canManageReminders?: boolean;
 }) {
+  const route = useLocation();
   const [billView, setBillView] = useState(false);
   const [billId, setBillId] = useState<string>();
   const [selectedBill, setSelectedBill] = useState<BillSummary>();
   useEffect(() => {
-    const id = new URLSearchParams(location.hash.split('?')[1]).get('bill');
+    const id = new URLSearchParams(route.search).get('bill');
     if (id && canCreateOrders) {
       setBillId(id);
       setBillView(true);
     }
-  }, [canCreateOrders]);
+  }, [canCreateOrders, route.search]);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [orderLocked, setOrderLocked] = useState(false);
   const [menu, setMenu] = useState<OperationalMenu>();
@@ -153,10 +160,23 @@ export function MenuPreview({
       ),
     }))
     .filter((c) => c.items.length);
+  const reminders = canReadReminders && (
+    <PaymentReminders
+      userId={userId}
+      canManage={canManageReminders}
+      onOpen={(id) => {
+        setBillId(id);
+        setBillView(true);
+        history.replaceState(null, '', `#/pos?bill=${id}`);
+      }}
+    />
+  );
   return (
     <>
+      {billView && reminders}
       {billView && (
         <Bills
+          canManageReminders={canManageReminders}
           canCollect={canCollectPayments}
           canManage={canManageBills}
           userId={userId}
@@ -183,6 +203,7 @@ export function MenuPreview({
       )}
       <div className="pos-order-layout" hidden={billView}>
         <section className="pos-menu">
+          {!billView && reminders}
           {canReadBills && !billView && (
             <div className="bill-toolbar">
               <button
@@ -316,9 +337,11 @@ export function MenuPreview({
         </section>
         {canCreateOrders && (
           <OrderCart
+            canCollect={canCollectPayments}
             bill={selectedBill}
             onNewBill={() => setSelectedBill(undefined)}
             onViewBill={(id) => {
+              setSelectedBill(undefined);
               setBillId(id);
               history.replaceState(null, '', `#/pos?bill=${id}`);
               setBillView(true);

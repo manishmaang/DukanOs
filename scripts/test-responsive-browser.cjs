@@ -181,14 +181,19 @@ const root = require('node:path').resolve(__dirname, '..');
           c.held.push(r.requestId);
           return;
         }
-        void c.send(
-          !local || (kitchen && c.fail)
-            ? 'Fetch.failRequest'
-            : 'Fetch.continueRequest',
-          !local || (kitchen && c.fail)
-            ? { requestId: r.requestId, errorReason: 'InternetDisconnected' }
-            : { requestId: r.requestId },
-        );
+        void c
+          .send(
+            !local || (kitchen && c.fail)
+              ? 'Fetch.failRequest'
+              : 'Fetch.continueRequest',
+            !local || (kitchen && c.fail)
+              ? { requestId: r.requestId, errorReason: 'InternetDisconnected' }
+              : { requestId: r.requestId },
+          )
+          .catch((e) => {
+            if (!e.message.includes('Invalid InterceptionId'))
+              failures.push(e.message);
+          });
       });
       c.read = async (expression) => {
         const r = await c.send('Runtime.evaluate', {
@@ -541,6 +546,10 @@ const root = require('node:path').resolve(__dirname, '..');
         1,
       );
       await tap('.confirm-order');
+      await c.wait(
+        "!!document.querySelector('.payment-review .payment-choices')",
+      );
+      await button('Pay Later');
       token++;
       await c.wait(
         `document.querySelector('.order-token')?.textContent==='TOKEN #${token}'`,

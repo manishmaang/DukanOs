@@ -132,7 +132,10 @@ const { UsersService } = require(
           local
             ? { requestId: req.requestId }
             : { requestId: req.requestId, errorReason: 'InternetDisconnected' },
-        );
+        ).catch((e) => {
+          if (!e.message.includes('Invalid InterceptionId'))
+            failures.push(e.message);
+        });
       } else if (m.method === 'Runtime.exceptionThrown')
         failures.push(m.params.exceptionDetails.text);
     });
@@ -647,6 +650,10 @@ const { UsersService } = require(
         "(()=>{const b=document.querySelector('.confirm-order');b.click();b.click();})()",
       );
       await wait(
+        "!!document.querySelector('.payment-review .payment-choices')",
+      );
+      await click('Pay Later');
+      await wait(
         "document.querySelector('.order-token')?.textContent==='TOKEN #1'",
       );
       const orderRead = async () =>
@@ -669,6 +676,10 @@ const { UsersService } = require(
       await openManchurian();
       await click('Confirm Order');
       await wait(
+        "!!document.querySelector('.payment-review .payment-choices')",
+      );
+      await click('Pay Later');
+      await wait(
         "document.querySelector('.order-token')?.textContent==='TOKEN #2'",
       );
       assert.equal((await orderRead()).orders.length, 2);
@@ -684,6 +695,7 @@ const { UsersService } = require(
         "document.querySelector('.order-cart [role=alert]')?.textContent.includes('no longer available')",
       );
       assert.equal((await orderRead()).orders.length, 2);
+      await click('Back to order');
       await read(
         "(async()=>{const menu=await fetch('/api/menu/counter').then(r=>r.json());const item=menu.categories.flatMap(c=>c.items).find(i=>i.name==='Manchurian');await fetch('/api/menu/counter/items/'+item.id+'/availability',{method:'PATCH',headers:{'Content-Type':'application/json','X-DukanOS-Request':'1'},body:JSON.stringify({version:item.version,available:true})});})()",
       );
@@ -691,6 +703,10 @@ const { UsersService } = require(
         "(()=>{Object.defineProperty(crypto,'randomUUID',{value:undefined,configurable:true});const original=window.fetch;let drop=true;window.fetch=async(...args)=>{const result=await original(...args);if(drop&&args[0]==='/api/orders/counter'){drop=false;throw new TypeError('simulated lost response');}return result;};})()",
       );
       await click('Confirm Order');
+      await wait(
+        "!!document.querySelector('.payment-review .payment-choices')",
+      );
+      await click('Pay Later');
       await wait(
         "document.querySelector('.confirm-order')?.textContent==='Retry confirmation'",
       );
@@ -727,6 +743,10 @@ const { UsersService } = require(
         ['Note: Nothing spicy', 'Note: Extra spicy'],
       );
       await click('Confirm Order');
+      await wait(
+        "!!document.querySelector('.payment-review .payment-choices')",
+      );
+      await click('Pay Later');
       await wait(
         "document.querySelector('.order-token')?.textContent==='TOKEN #4'",
       );

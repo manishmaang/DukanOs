@@ -166,7 +166,11 @@ test(
           assert.deepEqual(employee.permissions, [
             'bills.manage',
             'bills.read',
+            'bills.reminders.manage',
+            'bills.reminders.read',
             'kitchen.read',
+            'kitchen.timers.manage',
+            'kitchen.timers.read',
             'kitchen.update',
             'menu.availability.manage',
             'menu.read',

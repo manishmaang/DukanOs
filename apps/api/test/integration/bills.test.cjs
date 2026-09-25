@@ -124,6 +124,13 @@ test(
             ),
           );
           await sql.query('COMMIT');
+          for (const f of fs
+            .readdirSync('database/migrations')
+            .sort()
+            .filter((f) => f.endsWith('.sql') && f > '012_bills_payments.sql'))
+            await sql.query(
+              fs.readFileSync('database/migrations/' + f, 'utf8'),
+            );
           assert.deepEqual(
             (
               await sql.query(

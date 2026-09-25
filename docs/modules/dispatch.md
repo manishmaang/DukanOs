@@ -46,3 +46,7 @@ No partial handover, undo/correction, sounds, printing, riders, payment warnings
 ## Bill settlement gating (012)
 
 Cards display DINE IN/TAKEAWAY (or legacy unknown service) and PAID/DUE. TAKEAWAY due >0 disables handover and backend completion returns 409 PAYMENT_REQUIRED; a PostgreSQL trigger independently enforces the same rule. Dine In may be served unpaid and its Bill remains open for more rounds. Legacy service is unknown and is not guessed into a payment restriction. Pure DISPATCH cannot collect or read full bill details. A payments.collect-capable cashier/dispatch combination gets Collect Payment linking to the touch-friendly POS Bill settlement screen. After collection, the usual authoritative poll/refetch enables handover. Closing the settled bill remains an explicit cashier action after every child round completes. Refunds never belong in Dispatch.
+
+## Confirmation payment compatibility (013)
+
+A Cash/UPI receipt captured with POS confirmation is the same bill ledger used by handover gating. Pay Later remains allowed for Takeaway creation, but backend/database still reject handover until current bill due is zero. Dine In serving remains independent of settlement. Dispatch does not display or manage payment reminders or Kitchen timers; operational role unions can switch to the authorized workspace. No Dispatch lifecycle or grid change was made.

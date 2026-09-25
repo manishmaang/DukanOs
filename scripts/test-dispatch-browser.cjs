@@ -284,6 +284,10 @@ const root = require('node:path').resolve(__dirname, '..');
     async function confirm(token) {
       await cashier.click('Confirm Order');
       await cashier.wait(
+        "!!document.querySelector('.payment-review .payment-choices')",
+      );
+      await cashier.click('Pay Later');
+      await cashier.wait(
         `document.querySelector('.order-token')?.textContent==='TOKEN #${token}'`,
       );
     }

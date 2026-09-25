@@ -1,6 +1,7 @@
 export type OrderStatus =
   'DRAFT' | 'QUEUED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED';
 export interface CounterOrderInput {
+  payment?: ConfirmationPayment;
   requestId: string;
   billId?: string;
   serviceType?: 'DINE_IN' | 'TAKEAWAY';
@@ -51,4 +52,15 @@ export interface OrderTransitionResult {
   orderId: string;
   status: 'PREPARING' | 'READY' | 'COMPLETED';
   occurredAt: string;
+}
+
+export interface ConfirmationPayment {
+  expectedDue: string;
+  cash: string;
+  upi: string;
+}
+export interface OrderQuote {
+  roundTotal: string;
+  existingDue: string;
+  amountDue: string;
 }

@@ -2096,3 +2096,141 @@ header > div button {
     padding: 12px;
   }
 }
+
+/* Confirmation and alert controls keep one responsive DOM and natural scrolling. */
+.payment-review {
+  padding: 12px;
+  overflow-y: auto;
+  display: block;
+}
+.payment-review > *,
+.payment-review form > * {
+  margin-block: 8px;
+}
+.payment-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.payment-choices > button {
+  flex: 1 1 100px;
+}
+.bill-round-item {
+  display: grid;
+  gap: 4px;
+  margin-block: 12px;
+  overflow-wrap: anywhere;
+}
+.bill-round-item p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.bill-rounds > li {
+  display: block;
+}
+.operational-alerts {
+  min-height: 0;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #b9c4ce;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.operational-alerts h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.alert-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.alert-strip article {
+  flex: 1 1 230px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #b9c4ce;
+  border-radius: 6px;
+}
+.alert-strip article p {
+  margin: 6px 0;
+}
+.alert-strip article button {
+  margin: 4px;
+}
+.alert-strip .alert-due {
+  border: 3px solid #a33a0b;
+  background: #fff3db;
+  color: #492000;
+}
+.timer-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.timer-form,
+.reminder-setting form {
+  max-width: 520px;
+  margin-block: 12px;
+}
+.timer-form fieldset {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+}
+.timer-form input,
+.timer-form select,
+.reminder-setting input {
+  width: 100%;
+  min-width: 0;
+}
+.operational-alerts summary,
+.reminder-setting summary {
+  min-height: 44px;
+  padding-block: 12px;
+  cursor: pointer;
+}
+.payment-reminders:has(.alert-due) {
+  border: 3px solid #a33a0b;
+}
+@media (max-width: 599px) {
+  .alert-strip article {
+    flex-basis: 100%;
+  }
+  .payment-review .payment-choices button {
+    flex-basis: 100%;
+  }
+}
+.payment-reminders {
+  position: sticky;
+  z-index: 5;
+  top: 8px;
+  width: 100%;
+  background: white;
+  padding: 4px 10px;
+  box-shadow: 0 2px 10px #0002;
+}
+.payment-reminders > summary {
+  padding: 12px 0;
+}
+.reminder-tray-content {
+  max-height: min(420px, 45dvh);
+  overflow-y: auto;
+}
+
+.kitchen-timers .alert-strip article {
+  flex: 0 1 320px;
+}
+.kitchen-timers details {
+  padding: 0;
+  border: 0;
+}
+.kitchen-timers .alert-strip {
+  margin-top: 8px;
+}
+.kitchen-timers .alert-strip:empty {
+  margin-top: 0;
+}
