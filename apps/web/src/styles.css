@@ -2258,3 +2258,91 @@ header > div button {
 .timer-heading .sound-controls {
   margin: 0;
 }
+.amendment-dialog {
+  width: min(820px, calc(100vw - 24px));
+  max-height: calc(var(--usable-height, 100dvh) - 24px);
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding: 16px;
+  border: 1px solid #afc1b6;
+  border-radius: 12px;
+}
+.amendment-dialog::backdrop {
+  background: #0008;
+}
+.amendment-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.amendment-dialog label {
+  display: grid;
+  gap: 8px;
+  margin-block: 12px;
+}
+.amendment-dialog input,
+.amendment-dialog textarea,
+.amendment-dialog select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.amendment-line,
+.amendment-preview {
+  border: 1px solid #b7c7bd;
+  border-radius: 8px;
+  padding: 12px;
+  margin-block: 12px;
+  overflow-wrap: anywhere;
+}
+.amendment-dialog button {
+  margin: 4px;
+}
+.replacement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-block: 12px;
+}
+.replacement-grid article {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #b7c7bd;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.replacement-grid .menu-photo {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+.round-amendment {
+  margin-top: 12px;
+}
+.round-amendment details {
+  margin-block: 12px;
+}
+.bill-refund {
+  border: 2px solid #a53d08;
+  padding: 16px;
+  border-radius: 8px;
+  max-width: 560px;
+  margin-block: 16px;
+}
+.bill-refund label {
+  display: grid;
+  gap: 8px;
+}
+@media (max-width: 599px) {
+  .amendment-dialog {
+    width: calc(100vw - 12px);
+    padding: 12px;
+  }
+  .replacement-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

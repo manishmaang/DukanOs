@@ -17,7 +17,7 @@ export class KitchenService {
         (SELECT occurred_at FROM order_status_history h WHERE h.order_id=o.id AND h.to_status='PREPARING') AS "preparingAt",
         (SELECT jsonb_agg(jsonb_build_object('id',i.id,'menuItemId',i.menu_item_id,'variantId',i.variant_id,
           'itemName',i.item_name_snapshot,'kitchenName',i.kitchen_name_snapshot,'variantName',i.variant_name_snapshot,
-          'quantity',i.quantity,'instruction',i.instruction) ORDER BY i.position) FROM order_items i WHERE i.order_id=o.id) AS items
+          'quantity',i.quantity,'instruction',i.instruction) ORDER BY i.position) FROM effective_order_items i WHERE i.order_id=o.id) AS items
         FROM orders o WHERE o.status IN ('QUEUED','PREPARING') ORDER BY o.queued_at,o.id`)
       ).rows;
       const orders: KitchenOrder[] = rows.map((r) => ({

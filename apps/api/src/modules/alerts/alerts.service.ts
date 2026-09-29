@@ -71,7 +71,7 @@ export class AlertsService {
       );
       const entries = (
         await c.query(
-          `SELECT t.id,t.label,t.duration_seconds AS "durationSeconds",t.started_at AS "startedAt",t.due_at AS "dueAt",t.status,t.order_id AS "orderId",t.order_item_id AS "orderItemId",o.token_number AS "tokenNumber",o.business_date::text AS "businessDate",i.item_name_snapshot AS "itemName",i.variant_name_snapshot AS "variantName" FROM kitchen_timers t LEFT JOIN orders o ON o.id=t.order_id LEFT JOIN order_items i ON i.id=t.order_item_id WHERE t.status='ACTIVE' ORDER BY t.due_at,t.id`,
+          `SELECT t.id,t.label,t.duration_seconds AS "durationSeconds",t.started_at AS "startedAt",t.due_at AS "dueAt",t.status,t.order_id AS "orderId",t.order_item_id AS "orderItemId",o.token_number AS "tokenNumber",o.business_date::text AS "businessDate",i.item_name_snapshot AS "itemName",i.variant_name_snapshot AS "variantName" FROM kitchen_timers t LEFT JOIN orders o ON o.id=t.order_id LEFT JOIN effective_order_items i ON i.id=t.order_item_id WHERE t.status='ACTIVE' ORDER BY t.due_at,t.id`,
         )
       ).rows;
       return {
@@ -117,7 +117,7 @@ export class AlertsService {
         input.orderId &&
         !(
           await c.query(
-            `SELECT 1 FROM orders o WHERE o.id=$1 AND o.status IN ('QUEUED','PREPARING') AND ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM order_items WHERE id=$2 AND order_id=o.id))`,
+            `SELECT 1 FROM orders o WHERE o.id=$1 AND o.status IN ('QUEUED','PREPARING') AND ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM effective_order_items WHERE id=$2 AND order_id=o.id))`,
             [input.orderId, input.orderItemId ?? null],
           )
         ).rowCount

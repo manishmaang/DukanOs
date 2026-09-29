@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-30 — Queued amendments and cash refunds
+
+- Added append-only order revisions, shared effective item/total views, server preview and stale/idempotency protection for QUEUED corrections and cancellation.
+- Added entitlement-limited partial CASH refunds using the existing immutable ledger; Cashier/Manager/Owner capabilities and audited history.
+- Bills, Kitchen/Production, Dispatch and timer associations consume effective state; Takeaway requires zero collection and refund due.
+- Added touch amendment/replacement and refund UI, request recovery, history, PostgreSQL race/financial tests and responsive browser scenarios. Browser recovery waits for the restored refund form; the existing responsive regression waits for confirmed menu-save completion before navigation.
+- Preserved original sales, payments, token/FIFO identity and tax configuration. Additional food still creates new rounds.
+- Passed amendment/refund touch workflows at 390×844, 768×1024, 1024×768 and 1440×900, all eight boundary sizes and 390×420 constrained height. Lost-response/reload recovery and double submission passed. Menu/POS, Kitchen, Bills, Dispatch, responsive and four-class reminder/audio browser regressions passed with external requests blocked. Physical-device verification remains outstanding.
+- Passed the complete check suite and all 110 PostgreSQL integration tests. Applied migration 014 locally; row fingerprints verified all 23 existing operational tables unchanged (including 23 orders, 21 bills and 14 payments), with only expected migration/permission metadata additions and empty revision tables.
+
 ## 2026-09-25 — Audible operational alerts
 
 ### Added

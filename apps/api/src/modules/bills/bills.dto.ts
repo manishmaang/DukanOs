@@ -18,3 +18,8 @@ export class BillsQueryDto {
   @MaxLength(80)
   search?: string;
 }
+
+export class RefundDto {
+  @IsUUID('4') requestId!: string;
+  @IsString() @Matches(/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/) amount!: string;
+}

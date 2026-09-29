@@ -177,7 +177,9 @@ export function Dispatch({
                   ·{' '}
                   {order.paymentStatus === 'PAID'
                     ? 'PAID'
-                    : `DUE ₹${order.amountDue}`}
+                    : order.paymentStatus === 'REFUND_DUE'
+                      ? `REFUND ₹${order.refundDue} AT COUNTER`
+                      : `DUE ₹${order.amountDue}`}
                 </p>
                 {canCollect &&
                   order.serviceType === 'TAKEAWAY' &&
@@ -186,7 +188,9 @@ export function Dispatch({
                       className="bill-collect-link"
                       href={`#/pos?bill=${order.billId}`}
                     >
-                      Collect Payment
+                      {order.paymentStatus === 'REFUND_DUE'
+                        ? 'Settle at Counter'
+                        : 'Collect Payment'}
                     </a>
                   )}
                 <Items order={order} />
@@ -196,8 +200,7 @@ export function Dispatch({
                     disabled={
                       !!pending ||
                       (order.serviceType === 'TAKEAWAY' &&
-                        order.amountDue !== '0' &&
-                        order.amountDue !== '0.00')
+                        order.paymentStatus !== 'PAID')
                     }
                     onClick={() => void complete(order)}
                   >
@@ -205,7 +208,9 @@ export function Dispatch({
                       ? 'Updating…'
                       : order.serviceType === 'TAKEAWAY' &&
                           order.paymentStatus !== 'PAID'
-                        ? 'Payment Required'
+                        ? order.paymentStatus === 'REFUND_DUE'
+                          ? 'Refund Required'
+                          : 'Payment Required'
                         : 'Handed Over'}
                   </button>
                 )}

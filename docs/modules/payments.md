@@ -2,7 +2,7 @@
 
 ## Purpose and implementation
 
-Record money actually received against an open Bill, with immutable financial history. Bills are parent commercial tabs; Kitchen orders remain separate preparation rounds. CASH and UPI collections, partial/split payment, actor/time history, derived balances and safe retries are implemented in BillsModule/BillsService. There is no card, gateway, QR generation, UPI verification, credit, refund or payment-edit/delete API.
+Record money actually received against an open Bill, with immutable financial history. Bills are parent commercial tabs; Kitchen orders remain separate preparation rounds. CASH and UPI collections, partial/split payment, actor/time history, derived balances and safe retries are implemented in BillsModule/BillsService. There is no card, gateway, QR generation, UPI verification, credit or payment-edit/delete API. Cash refunds are implemented.
 
 ## API and validation
 
@@ -16,18 +16,18 @@ Two callers collecting a remaining ₹200 are serialized under the existing rest
 
 ## Derived financial state
 
-Bill totals aggregate actual child-order grand totals, including their own tax snapshots; no second tax computation or cash rounding. net_paid = collections - refunds. Positive total minus net_paid is amount_due; a negative balance produces refund_due. UNPAID, PARTIALLY_PAID, PAID and REFUND_DUE are backend-derived states, independent of OPEN/CLOSED and Kitchen lifecycle. Zero-total bills are PAID with no fabricated ledger entry.
+Bill totals aggregate effective child-order grand totals, including their own tax snapshots; no second tax computation or cash rounding. net_paid = collections - refunds. Positive total minus net_paid is amount_due; a negative balance produces refund_due. UNPAID, PARTIALLY_PAID, PAID and REFUND_DUE are backend-derived states, independent of OPEN/CLOSED and Kitchen lifecycle. Zero-total bills are PAID with no fabricated ledger entry.
 
 ## Permissions and LAN operation
 
 OWNER/MANAGER/CASHIER receive payments.read/collect. KITCHEN cannot access financial details. Pure DISPATCH sees limited settlement status only and cannot collect; CASHIER+DISPATCH naturally combines capabilities and can open settlement from Dispatch. All operations use the local API/PostgreSQL and work with WAN down while LAN/server/database remain available. A UPI entry records the cashier's observation of receipt; it makes no claim of gateway verification.
 
-## Permanent refund rule and pending work
+## Cash refunds
 
-Customer refunds are always CASH from Counter, including refunds of originally UPI-paid bills. No UPI refunds and no refund controls in Kitchen or Dispatch. Schema allows the future REFUND/CASH shape but rejects refund inserts now. The next milestone must introduce legitimate amendment-derived refund entitlement, authorized/idempotent compensating entries and concurrent refund-limit checks. Past payments remain intact when an amendment changes a bill's effective total; derive new amount_due/refund_due from the revised total and unchanged ledger. No arbitrary refund path exists in this milestone.
+POST /api/bills/:id/refunds accepts only requestId UUIDv4 and a positive exact amount string. Requires payments.refund + bills.read; OWNER/MANAGER/CASHIER are granted refund capability. It appends REFUND/CASH to the existing immutable ledger under the financial lock, capped by current refund_due; partial refunds are supported. Schema and API reject UPI refunds. Refund idempotency shares the actor/request namespace with collections and binds the event type; same-key replay is safe after settlement/closure. No arbitrary refund, payment editing or reversal exists. See [Amendments](amendments.md).
 
 ## Atomic POS confirmation collections (013)
 
 In addition to standalone Bill collection, Orders orchestrates optional Cash/UPI receipts on its existing transaction connection. Current bill due is quoted before the touch payment step, then recomputed under the shared lock at confirmation. expectedDue must match; received Cash + UPI must be positive and <= due. Zero entries are omitted rather than creating fake payments. Cash/UPI full, partial Cash, partial UPI, split and Pay Later are supported; no money is implied by Pay Later.
 
-Each positive ledger row retains actor/time and an optional confirmation_order_id FK. A unique confirmation order/method index and same-order/bill/actor insert guard protect provenance. Primary duplicate-submission protection is the permanent actor/request confirmation fingerprint, including canonical payment fields. Bill/order/token/ledger commit or roll back together. UI clearly says to record only money already received; UPI has no external verification. Settlement triggers pause persistent payment reminders immediately; partial payment preserves recurrence. Refund posting remains prohibited.
+Each positive ledger row retains actor/time and an optional confirmation_order_id FK. A unique confirmation order/method index and same-order/bill/actor insert guard protect provenance. Primary duplicate-submission protection is the permanent actor/request confirmation fingerprint, including canonical payment fields. Bill/order/token/ledger commit or roll back together. UI clearly says to record only money already received; UPI has no external verification. Settlement triggers pause persistent payment reminders immediately; partial payment preserves recurrence. Refund posting is a separate explicit cash-only operation; no confirmation receipt is a refund. Existing overpayment offsets new-round payable amount before confirmation.

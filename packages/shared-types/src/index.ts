@@ -16,6 +16,7 @@ export type PermissionCode =
   | 'bills.reminders.manage'
   | 'kitchen.timers.read'
   | 'kitchen.timers.manage'
+  | 'orders.amend'
   | 'orders.create'
   | 'orders.read'
   | 'bills.read'
@@ -67,3 +68,5 @@ export type * from './dispatch';
 export type * from './bills';
 
 export type * from './alerts';
+
+export type * from './amendments';

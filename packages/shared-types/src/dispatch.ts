@@ -11,6 +11,7 @@ export interface DispatchOrder {
   billId: string;
   serviceType: 'DINE_IN' | 'TAKEAWAY' | null;
   amountDue: string;
+  refundDue: string;
   paymentStatus: import('./bills').PaymentStatus;
   orderId: string;
   businessDate: string;

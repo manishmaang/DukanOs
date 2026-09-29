@@ -8,13 +8,13 @@ A Bill is one commercial tab. An Order is one Kitchen preparation round with its
 
 Migration 012 adds bills, bill_daily_numbers, payments and the bill_balances view; every order has a restrictive bill_id FK. New bills require DINE_IN or TAKEAWAY and may carry a plain-text reference up to 80 characters. UUID identifies a bill; (business_date,bill_number) is unique and separate from Kitchen tokens. Numbers use an atomic daily UPSERT with the order's configured restaurant date/time, inside first-order confirmation. A failed confirmation creates neither an empty bill nor a token.
 
-Bill lifecycle is OPEN → CLOSED. OPEN + PAID is valid and can receive further rounds. Closing is explicit for both service types and requires zero amount_due, zero refund_due and all child orders COMPLETED. Close records actor/time, is safe to repeat, and prevents additional orders/collections. No reopen/delete/edit endpoint exists. Dine In serving is allowed while unpaid; Takeaway READY → COMPLETED requires the entire current bill balance to be paid, enforced in Orders and a database trigger. This milestone gates every Takeaway round's handover, not just a UI-defined final round.
+Bill lifecycle is OPEN → CLOSED. OPEN + PAID is valid and can receive further rounds. Closing is explicit for both service types and requires zero amount_due, zero refund_due and all child orders COMPLETED or CANCELLED. Close records actor/time, is safe to repeat, and prevents additional orders/collections. No reopen/delete/edit endpoint exists. Dine In serving is allowed while unpaid; Takeaway READY → COMPLETED requires the entire current bill balance to be paid, enforced in Orders and a database trigger. This milestone gates every Takeaway round's handover, not just a UI-defined final round.
 
 ## Financial projection
 
-bill_total = sum of confirmed child-order grand_total snapshots. No current Menu lookup, second bill tax calculation or rupee rounding. total_collected and total_refunded come from the append-only ledger; net_paid = collected - refunded; amount_due = max(total - net_paid,0); refund_due = max(net_paid - total,0). All amounts are exact PostgreSQL numeric and JSON decimal strings. Backend projections are authoritative; browser amounts only describe entered receipts.
+bill_total = sum of effective child-order grand totals. No current Menu lookup, second bill tax calculation or rupee rounding. total_collected and total_refunded come from the append-only ledger; net_paid = collected - refunded; amount_due = max(total - net_paid,0); refund_due = max(net_paid - total,0). All amounts are exact PostgreSQL numeric and JSON decimal strings. Backend projections are authoritative; browser amounts only describe entered receipts.
 
-Status is derived: positive refund_due → REFUND_DUE; zero balance → PAID (including free/zero-total orders without fake payments); no net payment with positive total → UNPAID; otherwise PARTIALLY_PAID. Refund posting is not enabled yet.
+Status is derived: positive refund_due → REFUND_DUE; zero balance → PAID (including free/zero-total orders without fake payments); no net payment with positive total → UNPAID; otherwise PARTIALLY_PAID. Cash refund posting is implemented and limited to current refund_due.
 
 ## APIs and capabilities
 
@@ -42,9 +42,9 @@ POS adds Open Bills and a labelled Service selector/reference in Current Order. 
 
 Natural document scrolling, wrapping cards, 44px controls and decimal input keep settlement usable on phones/portrait tablets; landscape/desktop retain existing POS layout. No modal financial table or duplicated mobile DOM. Details can recover from /#/pos?bill=UUID. Pending collection is stored per user/bill in sessionStorage before sending; reload restores the exact request for retry. Closing the browser tab loses that recovery data: inspect ledger history before a replacement collection. The server remains authoritative when another device changes due.
 
-## Next milestone boundary
+## Amendment and refund boundary
 
-Future amendments must append auditable order revisions/adjustments and change effective bill totals without rewriting past collections. A higher total produces amount_due; a lower total produces refund_due. Future legitimate refunds are CASH ONLY at Counter, even for original UPI collections. Payments schema reserves REFUND and enforces cash-only method, but a trigger rejects every refund insert until the authorized amendment/refund workflow arrives. No refund/amendment UI or endpoint is implemented.
+Queued amendments append immutable revisions and change effective totals without rewriting collections. Higher totals produce amount_due; overpayment produces refund_due, not an automatic refund. POST /bills/:id/refunds records actual CASH returned, including partial refunds, with payments.refund capability and actor-key idempotency. Both due amounts must be zero for closure/Takeaway handover. Cancelled rounds are terminal for closure. See [Amendments](amendments.md).
 
 ## Verification (2026-09-24)
 
@@ -56,7 +56,7 @@ Local migration preservation was verified across 18 existing tables (orders comp
 
 ## Confirmation collection, food details and reminders (013)
 
-Bill detail rounds now include ordered item/variant snapshot names, quantity and optional instruction, in original line order. UI emphasizes Round 1/2 and food; token/date/status remains secondary and each round retains its immutable total. Menu renaming/repricing does not change this display.
+Bill detail rounds now include ordered item/variant snapshot names, quantity and optional instruction, in original line order. UI emphasizes Round 1/2 and food; token/date/status remains secondary and each round shows its effective total with immutable original/revision history. Menu renaming/repricing does not change this display.
 
 POS supports collecting full Cash/UPI or partial/split tender during atomic order confirmation, including existing unpaid bill balance. See Orders/Payments for quote and retry semantics. Unpaid open Dine In details expose persistent payment reminder presets/custom interval; one schedule belongs to the whole bill, across every round. Paid bills pause reminders; new due on an open bill resumes the saved preference. See [Operational alerts](alerts.md) for recurrence, snooze, multi-device polling and offline fallback.
 

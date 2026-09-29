@@ -2,7 +2,7 @@
 
 ## Purpose and current implementation
 
-Kitchen has an Order View and a read-only Production View at `/#/kitchen`. It consumes immutable sale-time order lines, enforces FIFO acceptance and performs QUEUED → PREPARING → READY through Orders-owned commands. It needs only the restaurant server, PostgreSQL and LAN, without external assets/services or menu images.
+Kitchen has an Order View and a read-only Production View at `/#/kitchen`. It consumes effective immutable revision snapshots, enforces FIFO acceptance and performs QUEUED → PREPARING → READY through Orders-owned commands. It needs only the restaurant server, PostgreSQL and LAN, without external assets/services or menu images.
 
 ## Order View
 
@@ -59,7 +59,7 @@ PostgreSQL tests cover migration of populated Orders Core, FIFO/UUID ties/previo
 
 ## Current limitations and pending work
 
-Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; Bills/payment collection are separate modules; printing, amendments and order cancellation remain future work.
+Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; Bills/payment collection are separate modules; printing and post-preparation corrections remain future work.
 
 ## Late order attention
 
@@ -92,3 +92,7 @@ Orders remain individual preparation rounds when several tokens share a Bill. Ki
 Kitchen now has a secondary timer strip separate from Order/Production cards. + Timer offers 1/2/3/5-minute presets, custom minutes, a label and optional active order/item association. Server-generated absolute timestamps survive reload/new devices. Due timers remain visibly TIMER DONE / OVERDUE until acknowledged or cancelled, with actor/time and concurrency-safe resolution. Timers never change FIFO, quantities, instructions, availability, Order View transitions or production aggregation. No financial reminder data is shown in Kitchen. See [Operational alerts](alerts.md) for schema, capabilities, local countdown fallback and reconciliation.
 
 Kitchen timer sound is opt-in through Enable Sound / Test sound in the timer strip. Three short local beeps repeat at most every 20 seconds while overdue; acknowledgement/cancellation suppress audio immediately. Multiple due timers share a single pattern. Device mute never resolves a timer. See [audible alerts](alerts.md#secondary-audible-alerts) for unlock, offline/reconnect and background limits.
+
+## Queued revisions (014)
+
+Kitchen/Production read effective_order_items, so a queued replacement/reduction/removal updates both modes on normal polling without duplicate original quantity. Original order/token/FIFO time remain. START and amendment commits share the restaurant lock; once START wins, changes fail. Active associated timers block amendments; no timer silently changes food. Kitchen has no amendment/refund capability. See [Amendments](amendments.md).

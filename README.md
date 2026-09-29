@@ -203,7 +203,7 @@ Apply migration 012 using `npm run db:migrate`, then build/restart the API. Exis
 
 If a payment response is uncertain, **Retry payment** checks the exact same request; do not take the money again. Reloading the same tab restores recovery at the bill URL. Closing the tab loses this recovery data, so inspect payment history before submitting a replacement.
 
-All settlement APIs and assets run locally with no internet dependency. Refunds, payment corrections/voids, amendments, Card, credit and gateways remain unavailable. Future legitimate customer refunds will be **CASH ONLY from Counter**, including originally UPI-paid bills. See [Bills](docs/modules/bills.md) and [Payments](docs/modules/payments.md).
+All settlement APIs and assets run locally with no internet dependency. Payment corrections/voids, post-preparation amendments, Card, credit and gateways remain unavailable. Customer refunds are **CASH ONLY from Counter**, including originally UPI-paid bills. See [Bills](docs/modules/bills.md) and [Payments](docs/modules/payments.md).
 
 `CHROME_BINARY=/path/to/local/chromium npm run test:bills-browser` runs isolated touch workflows at 390×844, 768×1024, 1024×768 and 1440×900 plus all eight boundary layouts, with external traffic blocked.
 
@@ -213,7 +213,7 @@ After adding food, **Confirm Order** opens a server-priced payment review. Choos
 
 **View Bill / Payment** shows the actual food in each round. On an unpaid open Dine In bill, expand **Payment reminder**, choose 5/10/15/custom minutes and **Set reminder**. The POS tray shows due alerts; **Snooze** persists for all devices. Full payment hides it everywhere after polling. A later unpaid round resumes the saved interval while the bill remains open.
 
-In **Kitchen → + Timer**, choose 1/2/3/5/custom minutes, a label and optionally an active order/item. **Start timer** persists it. Reload or another Kitchen device sees the same deadline. **TIMER DONE / OVERDUE** remains until **Acknowledge** or **Cancel timer**. Known clocks continue during backend failure and reconcile afterward; new writes require connection. Closed/suspended browsers cannot guarantee alarms. No cloud push, OS notification permission, amendments or refunds are included.
+In **Kitchen → + Timer**, choose 1/2/3/5/custom minutes, a label and optionally an active order/item. **Start timer** persists it. Reload or another Kitchen device sees the same deadline. **TIMER DONE / OVERDUE** remains until **Acknowledge** or **Cancel timer**. Known clocks continue during backend failure and reconcile afterward; new writes require connection. Closed/suspended browsers cannot guarantee alarms. No cloud push or OS notification permission is required.
 
 Apply migration 013 with `npm run db:migrate` before running the updated build. It adds alert tables and optional confirmation-payment provenance without resetting data. Verification command: `CHROME_BINARY=/path/to/chromium npm run test:alerts-browser` (isolated PostgreSQL fixtures, external traffic blocked). See [Operational alerts](docs/modules/alerts.md) for contracts, permissions and limitations.
 
@@ -222,3 +222,11 @@ Apply migration 013 with `npm run db:migrate` before running the updated build. 
 In POS or Kitchen, tap **Enable Sound**, then **Test sound**. Payment reminders use two gentle notes (repeat every 60 seconds while due); Kitchen timers use three short beeps (every 20 seconds). **Sound: ON · Mute** silences this browser without changing any reminder/timer. The preference survives reload, but tap Enable Sound again if activation is required. Use device media volume. No internet or audio download is needed.
 
 Sound follows the active workspace and existing alert permissions, groups simultaneous alerts and does not replay every poll. Known deadlines still alert during backend failure; reconnection clears resolved alerts. Visual alerts always remain. Background tabs may sound while running, but suspended/closed browsers and locked mobile devices cannot guarantee alarms. Follow the [physical Android/iOS checklist](docs/modules/alerts.md#physical-device-smoke-checklist-still-required) before shop use. The alerts browser regression now checks Web Audio activation/playback logic; physical speakers still need manual testing.
+
+### Queued changes and cash refunds
+
+Apply migration 014 (`npm run db:migrate`) before running this build. In POS → Bill details, use **Change queued round** to replace a dish/portion, reduce quantity, remove a line or edit instructions. Choose a reason, **Review Change**, then **Confirm Change**. The token stays the same and Kitchen refreshes the effective food. **Add Items** still creates a new token for additional food. Preparation-started rounds cannot be changed.
+
+Collect additional due through the existing Cash/UPI form. If **CASH REFUND DUE** appears, enter cash actually returned and **Confirm Cash Refund**; partial refunds are supported and there is no UPI refund option. Changes and payment history preserve originals, actors and amounts. An uncertain request offers safe retry; do not exchange money again. See [Amendments](docs/modules/amendments.md) for rules, recovery, tax snapshots and concurrency.
+
+Browser verification: `CHROME_BINARY=/path/to/chromium AMEND_BROWSER_WIDTH=390 npm run test:amendments-browser`; repeat with 768, 1024 and 1440 for all touch workflow classes. Tests use isolated local fixtures, not restaurant data.

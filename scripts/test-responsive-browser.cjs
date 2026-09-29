@@ -480,6 +480,9 @@ const root = require('node:path').resolve(__dirname, '..');
       await button('Remove photo');
       await button('Save Changes');
       await c.wait("!document.querySelector('.dish-photo-editor img')");
+      await c.wait(
+        "document.querySelector('.dish-editor')?.textContent.includes('All changes saved') && [...document.querySelectorAll('.dish-editor button')].some(b => b.textContent === 'Save Changes' && b.disabled)",
+      );
       // POS category/search, two variants with distinct notes and a touch cart.
       await go('/pos', '.pos-card');
       await button('Kitchen dishes');

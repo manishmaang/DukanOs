@@ -1,3 +1,4 @@
+import { OrderAmendment } from './OrderAmendment';
 import { useOperationalAudio } from './OperationalAudio';
 import { ReminderSetting } from './PaymentReminders';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,10 +19,16 @@ export function Bills({
   canManageReminders,
   canCollect,
   canManage,
+  canAmend,
+  canCancel,
+  canRefund,
 }: {
   canManageReminders: boolean;
   canCollect: boolean;
   canManage: boolean;
+  canAmend: boolean;
+  canCancel: boolean;
+  canRefund: boolean;
   userId: string;
   initialId?: string;
   onAdd: (bill: BillSummary) => void;
@@ -39,7 +46,9 @@ export function Bills({
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState('');
   const [method, setMethod] = useState<'CASH' | 'UPI'>('CASH');
-  const [pending, setPending] = useState<CollectPaymentInput>();
+  const [pending, setPending] = useState<
+    CollectPaymentInput & { type?: 'REFUND' }
+  >();
   const sending = useRef(false);
   const revision = useRef(0);
   const [recoveryBlocked, setRecoveryBlocked] = useState(false);
@@ -51,7 +60,11 @@ export function Bills({
     try {
       if (id) {
         const next = await api<BillDetail>(`/bills/${id}`);
-        if (current === revision.current) setBill(next);
+        if (current === revision.current) {
+          setBill(next);
+          if (next.amountDue === '0.00')
+            audio.silence('PAYMENT_REMINDER', next.id);
+        }
       } else {
         const next = await api<BillList>(
           `/bills?search=${encodeURIComponent(query)}${cursor ? '&after=' + cursor : ''}`,
@@ -61,7 +74,7 @@ export function Bills({
     } catch (e) {
       setError(errorMessage(e));
     }
-  }, [id, query, cursor]);
+  }, [id, query, cursor, audio]);
   useEffect(() => {
     setBill(undefined);
     setError('');
@@ -85,7 +98,7 @@ export function Bills({
       revision.current++;
     };
   }, [refresh, storageKey]);
-  async function collect() {
+  async function collect(refund = false) {
     if (sending.current) return;
     sending.current = true;
     revision.current++;
@@ -94,15 +107,18 @@ export function Bills({
     try {
       const request = pending ?? {
         requestId: confirmationId(),
-        method,
+        method: refund ? ('CASH' as const) : method,
         amount: value,
+        ...(refund ? { type: 'REFUND' as const } : {}),
       };
       sessionStorage.setItem(storageKey, JSON.stringify(request));
       setPending(request);
       const next = await api<BillDetail>(
-        `/bills/${id}/payments`,
+        `/bills/${id}/${request.type === 'REFUND' ? 'refunds' : 'payments'}`,
         'POST',
-        request,
+        request.type === 'REFUND'
+          ? { requestId: request.requestId, amount: request.amount }
+          : request,
       );
       setBill(next);
       if (next.amountDue === '0.00') audio.silence('PAYMENT_REMINDER', next.id);
@@ -122,7 +138,7 @@ export function Bills({
         errorMessage(e) +
           (definitive
             ? ''
-            : ' Retry the same payment to check its outcome; do not collect the money again.'),
+            : ' Retry the same financial entry to check its outcome; do not exchange money again.'),
       );
       void refresh();
     } finally {
@@ -195,7 +211,9 @@ export function Bills({
                 <strong>
                   {b.paymentStatus === 'PAID'
                     ? 'PAID'
-                    : `Due ₹${rupees(b.amountDue)}`}
+                    : b.paymentStatus === 'REFUND_DUE'
+                      ? `CASH REFUND DUE ₹${rupees(b.refundDue)}`
+                      : `Due ₹${rupees(b.amountDue)}`}
                 </strong>
                 <button
                   onClick={() => {
@@ -250,7 +268,7 @@ export function Bills({
             </div>
             {bill.refundDue !== '0.00' && (
               <div>
-                <dt>Refund due</dt>
+                <dt>CASH REFUND DUE</dt>
                 <dd>₹{rupees(bill.refundDue)}</dd>
               </div>
             )}
@@ -274,7 +292,9 @@ export function Bills({
                   !!pending ||
                   bill.amountDue !== '0.00' ||
                   bill.refundDue !== '0.00' ||
-                  bill.orders.some((o) => o.status !== 'COMPLETED')
+                  bill.orders.some(
+                    (o) => !['COMPLETED', 'CANCELLED'].includes(o.status),
+                  )
                 }
                 onClick={() => void close()}
               >
@@ -287,7 +307,8 @@ export function Bills({
           )}
           {canCollect &&
             ((bill.status === 'OPEN' && bill.amountDue !== '0.00') ||
-              pending) && (
+              (pending && pending.type !== 'REFUND')) &&
+            pending?.type !== 'REFUND' && (
               <form
                 className="bill-payment"
                 onSubmit={(e) => {
@@ -342,6 +363,46 @@ export function Bills({
                 </button>
               </form>
             )}
+          {canRefund &&
+            ((!pending &&
+              bill.status === 'OPEN' &&
+              bill.refundDue !== '0.00') ||
+              pending?.type === 'REFUND') && (
+              <form
+                className="bill-refund"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void collect(true);
+                }}
+              >
+                <h2>CASH REFUND DUE ₹{rupees(bill.refundDue)}</h2>
+                <p>
+                  Record cash actually returned at Counter, including refunds of
+                  UPI collections. No UPI refund is available.
+                </p>
+                {pending ? (
+                  <p>
+                    Check pending cash refund ₹{pending.amount}. Do not return
+                    cash again.
+                  </p>
+                ) : (
+                  <label>
+                    Cash returned (₹)
+                    <input
+                      aria-label="Cash refund amount"
+                      required
+                      inputMode="decimal"
+                      pattern="(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?"
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                    />
+                  </label>
+                )}
+                <button disabled={busy || recoveryBlocked}>
+                  {pending ? 'Retry cash refund' : 'Confirm Cash Refund'}
+                </button>
+              </form>
+            )}
           {canManageReminders &&
             bill.serviceType === 'DINE_IN' &&
             bill.status === 'OPEN' &&
@@ -366,6 +427,16 @@ export function Bills({
                   </div>
                 ))}
                 <strong>₹{rupees(o.grandTotal)}</strong>
+                <OrderAmendment
+                  round={o}
+                  userId={userId}
+                  canAmend={canAmend && bill.status === 'OPEN'}
+                  canCancel={canCancel}
+                  disabled={busy || !!pending || recoveryBlocked}
+                  onSaved={() => {
+                    void refresh();
+                  }}
+                />
               </li>
             ))}
           </ul>
@@ -375,7 +446,10 @@ export function Bills({
             {bill.payments.map((p) => (
               <li key={p.id}>
                 <strong>
-                  {p.method} ₹{rupees(p.amount)}
+                  {p.type === 'REFUND'
+                    ? 'Cash Refunded −'
+                    : 'Collected ' + p.method + ' +'}
+                  ₹{rupees(p.amount)}
                 </strong>
                 <span>
                   {new Date(p.createdAt).toLocaleString()} · {p.actorName}

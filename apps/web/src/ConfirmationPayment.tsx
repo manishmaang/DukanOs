@@ -69,6 +69,12 @@ export function ConfirmationPayment({
               <dd>₹{rupees(quote.amountDue)}</dd>
             </div>
           </dl>
+          {quote.existingRefund !== '0.00' && (
+            <p>
+              Existing overpayment ₹{rupees(quote.existingRefund)} offsets this
+              new round.
+            </p>
+          )}
           <p>Record money already received. UPI is not verified by DukanOS.</p>
           {canCollect && due > 0n && (
             <>

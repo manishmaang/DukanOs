@@ -16,6 +16,7 @@ export interface OrderConfiguration {
   rounding: 'HALF_UP_PAISE';
 }
 export interface ConfirmedOrder {
+  revision: number;
   billId: string;
   id: string;
   source: 'COUNTER';
@@ -62,5 +63,6 @@ export interface ConfirmationPayment {
 export interface OrderQuote {
   roundTotal: string;
   existingDue: string;
+  existingRefund: string;
   amountDue: string;
 }
