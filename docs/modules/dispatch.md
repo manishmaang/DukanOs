@@ -2,7 +2,7 @@
 
 ## Purpose and current implementation
 
-The Dispatch workspace (`/#/dispatch`) handles physical handover of READY orders. Kitchen owns QUEUED → PREPARING → READY; Dispatch requests READY → COMPLETED through the existing Orders lifecycle service. Completion remains a preparation-round lifecycle event. Dine In can complete unpaid; Takeaway requires current parent-bill due zero. Existing READY orders work immediately after migration 011, without reseeding.
+The Dispatch workspace (`/#/dispatch`) handles physical handover of READY orders. Kitchen owns QUEUED → PREPARING → READY; Dispatch requests READY → COMPLETED through the existing Orders lifecycle service. Completion remains a preparation-round lifecycle event. Dine In can complete unpaid; Takeaway requires current parent-bill amount_due and refund_due both zero. Existing READY orders work immediately after migration 011, without reseeding.
 
 ## Queue and presentation
 
@@ -21,7 +21,7 @@ All paths have the `/api` prefix, live session guards, no-store responses and no
 | GET /dispatch/orders               | dispatch.read     | DispatchState: serverTime, businessDate, lateThresholdMinutes, orders[] |
 | POST /dispatch/orders/:id/complete | dispatch.complete | OrderTransitionResult: orderId, status COMPLETED, occurredAt            |
 
-Orders contain orderId, billId, serviceType, amountDue, paymentStatus, businessDate, tokenNumber, source, readyAt and position-ordered items (id, menuItemId, itemName, variantName, quantity, instruction). All names/instructions are sale snapshots. No current Menu joins, unit prices, taxes, full payment history, staff credentials or persistence models are returned. Shared contracts live in packages/shared-types/src/dispatch.ts and orders.ts.
+Orders contain orderId, billId, serviceType, amountDue, refundDue, paymentStatus, businessDate, tokenNumber, source, readyAt and position-ordered items (id, menuItemId, itemName, variantName, quantity, instruction). All names/instructions are sale snapshots. No current Menu joins, unit prices, taxes, full payment history, staff credentials or persistence models are returned. Shared contracts live in packages/shared-types/src/dispatch.ts and orders.ts.
 
 Both endpoints reject all body/query fields; even `{}` is rejected on completion. IDs must be UUIDv4. OWNER, MANAGER and DISPATCH already have dispatch.read/dispatch.complete from migration 002; no grants change. CASHIER-only and KITCHEN-only cannot read or complete. Operational role unions permit CASHIER+DISPATCH, KITCHEN+DISPATCH and all three, with direct workspace switching and no logout. Dispatch does not gain generic orders.read or menu capabilities.
 
@@ -41,7 +41,7 @@ Reuse Kitchen's two-second nonoverlapping visible-page polling, local one-second
 
 PostgreSQL coverage includes populated migration preservation, preexisting READY orders, ready-time ordering/UUID ties, snapshot names/notes, strict input, all role boundaries, full lifecycle/actor history, concurrent/stale completion, rollback, immutable data and session revocation while waiting for a lock. The Chromium script creates three orders through POS, starts/readies them in Kitchen and completes them on separate Dispatch devices; it verifies conflict/refetch, reconnect/reload, role restrictions, multi-role switching, notes, responsive layout and historical READY-age late styling with external requests blocked. All automated fixtures are isolated from restaurant data.
 
-No partial handover, undo/correction, sounds, printing, riders, payment warnings, completed-history UI, reports, refunds, amendments or external providers. Active queues are unpaginated for a single small restaurant. LAN/server/database/power must remain available; disconnected-browser writes and cloud synchronization are unsupported. Production TLS, backup/restore and large-backlog validation remain deployment work.
+No partial handover, undo/correction, sounds, printing, riders, completed-history UI, reports, refund recording, amendment controls or external providers. Active queues are unpaginated for a single small restaurant. LAN/server/database/power must remain available; disconnected-browser writes and cloud synchronization are unsupported. Production TLS, backup/restore and large-backlog validation remain deployment work.
 
 ## Bill settlement gating (012)
 
@@ -50,3 +50,5 @@ Cards display DINE IN/TAKEAWAY (or legacy unknown service) and PAID/DUE. TAKEAWA
 ## Confirmation payment compatibility (013)
 
 A Cash/UPI receipt captured with POS confirmation is the same bill ledger used by handover gating. Pay Later remains allowed for Takeaway creation, but backend/database still reject handover until current bill due is zero. Dine In serving remains independent of settlement. Dispatch does not display or manage payment reminders or Kitchen timers; operational role unions can switch to the authorized workspace. No Dispatch lifecycle or grid change was made.
+
+Migration 014 reads effective items and blocks Takeaway completion for REFUND_DUE as well as collection due, in both Orders and the database. The card displays REFUND ₹… AT COUNTER and disables handover until settled. Dine In may serve with either due. Cashier+Dispatch may navigate to Counter settlement; pure Dispatch cannot record refunds.

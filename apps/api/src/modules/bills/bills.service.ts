@@ -19,7 +19,7 @@ import type {
 import { DatabaseService } from '../../database/database.service';
 import type { AuthRequest } from '../auth/access';
 import { amount, paise } from '../orders/order-policy';
-import type { BillsQueryDto, CollectPaymentDto } from './bills.dto';
+import type { BillsQueryDto, CollectPaymentDto, RefundDto } from './bills.dto';
 @Injectable()
 export class BillsService {
   constructor(private readonly db: DatabaseService) {}
@@ -129,14 +129,14 @@ export class BillsService {
     const bill = await this.summary(c, id);
     const orders = (
       await c.query(
-        `SELECT id,token_number AS "tokenNumber",business_date::text AS "businessDate",status,grand_total::text AS "grandTotal" FROM orders WHERE bill_id=$1 ORDER BY queued_at,id`,
+        `SELECT o.id,e.revision,token_number AS "tokenNumber",business_date::text AS "businessDate",status,e.grand_total::text AS "grandTotal" FROM orders o JOIN effective_orders e ON e.id=o.id WHERE o.bill_id=$1 ORDER BY queued_at,o.id`,
         [id],
       )
     ).rows;
     for (const order of orders)
       order.items = (
         await c.query(
-          `SELECT id,item_name_snapshot AS "itemName",variant_name_snapshot AS "variantName",quantity,instruction FROM order_items WHERE order_id=$1 ORDER BY position`,
+          `SELECT id,variant_id AS "variantId",unit_price_snapshot::text AS "unitPrice",line_subtotal::text AS "lineSubtotal",item_name_snapshot AS "itemName",variant_name_snapshot AS "variantName",quantity,instruction FROM effective_order_items WHERE order_id=$1 ORDER BY position`,
           [order.id],
         )
       ).rows;
@@ -208,9 +208,24 @@ export class BillsService {
         );
     }
   }
+  refund(id: string, input: RefundDto, actor: AuthRequest) {
+    return this.postPayment(id, { ...input, method: 'CASH' }, actor, 'REFUND');
+  }
   collect(id: string, input: CollectPaymentDto, actor: AuthRequest) {
+    return this.postPayment(id, input, actor, 'COLLECTION');
+  }
+  private postPayment(
+    id: string,
+    input: CollectPaymentDto,
+    actor: AuthRequest,
+    type: 'COLLECTION' | 'REFUND',
+  ) {
     return this.db.transaction(async (c) => {
-      await this.authorize(c, actor, 'payments.collect');
+      await this.authorize(
+        c,
+        actor,
+        type === 'REFUND' ? 'payments.refund' : 'payments.collect',
+      );
       const value = paise(input.amount);
       if (value <= 0n)
         throw new BadRequestException({
@@ -219,7 +234,13 @@ export class BillsService {
             'Enter a positive amount in rupees with at most two decimal places.',
         });
       const fingerprint = createHash('sha256')
-        .update(JSON.stringify([id, input.method, amount(value)]))
+        .update(
+          JSON.stringify(
+            type === 'REFUND'
+              ? ['REFUND', id, input.method, amount(value)]
+              : [id, input.method, amount(value)],
+          ),
+        )
         .digest('hex');
       const prior = (
         await c.query(
@@ -238,13 +259,15 @@ export class BillsService {
       }
       await this.lockOpen(c, id);
       const bill = await this.summary(c, id);
-      if (value > paise(bill.amountDue))
+      const due = type === 'REFUND' ? bill.refundDue : bill.amountDue;
+      if (value > paise(due))
         throw new ConflictException({
-          code: 'PAYMENT_EXCEEDS_DUE',
-          message: `Payment exceeds the current amount due (₹${bill.amountDue}). Refresh and review the bill.`,
+          code:
+            type === 'REFUND' ? 'REFUND_EXCEEDS_DUE' : 'PAYMENT_EXCEEDS_DUE',
+          message: `${type === 'REFUND' ? 'Cash refund' : 'Payment'} exceeds the current due (₹${due}). Refresh and review the bill.`,
         });
       await c.query(
-        `INSERT INTO payments(id,bill_id,type,method,amount,performed_by,request_id,request_hash) VALUES($1,$2,'COLLECTION',$3,$4,$5,$6,$7)`,
+        `INSERT INTO payments(id,bill_id,type,method,amount,performed_by,request_id,request_hash) VALUES($1,$2,$8,$3,$4,$5,$6,$7)`,
         [
           randomUUID(),
           id,
@@ -253,6 +276,7 @@ export class BillsService {
           actor.user.id,
           input.requestId,
           fingerprint,
+          type,
         ],
       );
       return this.detail(c, id);
@@ -274,7 +298,7 @@ export class BillsService {
       if (
         paise(bill.amountDue) !== 0n ||
         paise(bill.refundDue) !== 0n ||
-        bill.orders.some((o) => o.status !== 'COMPLETED')
+        bill.orders.some((o) => !['COMPLETED', 'CANCELLED'].includes(o.status))
       )
         throw new ConflictException({
           code: 'BILL_NOT_SETTLED',

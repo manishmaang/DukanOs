@@ -79,3 +79,5 @@ Migration 012 grants bills.read/manage and payments.read/collect to OWNER/MANAGE
 ## Reminder and timer capabilities (013)
 
 OWNER/MANAGER/CASHIER receive bills.reminders.read/manage; OWNER/MANAGER/KITCHEN receive kitchen.timers.read/manage. Pure Dispatch receives neither. Role unions and live session/capability checks apply unchanged; the POS reminder tray and Kitchen timer controls are capability filtered. Financial reminder projections never go to pure Kitchen. See Operational alerts.
+
+Migration 014 grants orders.amend, orders.cancel and payments.refund to OWNER/MANAGER/CASHIER. Pure KITCHEN/DISPATCH cannot amend or refund; role unions apply normally. Capability checks are revalidated inside commercial transactions. Refund posting is cash-only and entitlement-limited; amendment is QUEUED-only. See [Amendments](amendments.md).

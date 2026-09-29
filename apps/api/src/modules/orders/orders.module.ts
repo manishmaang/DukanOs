@@ -1,3 +1,5 @@
+import { AmendmentsService } from './amendments.service';
+import { AmendmentsController } from './amendments.controller';
 import { BillsModule } from '../bills/bills.module';
 import { OrderLifecycleService } from './order-lifecycle.service';
 import { Module } from '@nestjs/common';
@@ -6,8 +8,8 @@ import { OrdersService } from './orders.service';
 import { OrdersController } from './orders.controller';
 @Module({
   imports: [MenuModule, BillsModule],
-  providers: [OrdersService, OrderLifecycleService],
+  providers: [OrdersService, OrderLifecycleService, AmendmentsService],
   exports: [OrderLifecycleService],
-  controllers: [OrdersController],
+  controllers: [OrdersController, AmendmentsController],
 })
 export class OrdersModule {}

@@ -11,7 +11,7 @@ import {
 import { JsonInput, QueryInput } from '../../input-boundary';
 import { RequirePermissions, type AuthRequest } from '../auth/access';
 import { BillsService } from './bills.service';
-import { BillsQueryDto, CollectPaymentDto } from './bills.dto';
+import { BillsQueryDto, CollectPaymentDto, RefundDto } from './bills.dto';
 @Controller('bills')
 export class BillsController {
   constructor(private readonly bills: BillsService) {}
@@ -34,6 +34,16 @@ export class BillsController {
     @Req() actor: AuthRequest,
   ) {
     return this.bills.collect(id, input, actor);
+  }
+  @Post(':id/refunds')
+  @JsonInput()
+  @RequirePermissions('payments.refund', 'bills.read')
+  refund(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() input: RefundDto,
+    @Req() actor: AuthRequest,
+  ) {
+    return this.bills.refund(id, input, actor);
   }
   @Post(':id/close') @RequirePermissions('bills.manage') close(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,

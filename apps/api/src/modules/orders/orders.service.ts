@@ -113,7 +113,7 @@ export class OrdersService {
             message:
               'This request was already used for a different order. Retrieve the original order before starting another.',
           });
-        return this.read(client, existing.rows[0].id);
+        return this.read(client, existing.rows[0].id, true);
       }
       if (
         (input.billId &&
@@ -152,14 +152,19 @@ export class OrdersService {
       });
       const sum = items.reduce((n, i) => n + paise(i.lineSubtotal), 0n);
       const total = totals(sum, this.configuration.taxRate);
-      const existingDue = input.billId
-        ? (await this.bills.summary(client, input.billId)).amountDue
-        : '0.00';
-      const due = paise(existingDue) + paise(total.grandTotal);
+      const balance = input.billId
+        ? await this.bills.summary(client, input.billId)
+        : undefined;
+      const existingDue = balance?.amountDue ?? '0.00';
+      const existingRefund = balance?.refundDue ?? '0.00';
+      const payable =
+        paise(existingDue) - paise(existingRefund) + paise(total.grandTotal);
+      const due = payable > 0n ? payable : 0n;
       if (quoteOnly)
         return {
           roundTotal: total.grandTotal,
           existingDue,
+          existingRefund,
           amountDue: amount(due),
         };
       if (input.payment) {
@@ -255,7 +260,11 @@ export class OrdersService {
       return this.read(client, id);
     });
   }
-  private async read(client: PoolClient, id: string): Promise<ConfirmedOrder> {
+  private async read(
+    client: PoolClient,
+    id: string,
+    original = false,
+  ): Promise<ConfirmedOrder> {
     const row = (
       await client.query(
         `SELECT bill_id AS "billId",id,source,status,business_date::text AS "businessDate",token_number AS "tokenNumber",queued_at AS "queuedAt",confirmed_by AS "confirmedBy",subtotal::text,discount_total::text AS "discountTotal",tax_total::text AS "taxTotal",rounding_adjustment::text AS "roundingAdjustment",grand_total::text AS "grandTotal",jsonb_build_object('timezone',timezone,'taxLabel',tax_label,'taxRate',tax_rate::text,'taxMode',tax_mode,'rounding',tax_rounding) AS tax FROM orders WHERE id=$1`,
@@ -267,9 +276,20 @@ export class OrdersService {
         code: 'ORDER_NOT_FOUND',
         message: 'Order was not found.',
       });
+    row.revision = 0;
+    if (!original)
+      Object.assign(
+        row,
+        (
+          await client.query(
+            'SELECT revision,subtotal::text,tax_total::text AS "taxTotal",grand_total::text AS "grandTotal" FROM effective_orders WHERE id=$1',
+            [id],
+          )
+        ).rows[0],
+      );
     const items = (
       await client.query(
-        `SELECT id,menu_item_id AS "menuItemId",variant_id AS "variantId",item_name_snapshot AS "itemName",kitchen_name_snapshot AS "kitchenName",variant_name_snapshot AS "variantName",quantity,unit_price_snapshot::text AS "unitPrice",line_subtotal::text AS "lineSubtotal",instruction FROM order_items WHERE order_id=$1 ORDER BY position`,
+        `SELECT id,menu_item_id AS "menuItemId",variant_id AS "variantId",item_name_snapshot AS "itemName",kitchen_name_snapshot AS "kitchenName",variant_name_snapshot AS "variantName",quantity,unit_price_snapshot::text AS "unitPrice",line_subtotal::text AS "lineSubtotal",instruction FROM ${original ? 'order_items' : 'effective_order_items'} WHERE order_id=$1 ORDER BY position`,
         [id],
       )
     ).rows;
@@ -282,7 +302,12 @@ export class OrdersService {
     } as ConfirmedOrder;
   }
   get(id: string) {
-    return this.db.transaction((c) => this.read(c, id));
+    return this.db.transaction(async (c) => {
+      await c.query(
+        'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY',
+      );
+      return this.read(c, id);
+    });
   }
   token(date: string, token: string) {
     this.validateDate(date);
@@ -292,6 +317,9 @@ export class OrdersService {
         message: 'Invalid token number.',
       });
     return this.db.transaction(async (c) => {
+      await c.query(
+        'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY',
+      );
       const row = (
         await c.query<{ id: string }>(
           'SELECT id FROM orders WHERE business_date=$1 AND token_number=$2',

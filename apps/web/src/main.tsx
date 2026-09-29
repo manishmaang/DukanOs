@@ -260,6 +260,9 @@ function App() {
                     ) : link.path === '/pos' &&
                       user.permissions.includes('menu.read') ? (
                       <MenuPreview
+                        canAmend={user.permissions.includes('orders.amend')}
+                        canCancel={user.permissions.includes('orders.cancel')}
+                        canRefund={user.permissions.includes('payments.refund')}
                         canReadReminders={user.permissions.includes(
                           'bills.reminders.read',
                         )}

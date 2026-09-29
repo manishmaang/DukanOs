@@ -22,12 +22,16 @@ export interface BillSummary {
 export interface BillDetail extends BillSummary {
   orders: {
     id: string;
+    revision: number;
     tokenNumber: number;
     businessDate: string;
     status: OrderStatus;
     grandTotal: string;
     items: {
       id: string;
+      variantId: string;
+      unitPrice: string;
+      lineSubtotal: string;
       itemName: string;
       variantName: string;
       quantity: number;

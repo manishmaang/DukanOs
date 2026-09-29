@@ -10,17 +10,17 @@ DukanOS uses multi-role operational staff because one employee may serve as cash
 
 Every user has exactly one privileged role (OWNER or MANAGER) OR a nonempty subset of CASHIER/KITCHEN/DISPATCH. Empty, duplicate, unknown, and mixed assignments are rejected with INVALID_ROLE_COMBINATION. The relation is many-to-many users → user_roles → roles; users has no role column. No role hierarchy or active-role switching exists.
 
-## Initial permission matrix
+## Current permission matrix
 
 | Role     | Capabilities                                                                                                                                        |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CASHIER  | orders.create, orders.read, payments.collect, menu.read, menu.availability.manage                                                                   |
-| KITCHEN  | kitchen.read, kitchen.update, menu.read, orders.read, menu.availability.manage                                                                      |
+| CASHIER  | orders.create/read/amend/cancel, bills.read/manage, payments.read/collect/refund, bills.reminders.read/manage, menu.read, menu.availability.manage  |
+| KITCHEN  | kitchen.read/update, kitchen.timers.read/manage, menu.read, menu.availability.manage                                                                |
 | DISPATCH | dispatch.read, dispatch.complete                                                                                                                    |
 | MANAGER  | All operational capabilities plus menu.manage, reports.read, payments.refund, orders.cancel, orders.prioritize, credit.adjust, users.password.reset |
 | OWNER    | All MANAGER capabilities plus users.manage                                                                                                          |
 
-Permission grants are explicit rows, not a hard-coded privileged bypass. Capability names for future business modules are seeded contracts; those business actions are not yet implemented. Role/permission administration APIs are not exposed; future matrix changes require reviewed migrations.
+Permission grants are explicit rows, not a hard-coded privileged bypass. Some capability names (reports, priority and credit) remain reserved contracts; their business actions are not yet implemented. Role/permission administration APIs are not exposed; future matrix changes require reviewed migrations.
 
 ## APIs
 
@@ -90,3 +90,5 @@ Staff responsibility labels and disclosure summaries have at least 44px touch ar
 ## Operational alert grants (013)
 
 New reminder/timer capabilities follow the existing many-to-many union: OWNER/MANAGER/CASHIER have bills.reminders.read/manage; OWNER/MANAGER/KITCHEN have kitchen.timers.read/manage. Pure DISPATCH has neither, while combined operational staff receive both sets when appropriate. No new role or staff editing behavior is introduced.
+
+Migration 014 grants orders.amend, orders.cancel and payments.refund to OWNER/MANAGER/CASHIER. Pure KITCHEN/DISPATCH cannot amend or refund; role unions apply normally. Capability checks are revalidated inside commercial transactions. Refund posting is cash-only and entitlement-limited; amendment is QUEUED-only. See [Amendments](amendments.md).

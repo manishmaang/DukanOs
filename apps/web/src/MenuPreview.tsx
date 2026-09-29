@@ -29,6 +29,9 @@ export function MenuPreview({
   canManageBills = false,
   canReadReminders = false,
   canManageReminders = false,
+  canAmend = false,
+  canCancel = false,
+  canRefund = false,
 }: {
   canManageAvailability?: boolean;
   userId: string;
@@ -38,6 +41,9 @@ export function MenuPreview({
   canManageBills?: boolean;
   canReadReminders?: boolean;
   canManageReminders?: boolean;
+  canAmend?: boolean;
+  canCancel?: boolean;
+  canRefund?: boolean;
 }) {
   const route = useLocation();
   const [billView, setBillView] = useState(false);
@@ -176,6 +182,9 @@ export function MenuPreview({
       {billView && reminders}
       {billView && (
         <Bills
+          canAmend={canAmend}
+          canCancel={canCancel}
+          canRefund={canRefund}
           canManageReminders={canManageReminders}
           canCollect={canCollectPayments}
           canManage={canManageBills}

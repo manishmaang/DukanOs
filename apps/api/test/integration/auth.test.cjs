@@ -174,18 +174,21 @@ test(
             'kitchen.update',
             'menu.availability.manage',
             'menu.read',
+            'orders.amend',
+            'orders.cancel',
             'orders.create',
             'orders.read',
             'payments.collect',
             'payments.read',
+            'payments.refund',
           ]);
           ({ cookie: staffCookie } = await login('worker'));
-          for (const path of ['pos', 'kitchen'])
+          for (const path of ['pos', 'kitchen', 'refund'])
             await request(server)
               .get('/api/test-capabilities/' + path)
               .set('Cookie', staffCookie)
               .expect(200);
-          for (const path of ['dispatch', 'refund'])
+          for (const path of ['dispatch'])
             await request(server)
               .get('/api/test-capabilities/' + path)
               .set('Cookie', staffCookie)

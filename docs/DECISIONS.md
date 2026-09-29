@@ -325,3 +325,21 @@ Reuse the Orders transaction for optional bill receipts, bound to its idempotenc
 ### Reason and consequences
 
 This extends the existing single-server design without distributed orchestration or notification infrastructure. Bill settlement, order history and FIFO remain authoritative. A zero balance pauses rather than deletes reminder preference; new positive due restarts its interval. Active alerts remain visible until the defined action/settlement. Local fallback cannot authorize writes, guarantee alarms in suspended browsers, or open a fresh authenticated session with the backend down. Duplicate timer creation and acknowledgement are safe; no arbitrary elapsed-timer editing. Amendments/refunds remain separate future work.
+
+## 016 — Append-only queued revisions and entitlement-limited cash refunds
+
+Date: 2026-09-29.
+
+### Context and options considered
+
+Customers change billed food before preparation; overwritten sale rows or manual Bill overrides would lose item-sales history. Considered mutating current items with audit JSON, reconstructing operation deltas separately in each consumer, and full immutable revisions with shared effective views. Also considered repricing whole rounds versus retaining prior line prices, and current versus original tax policy.
+
+### Decision
+
+Keep original order/item records; append full revision snapshots and explicit cancellation history only while QUEUED. Shared effective views feed Bills/Kitchen/Dispatch/current-order reads and future item reports. Retain logical line IDs, token and FIFO time. Replacements resolve current Counter prices; unchanged/reduced quantities retain prior prices and every revision uses the original round tax configuration. New food/quantity uses new rounds. Active associated timers block amendments.
+
+Quote hashes bind intent and financial preview; commit revalidates revision, Kitchen state, availability, prices and Bill balance under the existing restaurant lock. Actor-scoped idempotency protects amendment and ledger retries. Refunds append to the existing payments ledger, are always CASH, positive and limited to current refund entitlement; partial refunds are allowed. Both due values must vanish for closure/Takeaway handover, while Dine In serving remains independent.
+
+### Reason and consequences
+
+Full snapshots are simple for bounded 100-line rounds and make current projection and audit explicit without a new event framework. Extra storage is accepted for clear history. Existing original data need no fabricated revisions/refunds. Original tax avoids mixing policies within a round; advanced tax corrections/post-preparation commercial changes need a later explicit policy. Shared coarse locking remains appropriate for one restaurant. Effective SQL views are the reporting contract; raw original items are audit-only after amendments. Physical-device verification and production backup/tax configuration remain deployment responsibilities.

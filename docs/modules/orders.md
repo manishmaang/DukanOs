@@ -2,11 +2,11 @@
 
 ## Purpose and current implementation
 
-Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. Kitchen START/READY and Dispatch completion are implemented through Orders-owned lifecycle commands. No draft rows, customers, cancellations or amendments are exposed. Collections belong to parent Bills, independently of Kitchen lifecycle.
+Counter POS confirmation is implemented. The browser builds an editable draft; one transactional API call creates a QUEUED order with permanent UUID, daily token, sale snapshots and actor history. Kitchen START/READY and Dispatch completion are implemented through Orders-owned lifecycle commands. Queued amendments/cancellation append revisions; no draft rows or customers are exposed. Collections belong to parent Bills, independently of Kitchen lifecycle.
 
 ## Lifecycle and immutability
 
-Policy: DRAFT → QUEUED → PREPARING → READY → COMPLETED. DRAFT/QUEUED may transition to CANCELLED in a future authorized cancellation workflow; PREPARING cancellation requires a separate business decision. Terminal states have no outgoing transitions. Implemented transitions are DRAFT → QUEUED → PREPARING → READY → COMPLETED. Migration 009 permits only audited Kitchen START/READY after confirmation, using append-only history to apply status atomically. Financial snapshots and all item fields remain immutable; later item appends and history rewrites remain forbidden. Migration 011 additionally permits audited Dispatch completion. There is no generic status PATCH, cancellation or undo API. See [Kitchen](kitchen.md) for FIFO, locking and transition errors.
+Policy: DRAFT → QUEUED → PREPARING → READY → COMPLETED. QUEUED may transition to CANCELLED through an authorized revision-backed cancellation; PREPARING cancellation is not supported. Terminal states have no outgoing transitions. Implemented transitions are DRAFT → QUEUED → PREPARING → READY → COMPLETED. Migration 009 permits only audited Kitchen START/READY after confirmation, using append-only history to apply status atomically. Financial snapshots and all item fields remain immutable; later item appends and history rewrites remain forbidden. Migration 011 additionally permits audited Dispatch completion. There is no generic status PATCH or undo API. See [Kitchen](kitchen.md) for FIFO, locking and transition errors.
 
 ## Confirmation and concurrency
 
@@ -16,7 +16,7 @@ The transaction takes Menu's advisory lock 742019323, locks the actor row, reche
 
 ## Tokens and business date
 
-UUID is the permanent identity. `(business_date, token_number)` is unique. `RESTAURANT_TIMEZONE` defaults to Asia/Kolkata; the business date is the PostgreSQL server clock's calendar date in that timezone, resetting at local midnight (no custom shift cutoff). Capture time/date together after validation. Atomic INSERT…ON CONFLICT increments order_daily_tokens and returns the token, in the same transaction. First committed confirmation on a new date receives 1. Failed transactions consume no committed token; committed tokens are never recycled. Cancelled-token reuse remains forbidden when cancellation is implemented. Date accompanies token lookup to avoid cross-day ambiguity. Keep restaurant server time correct and coordinate timezone changes at a business boundary.
+UUID is the permanent identity. `(business_date, token_number)` is unique. `RESTAURANT_TIMEZONE` defaults to Asia/Kolkata; the business date is the PostgreSQL server clock's calendar date in that timezone, resetting at local midnight (no custom shift cutoff). Capture time/date together after validation. Atomic INSERT…ON CONFLICT increments order_daily_tokens and returns the token, in the same transaction. First committed confirmation on a new date receives 1. Failed transactions consume no committed token; committed tokens are never recycled. Cancelled-token reuse is forbidden. Date accompanies token lookup to avoid cross-day ambiguity. Keep restaurant server time correct and coordinate timezone changes at a business boundary.
 
 ## Idempotency
 
@@ -42,11 +42,11 @@ All routes below have /api prefix and normal authenticated session/mutation-head
 | ------------------------------------------------------------ | ------------- | ------------------------------------------------------------------ |
 | POST /orders/counter                                         | orders.create | ConfirmedOrder (201, including replay)                             |
 | GET /orders/configuration                                    | orders.create | Current timezone and tax configuration for estimates               |
-| GET /orders/:id                                              | orders.read   | Immutable sale and current lifecycle snapshot                      |
+| GET /orders/:id                                              | orders.read   | Effective sale and current lifecycle/revision snapshot             |
 | GET /orders/tokens/:date/:token                              | orders.read   | Exact business-date/token lookup                                   |
 | GET /orders?status=QUEUED&businessDate=YYYY-MM-DD&after=UUID | orders.read   | `{orders,nextCursor}`, 100 results in queued_at/id ascending order |
 
-List filters are optional; omit businessDate for pending work spanning midnight. Pass nextCursor as after with the same filters for the next page. Current persisted statuses are QUEUED, PREPARING, READY and COMPLETED; later lifecycle values remain reserved. No history mutation API is exposed. Public shared contracts contain no request fingerprint or persistence credentials.
+List filters are optional; omit businessDate for pending work spanning midnight. Pass nextCursor as after with the same filters for the next page. Current persisted statuses are QUEUED, PREPARING, READY, COMPLETED and CANCELLED; later lifecycle values remain reserved. No history mutation API is exposed. Public shared contracts contain no request fingerprint or persistence credentials.
 
 OWNER/MANAGER/CASHIER already have orders.create/read. Migration 008 originally granted orders.read to KITCHEN; migration 012 removes this financial read grant while retaining dedicated Kitchen projections. Existing kitchen.read/update grants authorize the implemented Kitchen workspace/actions. DISPATCH uses its dedicated operational projection, without generic orders.read access. Multi-role unions work normally.
 
@@ -82,13 +82,13 @@ Kitchen's configurable late indicator uses total age since queuedAt and never ch
 
 ## Dispatch boundary
 
-Dispatch reads READY-only snapshots ordered by unique READY history time/UUID and calls OrderLifecycleService for READY→COMPLETED under dispatch.complete. The existing lock/session/capability/status checks and history-driven transaction are shared with Kitchen. Migration 011 extends guards; completion records exactly one actor/time/reason history entry, preserves financial/item snapshots and has no payment prerequisite. Completed time is derived from the unique COMPLETED history record. No amendment, cancellation or undo is introduced. See [Dispatch](dispatch.md) for APIs, concurrency, polling and error behavior.
+Dispatch reads READY-only snapshots ordered by unique READY history time/UUID and calls OrderLifecycleService for READY→COMPLETED under dispatch.complete. The existing lock/session/capability/status checks and history-driven transaction are shared with Kitchen. Migration 011 extends guards; completion records exactly one actor/time/reason history entry, preserves financial/item snapshots and requires full Bill settlement for Takeaway. Completed time is derived from the unique COMPLETED history record. Dispatch never amends/cancels or undoes orders. See [Dispatch](dispatch.md) for APIs, concurrency, polling and error behavior.
 
 Responsive/touch rules and device verification requirements are maintained centrally in [Responsive UI](../RESPONSIVE_UI.md). Dish dialogs use dynamic/visual viewport bounds and whole-dialog scrolling at very short heights. Phone cart rows put the portion name above large quantity controls and price. No confirmation, idempotency, financial or persistence behavior changes.
 
 ## Bill integration
 
-Every order belongs to a Bill after migration 012. First confirmation creates bill and token atomically; later rounds lock/recheck the selected OPEN bill and create new tokens without editing prior rounds. ConfirmedOrder includes billId. Full sale/tax snapshots remain immutable. Dine In completion means served and is allowed unpaid; Takeaway completion requires zero current parent-bill due. Explicit bill closing waits for all rounds complete and financial settlement. See [Bills](bills.md) for legacy backfill, APIs and concurrency. Future amendments must preserve ledger history and derive additional due or cash refund due from a revised effective total.
+Every order belongs to a Bill after migration 012. First confirmation creates bill and token atomically; later rounds lock/recheck the selected OPEN bill and create new tokens without editing prior rounds. ConfirmedOrder includes billId. Full sale/tax snapshots remain immutable. Dine In completion means served and is allowed unpaid; Takeaway completion requires zero current parent-bill due. Explicit bill closing waits for all rounds complete and financial settlement. See [Bills](bills.md) for legacy backfill, APIs and concurrency. Queued amendments preserve ledger history and derive additional due or cash refund due from effective totals; see [Amendments](amendments.md).
 
 ## Payment review at confirmation (013)
 
@@ -97,3 +97,7 @@ POS Confirm Order opens a compact server-priced review. POST /api/orders/counter
 POST /orders/counter optionally accepts `payment: {expectedDue, cash, upi}` as exact decimal strings. Missing payment explicitly means Pay Later (also preserves existing clients and pending request replays). A present payment requires payments.collect, nonnegative Cash/UPI, positive sum no greater than due, and exact expectedDue equality to the newly calculated current due. Changed prices or concurrent collections/rounds return PAYABLE_CHANGED without creating anything; the cashier must review again. Full Cash/UPI are exact reviewed amounts, not a permission to silently collect a different amount. Partial supports either method alone or both.
 
 The same transaction creates/attaches the bill, order/items/history/token and up to two positive bill ledger rows. All roll back if any receipt fails. Fingerprints additionally bind canonical payment amounts; old payloads without payment retain their fingerprints. Same-key replay returns the original order without repeating receipts; the original actor/key is retained permanently. Browser recovery saves the complete selected payment request before sending and locks editing after uncertain results. The confirmation_order_id on payment rows is provenance/deduplication, not a change to bill-level settlement. Takeaway Pay Later remains allowed; unpaid handover remains prohibited.
+
+## Amendment integration (014)
+
+Original confirmed records remain immutable; append-only full revisions supply effective items and totals through shared SQL views. Generic reads include revision (0 initially); original confirmation retry keeps its original receipt snapshots. Only QUEUED rounds on open Bills may change. Retain original tax configuration, use current Counter price for replacements, snapshot price for reductions/removals, and new rounds for additional food. CANCEL has zero effective food/total and permanent history/token. See [Amendments](amendments.md) for quote, audit, idempotency and race policy.
