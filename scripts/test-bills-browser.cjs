@@ -588,6 +588,136 @@ const root = require('node:path').resolve(__dirname, '..');
       await resize(width, height);
       await inspect('long-bill', width, height, true);
     }
+
+    // Historical-date fixtures use the production clock conversion with a controlled
+    // PostgreSQL timestamp, exclusively inside this disposable schema.
+    const {
+      RestaurantClock,
+    } = require('../apps/api/dist/database/restaurant-clock');
+    const clock = app.get(RestaurantClock),
+      realRead = clock.read.bind(clock);
+    let instant = '2025-09-29T06:00:00Z';
+    clock.read = (client) =>
+      realRead({
+        query: (text, values) =>
+          client.query(text.replace('clock_timestamp()', '$2::timestamptz'), [
+            ...values,
+            instant,
+          ]),
+      });
+    const menu = await fetch(origin + '/api/menu/counter', {
+      headers: { Cookie: cookie },
+    }).then((r) => r.json());
+    const fixtureVariant = menu.categories[0].items[0].variants[0].id;
+    const historyOrder = await ownerCall('/orders/counter', {
+      requestId: randomUUID(),
+      serviceType: 'DINE_IN',
+      reference: 'Yesterday scope',
+      lines: [{ variantId: fixtureVariant, quantity: 1 }],
+    });
+    instant = '2025-09-30T06:00:00Z';
+    for (const reference of ['Today first', 'Today second'])
+      await ownerCall('/orders/counter', {
+        requestId: randomUUID(),
+        serviceType: 'DINE_IN',
+        reference,
+        lines: [{ variantId: fixtureVariant, quantity: 1 }],
+      });
+    async function waitScope(scope, count) {
+      await c.wait(
+        `document.querySelector('.bill-scope')?.textContent.includes(${JSON.stringify(scope)}) && document.querySelectorAll('.bill-card').length===${count}`,
+      );
+    }
+    async function applyDates(from, to) {
+      await c.fill('[aria-label="From business date"]', from);
+      await c.fill('[aria-label="To business date"]', to);
+      await button('Apply dates');
+    }
+    for (const [width, height] of [
+      [390, 844],
+      [768, 1024],
+      [1024, 768],
+      [1440, 900],
+    ]) {
+      await resize(width, height);
+      await c.read("location.hash='/pos'");
+      // Force a fresh workspace, independent of the earlier detail route.
+      await c.send('Page.reload');
+      await c.wait("!!document.querySelector('.pos-card')");
+      await button('Open Bills');
+      await waitScope('Today · 2025-09-30', 2);
+      assert.ok(
+        await c.read(
+          "[...document.querySelectorAll('.bill-card')].every(e=>e.textContent.includes('2025-09-30'))",
+        ),
+      );
+      await inspect('scope-today', width, height, true);
+      await applyDates('2025-09-29', '2025-09-29');
+      await waitScope('2025-09-29 → 2025-09-29', 1);
+      await button('Open bill');
+      await c.wait("!!document.querySelector('.bill-historical')");
+      assert.ok(
+        await c.read(
+          "document.querySelector('.bill-rounds').textContent.includes('Manchurian')",
+        ),
+      );
+      assert.equal(
+        await c.read(
+          "[...document.querySelectorAll('button')].some(e=>['Add Items','Change queued round'].includes(e.textContent.trim()))",
+        ),
+        false,
+      );
+      await inspect('historical-detail', width, height, true);
+      const denied = await c.read(
+        `fetch('/api/orders/counter',{method:'POST',headers:{'Content-Type':'application/json','X-DukanOS-Request':'1'},body:JSON.stringify(${JSON.stringify({ requestId: randomUUID(), billId: historyOrder.billId, lines: [{ variantId: fixtureVariant, quantity: 1 }] })})}).then(async r=>({status:r.status,body:await r.json()}))`,
+      );
+      assert.equal(denied.status, 409);
+      assert.equal(denied.body.code, 'BILL_NOT_CURRENT_BUSINESS_DATE');
+      await button('Open Bills');
+      await button('Today');
+      await waitScope('Today · 2025-09-30', 2);
+      await c.fill('[aria-label="Find bill"]', '#1');
+      // Earlier actual-date fixtures can also contain Bill #1, so select by date.
+      await c.wait(
+        "document.querySelector('.bill-scope')?.textContent.includes('All business dates') && [...document.querySelectorAll('.bill-card')].some(e=>e.textContent.includes('2025-09-29'))",
+      );
+      assert.ok(
+        await c.read(
+          "[...document.querySelectorAll('.bill-card h2')].every(e=>e.textContent==='Bill #1')",
+        ),
+      );
+      await inspect('scope-global-search', width, height, true);
+      await applyDates('2025-09-29', '2025-09-30');
+      await waitScope('Search within 2025-09-29 → 2025-09-30', 2);
+      await c.fill('[aria-label="Find bill"]', 'Today first');
+      await waitScope('Search within', 1);
+      await c.fill('[aria-label="Find bill"]', '');
+      await waitScope('Business dates 2025-09-29 → 2025-09-30', 3);
+      await button('Clear dates');
+      await waitScope('Today · 2025-09-30', 2);
+      await c.fill('[aria-label="Find bill"]', 'No match ' + randomUUID());
+      await c.wait(
+        "document.body.textContent.includes('No bills matched your search.')",
+      );
+      await c.fill('[aria-label="Find bill"]', '');
+      await waitScope('Today · 2025-09-30', 2);
+      await applyDates('2001-01-01', '2001-01-02');
+      await c.wait(
+        "document.body.textContent.includes('No bills found in this date range.')",
+      );
+      await button('Today');
+      await waitScope('Today · 2025-09-30', 2);
+      console.log(
+        `Bill history scope PASS ${width}x${height}: today, historical detail/food denial, global Bill #1, inclusive dates, combined filters and clearing.`,
+      );
+    }
+    for (const [width, height] of [...sizes, [390, 420]]) {
+      await resize(width, height);
+      await inspect('scope-filters', width, height, true);
+    }
+    instant = '2025-10-01T06:00:00Z';
+    await c.wait("document.body.textContent.includes('No bills today.')");
+    clock.read = realRead;
     assert.deepEqual(external, []);
     assert.deepEqual(failures, []);
     fs.writeFileSync(

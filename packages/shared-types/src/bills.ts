@@ -2,6 +2,8 @@ import type { OrderStatus } from './orders';
 export type ServiceType = 'DINE_IN' | 'TAKEAWAY';
 export type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'REFUND_DUE';
 export interface BillSummary {
+  currentBusinessDate: string;
+  canChangeFood: boolean;
   id: string;
   businessDate: string;
   billNumber: number;
@@ -49,6 +51,10 @@ export interface BillDetail extends BillSummary {
   }[];
 }
 export interface BillList {
+  currentBusinessDate: string;
+  scope: 'TODAY' | 'RANGE' | 'HISTORY';
+  fromBusinessDate: string | null;
+  toBusinessDate: string | null;
   bills: BillSummary[];
   nextCursor: string | null;
 }

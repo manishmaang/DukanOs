@@ -106,3 +106,5 @@ A frontend OperationalAudio coordinator consumes those existing projections, nev
 ## Effective order revisions (014)
 
 Orders owns amendment quote/commit/history commands; Bills continues to own the immutable financial ledger. Original confirmation rows are never repurposed as mutable state. Two shared SQL views select complete latest revisions for current operational/financial consumers, avoiding per-module reconstruction. Kitchen and Dispatch retain existing polling, FIFO/ready order and operational-only contracts. Bills aggregates effective totals and derives due/refund due against unchanged ledger. Original confirmation idempotency returns original receipt snapshots; current reads expose effective revision state. See decision 016 and modules/amendments.md. No new service, provider, scheduler or network dependency is introduced.
+
+RestaurantClock is a small shared provider alongside the database connection. Orders and Bills use the same PostgreSQL timestamp/IANA-timezone conversion for token dates, Today queries and food-change eligibility. It adds no scheduler, persisted clock, frontend date inference or external dependency.

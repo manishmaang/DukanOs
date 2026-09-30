@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-30 — Bill business dates and scoped history
+
+- Block new rounds and queued food amendments/cancellation on non-current business-date Bills using the shared restaurant PostgreSQL clock; preserve successful retries and historical financial reconciliation.
+- Default Bills to Today; add inclusive date filters and global search when no dates are selected. Numeric/#numeric inputs match Bill numbers, not Kitchen tokens. Include open/closed history with newest-first cursor pagination and clear date/scope/empty-state context.
+- Add historical food-action restrictions and responsive filter controls. Migration 015 adds only query indexes, with no operational-data rewrites.
+- Add PostgreSQL midnight/lock-wait/replay/history/pagination coverage and four-device-class Bills filter workflows with external traffic blocked.
+- Verified npm run check, all 119 PostgreSQL tests, expanded Bills browser scenarios, and amendment/refund regressions in all four device classes. Applied migration 015 locally with unchanged fingerprints for every existing domain/RBAC table; only migration metadata changed.
+
 ## 2026-09-30 — Queued amendments and cash refunds
 
 - Added append-only order revisions, shared effective item/total views, server preview and stale/idempotency protection for QUEUED corrections and cancellation.

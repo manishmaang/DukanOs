@@ -343,3 +343,21 @@ Quote hashes bind intent and financial preview; commit revalidates revision, Kit
 ### Reason and consequences
 
 Full snapshots are simple for bounded 100-line rounds and make current projection and audit explicit without a new event framework. Extra storage is accepted for clear history. Existing original data need no fabricated revisions/refunds. Original tax avoids mixing policies within a round; advanced tax corrections/post-preparation commercial changes need a later explicit policy. Shared coarse locking remains appropriate for one restaurant. Effective SQL views are the reporting contract; raw original items are audit-only after amendments. Physical-device verification and production backup/tax configuration remain deployment responsibilities.
+
+## 017 — Business-date food cutoff and explicit Bill history scope
+
+Date: 2026-09-30.
+
+### Context and options considered
+
+An OPEN Bill previously accepted food indefinitely, and its list silently covered all open history. Considered automatic day-end closure, frontend-only filtering, and server-side food eligibility separate from financial reconciliation.
+
+### Decision and reason
+
+Require current restaurant business date plus OPEN for new rounds and all queued food revisions, including cancellation. Use the existing PostgreSQL wall-clock/IANA-timezone semantics through one shared provider; check after the restaurant lock, preserving successful idempotent replay. Do not auto-close or fabricate settlement: older open bills may still need legitimate financial reconciliation.
+
+Default listing to Today, search alone to all history, and paired dates to an inclusive range with optional search. Include OPEN and CLOSED bills so historical search is complete. Exact numeric/#numeric input means Bill number only; reference text is separate and Kitchen token search is not added. Retain bounded cursor pagination with newest date/time/UUID ordering.
+
+### Consequences
+
+Food cannot be changed after restaurant midnight even if an old round remains queued. Financial and Kitchen lifecycle rules remain independent. Date filters and eligibility come from the server, not device clocks. Two additive indexes support the new query order; no old records or monetary history are rewritten. More flexible shift cutoffs or post-day food corrections need an explicit future policy.

@@ -66,7 +66,7 @@ export class AmendmentsService {
         'ORDER_NOT_AMENDABLE',
         'Preparation has started or this order is terminal. Add replacement food as a new Kitchen round.',
       );
-    await this.bills.lockOpen(c, o.bill_id);
+    await this.bills.lockForFood(c, o.bill_id);
     if (o.revision !== input.expectedRevision)
       this.conflict(
         'ORDER_REVISION_CHANGED',

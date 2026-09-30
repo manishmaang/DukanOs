@@ -25,6 +25,7 @@ export function OrderAmendment({
   round,
   userId,
   canAmend,
+  canChangeFood,
   canCancel,
   disabled,
   onSaved,
@@ -32,6 +33,7 @@ export function OrderAmendment({
   round: BillDetail['orders'][number];
   userId: string;
   canAmend: boolean;
+  canChangeFood: boolean;
   canCancel: boolean;
   disabled: boolean;
   onSaved: () => void;
@@ -165,7 +167,7 @@ export function OrderAmendment({
     .filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
   return (
     <div className="round-amendment">
-      {canAmend && round.status === 'QUEUED' && (
+      {canAmend && canChangeFood && round.status === 'QUEUED' && (
         <button
           className="secondary"
           disabled={disabled || blocked}
@@ -262,6 +264,11 @@ export function OrderAmendment({
               Retry change
             </button>
           </>
+        ) : !canChangeFood ? (
+          <p>
+            This bill is no longer eligible for food changes. Close this dialog
+            to review its history or settlement.
+          </p>
         ) : (
           <>
             {busy && !draft && <p>Loading round…</p>}
