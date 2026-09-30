@@ -169,3 +169,9 @@ Views effective_orders and effective_order_items choose the latest revision, oth
 ## Bill history indexes — 015_bill_history_indexes.sql
 
 Adds bills_business_date_listing_idx(business_date DESC,opened_at DESC,id DESC) and bills_number_history_idx(bill_number,business_date DESC,opened_at DESC,id DESC). These support current-day/inclusive-range listing and global exact Bill-number search in deterministic newest-first order. Existing PK/date-number uniqueness, open-bill index and all guards remain unchanged. No data backfill or table/column changes. Literal case-insensitive reference substring searches remain parameterized scans within the selected scope; pages are bounded at 100. Restaurant-clock/date eligibility is checked by the backend domain under the existing transaction lock, without deriving timezone configuration from database session defaults.
+
+## Reports V1 read models (2026-10-01)
+
+No schema/index migration or record rewrite is added. Reports reads `bills`, `bill_balances`, `orders`, `effective_orders`, `effective_order_items`, `payments`, `order_amendments` and `order_status_history`. Bill business-date filtering selects commercial cohorts; payments and amendments filter timestamp intervals constructed from restaurant-local midnight. Stable menu/variant IDs group effective snapshot values. READY history supplies measured turnaround.
+
+Repeatable-read/read-only transactions keep each aggregate response internally consistent and prevent side effects. Numeric SQL sums and BigInt paise formatting preserve money. Existing Bill date, order Bill/queue, payment Bill, revision and history indexes remain authoritative. Integration fixtures inspect actual report query plans against 1,200 Bills over four months; new indexes are deferred pending demonstrated need. Current cohort balances are not historical closing balances. See [Reports](modules/reports.md) for definitions, bounds and cross-date trend reconciliation.

@@ -1,6 +1,6 @@
 # DukanOS
 
-Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen Display System, Dispatch handover, Bills/Tabs and Cash/UPI payments** implemented.
+Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen Display System, Dispatch handover, Bills/Tabs, Cash/UPI payments and Owner Dashboard/Reports V1** implemented.
 
 ## MVP checkpoint
 
@@ -63,7 +63,7 @@ Liveness does not require DB availability. Readiness checks connectivity only. S
 
 `apps/api` — NestJS; `apps/web` — React POS/kitchen/dispatch/admin routes; `packages/shared-types` — public contracts; `database/migrations` — SQL; `docs` — persistent project context.
 
-Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication, users, backend RBAC, menu, Counter order creation, Kitchen and Dispatch are implemented; Bills and Cash/UPI settlement are implemented; the next proposed milestone is Amendments + Cash Refunds. Do not begin it automatically.
+Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant module documents before changing code. Staff authentication/RBAC, Menu, Counter Orders, Kitchen, Dispatch, Bills/Cash/UPI settlement, operational alerts, queued amendments/cash refunds and Dashboard/Reports V1 are implemented. Further Customers, Credit, deployment and other modules require a separate authorized milestone.
 
 ## Internet outages and hosting
 
@@ -236,3 +236,15 @@ Browser verification: `CHROME_BINARY=/path/to/chromium AMEND_BROWSER_WIDTH=390 n
 **Open Bills** initially shows today’s open and closed bills, using the restaurant timezone. Search `1` or `#1` to find that **Bill number** across all dates; text searches reference/table labels, never Kitchen tokens. **From / To → Apply dates** selects an inclusive range and restricts any search. **Clear dates** preserves search; **Today** clears both. Clearing search with no applied dates returns to Today. Results display business dates and use newest-first, 100-row cursor pages.
 
 Historical bills show **Historical Bill** and cannot accept Add Items or queued food changes/cancellation. Existing food/history remains visible, and legitimate payments, cash refunds and closure remain available under their usual rules. The backend enforces this even for stale carts/direct requests. No historical bill is automatically closed or settled. Apply index-only migration 015 with `npm run db:migrate` before the updated build. All behavior remains local/LAN-capable.
+
+### MVP 2.0 checkpoint
+
+The manually tested operational/financial baseline is the fixed annotated tag **v0.2.0-mvp**, pointing to **e9378f03a367159b065cac95ba49a8c154d940d2** (2026-09-30), before Dashboard/Reports V1. It includes Dispatch, Bills/multi-round tabs, Cash/UPI/partial/split and confirmation payments, reminders/timers/audio, queued amendments, cash refunds, historical Bill guards/search/date filters and responsive support, in addition to the first MVP. Never move either MVP tag. To inspect this source baseline, create a branch with `git switch -c recovery/mvp-2 v0.2.0-mvp`. Git checkpoints do not contain PostgreSQL data, uploads or local configuration and do not reverse migrations.
+
+## Owner Dashboard and Reports V1
+
+Sign in as OWNER or MANAGER and choose **Dashboard** for today's sales, Bills, cash flow, balances, top portions, service mix and Kitchen summary. Choose **Reports** for Sales, Payments, Items or Operations. Select Yesterday, Last 7 Days, This Month or paired inclusive Custom dates (up to 366 days); use Refresh for live changes. Today refreshes once per minute while visible. CASHIER/KITCHEN/DISPATCH do not receive financial report access by default.
+
+Sales means current effective Bill value, including open unpaid Bills. Collections are actual Cash/UPI ledger receipts by recording date; Net Collected subtracts recorded cash refunds. Refunds are never subtracted again from amended Sales. Due/refund due are current balances of selected Bills, not historical closing balances. Legacy unknown receipts/service remain explicitly unknown. Item reports use effective snapshot prices and stable item/portion IDs. See [Reports definitions and API contracts](docs/modules/reports.md) before interpreting historical periods.
+
+No migration, seed, runtime internet dependency or operational-data change is required for Reports. Browser verification: `CHROME_BINARY=/path/to/chrome npm run test:reports-browser`; financial/date/read-only/performance tests run with `npm run test:integration`. No exports, customer/profit/credit analytics or tax-filing claims are included.

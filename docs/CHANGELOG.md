@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-01 — Owner Dashboard and Reports V1
+
+- Add reports.read Dashboard and separate Sales/Payments/Items/Operations reports using read-only, repeatable-read PostgreSQL aggregates and shared contracts.
+- Separate effective Bill sales, event-date Cash/UPI collections/refunds, net cash flow and current due; preserve legacy unknowns and amendment/cancellation/multi-round integrity.
+- Add restaurant-date periods, reconciled hourly/daily trends, stable portion identity, paginated item sorting, service mix and recorded Kitchen turnaround.
+- Add responsive touch screens, local accessible CSS charts, one-minute Today refresh, explicit loading/retry and isolated financial/date/permission/read-only/performance/browser coverage.
+- Preserve both MVP tags, all operational data and schema; no new migration or reporting infrastructure.
+- Passed npm run check, all 133 PostgreSQL tests, new Reports browser workflows and existing responsive/Menu/POS/Kitchen/Dispatch/Bills/alerts/audio/amendments regressions. External traffic was blocked. Fixed the Menu regression harness to wait for orientation reflow before measuring the cart; POS behavior is unchanged.
+- Reviewed report screenshots for mobile long item names, tablet date controls/charts and compact desktop summaries. All eight prescribed sizes plus 390×420 passed; physical-device/browser limitations remain documented.
+
+## 2026-09-30 — MVP 2.0 checkpoint
+
+- Documented the existing fixed v0.2.0-mvp tag at e9378f0 as the manually tested operational/financial baseline before Dashboard/Reports V1. Neither MVP checkpoint is moved.
+
 ## 2026-09-30 — Bill business dates and scoped history
 
 - Block new rounds and queued food amendments/cancellation on non-current business-date Bills using the shared restaurant PostgreSQL clock; preserve successful retries and historical financial reconciliation.

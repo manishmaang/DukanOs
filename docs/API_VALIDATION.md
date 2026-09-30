@@ -66,3 +66,7 @@ POST /orders/:id/amendments/quote and /amendments require UUIDv4 route/request I
 POST /bills/:id/refunds accepts only UUIDv4 requestId and positive decimal-string amount (<=12 integral digits, <=2 decimals). No method/type override is accepted. Current refund_due caps the receipt under the shared lock, and database constraints independently require CASH and immutable ledger. Same actor/key with different event type or payload conflicts.
 
 Order quote/confirmation and new amendment quote/commit additionally require current-day OPEN parent Bills; another business date yields BILL_NOT_CURRENT_BUSINESS_DATE (409). This does not restrict successful idempotent replay, financial reconciliation or historical reads.
+
+## Dashboard / Reports V1
+
+GET /dashboard and /reports/sales, /payments, /items, /operations require reports.read and reject request bodies. ReportPeriodDto validates optional enum period and YYYY-MM-DD from/to strings; domain checks reject impossible dates, one-sided/custom-conflicting ranges, reversed dates and ranges longer than 366 inclusive days. Items alone permits QUANTITY/SALES sort and page 1–99999, with fifty rows per page. Nulls, repeated query arrays and unknown keys fail existing strict validation. SQL parameters handle date/page values; finite validated choices select ordering only. Aggregates execute in read-only repeatable-read transactions with an eight-second per-statement timeout. No endpoint can alter source records.

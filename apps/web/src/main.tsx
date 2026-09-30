@@ -1,3 +1,4 @@
+import { ReportsWorkspace } from './Reports';
 import { OperationalAudioProvider } from './OperationalAudio';
 import { useVisualViewport } from './useVisualViewport';
 import { Dispatch } from './Dispatch';
@@ -230,7 +231,12 @@ function App() {
                   key={link.path}
                   path={link.path}
                   element={
-                    link.path === '/dispatch' ? (
+                    link.path === '/dashboard' || link.path === '/reports' ? (
+                      <ReportsWorkspace
+                        key={user.id + link.path}
+                        dashboard={link.path === '/dashboard'}
+                      />
+                    ) : link.path === '/dispatch' ? (
                       <Dispatch
                         canCollect={user.permissions.includes(
                           'payments.collect',

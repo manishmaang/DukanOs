@@ -1,3 +1,4 @@
+import { ReportsModule } from './modules/reports/reports.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { KitchenModule } from './modules/kitchen/kitchen.module';
@@ -16,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module';
     KitchenModule,
     DispatchModule,
     AlertsModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
 })

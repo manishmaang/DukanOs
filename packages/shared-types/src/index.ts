@@ -70,3 +70,4 @@ export type * from './bills';
 export type * from './alerts';
 
 export type * from './amendments';
+export type * from './reports';

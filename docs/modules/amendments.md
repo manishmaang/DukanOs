@@ -10,7 +10,7 @@ Explicit CANCEL produces a zero-valued revision plus append-only QUEUED → CANC
 
 Migration 014 adds `order_amendments` (header, complete revision totals, actor/time/reason/note, actor-scoped request ID/hash) and `order_item_revisions` (complete current line snapshot for each retained logical line). Original `orders` monetary/tax snapshots and `order_items` stay immutable. Revision 0 is the original confirmation; committed revisions increase by one. Original logical line IDs remain stable, including for replacements, and cannot be reintroduced after removal. Retained quantities cannot exceed the preceding revision.
 
-`effective_orders` selects original or latest revision totals. `effective_order_items` selects original or latest revision lines, never both. Cancel revisions have zero totals and no effective items. Bills, generic current-order reads, Kitchen/Production, Dispatch and active timer associations use these projections. Future item-sales reports must use effective items (with appropriate lifecycle/date policy), not raw original order_items. This supplies reporting data, not a Reports module.
+`effective_orders` selects original or latest revision totals. `effective_order_items` selects original or latest revision lines, never both. Cancel revisions have zero totals and no effective items. Bills, generic current-order reads, Kitchen/Production, Dispatch and active timer associations use these projections. Reports V1 consumes effective items with its documented Bill-cohort/date policy, not raw original order_items. Refund ledger entries never reduce effective Sales a second time.
 
 Revision headers and lines reject updates/deletes. Late line inserts into already committed revisions fail. Deferred constraints require a complete nonempty CHANGE aggregate whose line sum matches its subtotal; CANCEL must have zero items/total and corresponding cancellation history. Per-order revision uniqueness, actor/key uniqueness, restrictive FKs, bounded exact numerics and variant/item ownership checks protect integrity. No existing sale, receipt, timer or reminder is fabricated or backfilled.
 
@@ -71,7 +71,7 @@ Phone dialogs use viewport-bounded scrolling, wrapping content and 44px controls
 
 Run npm run check, npm run test:integration and npm run test:amendments-browser with CHROME_BINARY. AMEND_BROWSER_WIDTH=390|768|1024|1440 runs one touch workflow plus all eight boundary layouts; run all four values for full coverage. Tests use disposable PostgreSQL schemas and blocked external requests.
 
-No post-preparation corrections, arbitrary discounts, payment voids, UPI refunds, Customers/Credit/Reports/integrations/inventory or new infrastructure. Production tax settings and physical-device smoke testing remain operator responsibilities. Local schema migration must be applied before the new build runs; preserve normal database/media backups.
+No post-preparation corrections, arbitrary discounts, payment voids, UPI refunds, Customers/Credit/integrations/inventory or new infrastructure. Production tax settings and physical-device smoke testing remain operator responsibilities. Local schema migration must be applied before the new build runs; preserve normal database/media backups.
 
 ## Local migration verification — 2026-09-30
 
