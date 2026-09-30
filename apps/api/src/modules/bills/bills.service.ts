@@ -1,3 +1,4 @@
+import { RestaurantClock } from '../../database/restaurant-clock';
 import {
   BadRequestException,
   ConflictException,
@@ -22,7 +23,10 @@ import { amount, paise } from '../orders/order-policy';
 import type { BillsQueryDto, CollectPaymentDto, RefundDto } from './bills.dto';
 @Injectable()
 export class BillsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly clock: RestaurantClock,
+  ) {}
   async authorize(
     c: PoolClient,
     actor: AuthRequest,
@@ -56,7 +60,10 @@ export class BillsService {
   }
   async lockOpen(c: PoolClient, id: string) {
     const row = (
-      await c.query('SELECT status FROM bills WHERE id=$1 FOR UPDATE', [id])
+      await c.query(
+        'SELECT status,business_date::text AS business_date FROM bills WHERE id=$1 FOR UPDATE',
+        [id],
+      )
     ).rows[0];
     if (!row)
       throw new NotFoundException({
@@ -67,6 +74,17 @@ export class BillsService {
       throw new ConflictException({
         code: 'BILL_CLOSED',
         message: 'This bill is closed. Start a new bill.',
+      });
+    return row;
+  }
+  async lockForFood(c: PoolClient, id: string, date?: string) {
+    const row = await this.lockOpen(c, id);
+    const current = date ?? (await this.clock.read(c)).business_date;
+    if (row.business_date !== current)
+      throw new ConflictException({
+        code: 'BILL_NOT_CURRENT_BUSINESS_DATE',
+        message:
+          'Food cannot be added or changed on a bill from another business date. Start a new bill.',
       });
   }
   async createForOrder(
@@ -90,7 +108,12 @@ export class BillsService {
     );
     return id;
   }
-  async summary(c: PoolClient, id: string): Promise<BillSummary> {
+  async summary(
+    c: PoolClient,
+    id: string,
+    currentBusinessDate?: string,
+  ): Promise<BillSummary> {
+    currentBusinessDate ??= (await this.clock.read(c)).business_date;
     const r = (
       await c.query(
         `SELECT b.id,b.business_date::text AS "businessDate",b.bill_number AS "billNumber",b.service_type AS "serviceType",b.legacy,b.reference,b.status,b.opened_at AS "openedAt",b.closed_at AS "closedAt",f.bill_total::text AS "billTotal",f.total_collected::text AS "totalCollected",f.total_refunded::text AS "totalRefunded",f.net_paid::text AS "netPaid",f.amount_due::text AS "amountDue",f.refund_due::text AS "refundDue" FROM bills b JOIN bill_balances f ON f.id=b.id WHERE b.id=$1`,
@@ -113,6 +136,9 @@ export class BillsService {
       r[key] = amount(paise(r[key]));
     return {
       ...r,
+      currentBusinessDate,
+      canChangeFood:
+        r.status === 'OPEN' && r.businessDate === currentBusinessDate,
       openedAt: r.openedAt.toISOString(),
       closedAt: r.closedAt?.toISOString() ?? null,
       paymentStatus:
@@ -157,10 +183,49 @@ export class BillsService {
     });
   }
   list(q: BillsQueryDto): Promise<BillList> {
+    const search = q.search?.trim() ?? '';
+    const from = q.fromBusinessDate,
+      to = q.toBusinessDate;
+    const validDate = (value: string) => {
+      const parsed = new Date(value + 'T00:00:00Z');
+      return (
+        !Number.isNaN(parsed.getTime()) &&
+        parsed.toISOString().slice(0, 10) === value &&
+        value >= '0001-01-01'
+      );
+    };
+    if (
+      (from === undefined) !== (to === undefined) ||
+      (from !== undefined &&
+        to !== undefined &&
+        (!validDate(from) || !validDate(to) || from > to))
+    )
+      throw new BadRequestException({
+        code: 'INVALID_DATE_RANGE',
+        message:
+          'Provide valid From and To business dates, with From no later than To.',
+      });
+    const parsedNumber = /^#?\d+$/.test(search)
+      ? BigInt(search.replace(/^#/, ''))
+      : null;
+    const number =
+      parsedNumber === null
+        ? null
+        : parsedNumber <= 2147483647n
+          ? parsedNumber.toString()
+          : '0';
     return this.db.transaction(async (c) => {
       await c.query(
         'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY',
       );
+      const currentBusinessDate = (await this.clock.read(c)).business_date;
+      const scope = from
+        ? ('RANGE' as const)
+        : search
+          ? ('HISTORY' as const)
+          : ('TODAY' as const);
+      const lower = from ?? (search ? null : currentBusinessDate);
+      const upper = to ?? (search ? null : currentBusinessDate);
       if (
         q.after &&
         !(await c.query('SELECT 1 FROM bills WHERE id=$1', [q.after])).rowCount
@@ -171,14 +236,25 @@ export class BillsService {
         });
       const rows = (
         await c.query(
-          `SELECT id FROM bills WHERE status='OPEN' AND ($1::uuid IS NULL OR (opened_at,id)>(SELECT opened_at,id FROM bills WHERE id=$1)) AND ($2='' OR strpos(lower(reference),lower($2))>0 OR bill_number::text=$2) ORDER BY opened_at,id LIMIT 101`,
-          [q.after ?? null, q.search?.trim() ?? ''],
+          `SELECT id FROM bills
+         WHERE ($1::uuid IS NULL OR (business_date,opened_at,id)<(SELECT business_date,opened_at,id FROM bills WHERE id=$1))
+         AND ($2::date IS NULL OR business_date >= $2) AND ($3::date IS NULL OR business_date <= $3)
+         AND ($4='' OR CASE WHEN $5::text IS NOT NULL THEN bill_number=$5::integer ELSE strpos(lower(reference),lower($4))>0 END)
+         ORDER BY business_date DESC,opened_at DESC,id DESC LIMIT 101`,
+          [q.after ?? null, lower, upper, search, number],
         )
       ).rows;
       const bills: BillSummary[] = [];
       for (const r of rows.slice(0, 100))
-        bills.push(await this.summary(c, r.id));
-      return { bills, nextCursor: rows.length > 100 ? bills[99]!.id : null };
+        bills.push(await this.summary(c, r.id, currentBusinessDate));
+      return {
+        bills,
+        nextCursor: rows.length > 100 ? bills[99]!.id : null,
+        currentBusinessDate,
+        scope,
+        fromBusinessDate: lower,
+        toBusinessDate: upper,
+      };
     });
   }
   /** Called by Orders only on its existing authorized confirmation transaction. */

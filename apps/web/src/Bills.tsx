@@ -42,6 +42,10 @@ export function Bills({
     if (initialId) setId(initialId);
   }, [initialId]);
   const [query, setQuery] = useState('');
+  const [from, setFrom] = useState(''),
+    [to, setTo] = useState('');
+  const [range, setRange] = useState<{ from: string; to: string }>();
+
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState('');
@@ -67,16 +71,23 @@ export function Bills({
         }
       } else {
         const next = await api<BillList>(
-          `/bills?search=${encodeURIComponent(query)}${cursor ? '&after=' + cursor : ''}`,
+          `/bills?search=${encodeURIComponent(query)}${range ? '&fromBusinessDate=' + range.from + '&toBusinessDate=' + range.to : ''}${cursor ? '&after=' + cursor : ''}`,
         );
-        if (current === revision.current) setList(next);
+        if (current === revision.current) {
+          setList(next);
+          setError('');
+        }
       }
     } catch (e) {
-      setError(errorMessage(e));
+      if (current === revision.current) {
+        setError(errorMessage(e));
+        setList(undefined);
+      }
     }
-  }, [id, query, cursor, audio]);
+  }, [id, query, range, cursor, audio]);
   useEffect(() => {
     setBill(undefined);
+    setList(undefined);
     setError('');
     setValue('');
     setRecoveryBlocked(false);
@@ -164,7 +175,7 @@ export function Bills({
   return (
     <section className="bills-workspace">
       <div className="bill-toolbar">
-        <h1>{id ? 'Bill details' : 'Open Bills'}</h1>
+        <h1>{id ? 'Bill details' : 'Bills'}</h1>
         <button className="secondary" disabled={busy} onClick={onBack}>
           Back to POS
         </button>
@@ -185,25 +196,102 @@ export function Bills({
       {error && <p role="alert">{error}</p>}
       {!id && (
         <>
-          <label>
-            Find table, reference or bill number
-            <input
-              aria-label="Find bill"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
+          <div className="bill-filters">
+            <label>
+              Find reference or bill number (1 or #1)
+              <input
+                aria-label="Find bill"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setCursor(undefined);
+                }}
+              />
+            </label>
+            <form
+              className="bill-date-range"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (from > to) {
+                  setError('From must be on or before To.');
+                  return;
+                }
+                setRange({ from, to });
                 setCursor(undefined);
               }}
-            />
-          </label>
+            >
+              <label>
+                From
+                <input
+                  aria-label="From business date"
+                  type="date"
+                  required
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </label>
+              <label>
+                To
+                <input
+                  aria-label="To business date"
+                  type="date"
+                  required
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </label>
+              <button type="submit">Apply dates</button>
+              {range && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    setRange(undefined);
+                    setFrom('');
+                    setTo('');
+                    setCursor(undefined);
+                  }}
+                >
+                  Clear dates
+                </button>
+              )}
+            </form>
+            <button
+              className="secondary"
+              onClick={() => {
+                setQuery('');
+                setRange(undefined);
+                setFrom('');
+                setTo('');
+                setCursor(undefined);
+                setError('');
+              }}
+            >
+              Today
+            </button>
+          </div>
+          {list && (
+            <p className="bill-scope" role="status">
+              {list.scope === 'TODAY'
+                ? `Today · ${list.currentBusinessDate}`
+                : list.scope === 'HISTORY'
+                  ? 'Search · All business dates'
+                  : `${query.trim() ? 'Search within' : 'Business dates'} ${list.fromBusinessDate} → ${list.toBusinessDate}`}
+              {' · Open and closed bills · Newest first'}
+            </p>
+          )}
+          {!list && !error && <p role="status">Loading bills…</p>}
           <div className="bill-grid">
             {list?.bills.map((b) => (
-              <article className="bill-card" key={b.id}>
-                <h2>{b.reference || `Bill #${b.billNumber}`}</h2>
+              <article className="bill-card" key={b.id} data-bill-id={b.id}>
+                <h2>Bill #{b.billNumber}</h2>
+                {b.reference && <p>{b.reference}</p>}
+                <p>
+                  <strong>{b.businessDate}</strong> · {b.status}
+                </p>
                 <p>
                   {b.serviceType?.replace('_', ' ') ??
                     'Legacy · service unknown'}{' '}
-                  · #{b.billNumber} · {b.businessDate}
                 </p>
                 <p>
                   Total ₹{rupees(b.billTotal)} · Paid ₹{rupees(b.netPaid)}
@@ -226,7 +314,15 @@ export function Bills({
               </article>
             ))}
           </div>
-          {list && !list.bills.length && <p>No open bills found.</p>}
+          {list && !list.bills.length && (
+            <p>
+              {query.trim()
+                ? 'No bills matched your search.'
+                : list.scope === 'RANGE'
+                  ? 'No bills found in this date range.'
+                  : 'No bills today.'}
+            </p>
+          )}
           {cursor && (
             <button onClick={() => setCursor(undefined)}>First page</button>
           )}
@@ -246,6 +342,14 @@ export function Bills({
             {bill.serviceType?.replace('_', ' ') ?? 'Legacy · service unknown'}{' '}
             · {bill.status}
           </p>
+          {bill.businessDate !== bill.currentBusinessDate && (
+            <p className="bill-historical">
+              <strong>Historical Bill · {bill.businessDate}</strong>
+              <br />
+              Food cannot be added or changed on a bill from another business
+              date.
+            </p>
+          )}
           {bill.legacy && (
             <p>
               Imported order: service and historical payments were not recorded.
@@ -278,12 +382,14 @@ export function Bills({
           </p>
           {bill.status === 'OPEN' && (
             <div className="bill-toolbar">
-              <button
-                disabled={busy || !!pending || recoveryBlocked}
-                onClick={() => onAdd(bill)}
-              >
-                Add Items
-              </button>
+              {bill.canChangeFood && (
+                <button
+                  disabled={busy || !!pending || recoveryBlocked}
+                  onClick={() => onAdd(bill)}
+                >
+                  Add Items
+                </button>
+              )}
               <button
                 className="secondary"
                 disabled={
@@ -430,7 +536,8 @@ export function Bills({
                 <OrderAmendment
                   round={o}
                   userId={userId}
-                  canAmend={canAmend && bill.status === 'OPEN'}
+                  canAmend={canAmend}
+                  canChangeFood={bill.canChangeFood}
                   canCancel={canCancel}
                   disabled={busy || !!pending || recoveryBlocked}
                   onSaved={() => {

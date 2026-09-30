@@ -2,7 +2,7 @@
 
 ## Purpose and rules
 
-Correct a confirmed **QUEUED Counter round** without replacing its order ID, token, business date, Bill or FIFO timestamp. Replacement dish/portion, reduced quantity, removed line and instruction changes are supported. Additional food/quantity always uses **Add Items → new Kitchen round/token → same open Bill**. PREPARING, READY, COMPLETED and CANCELLED rounds cannot be directly changed. Post-preparation commercial corrections and waste/inventory handling remain unimplemented.
+Correct a confirmed **QUEUED Counter round on an OPEN, current-business-date Bill** without replacing its order ID, token, business date, Bill or FIFO timestamp. Replacement dish/portion, reduced quantity, removed line and instruction changes are supported. Additional food/quantity always uses **Add Items → new Kitchen round/token → same open Bill**. PREPARING, READY, COMPLETED and CANCELLED rounds cannot be directly changed. Post-preparation commercial corrections and waste/inventory handling remain unimplemented.
 
 Explicit CANCEL produces a zero-valued revision plus append-only QUEUED → CANCELLED status history. It requires a reason and never recycles the token. Removing the final line must use this cancellation operation; there is no delete or generic PATCH. Closed bills reject new amendments/refunds. Cancelled rounds count as terminal for Bill closure, alongside completed rounds.
 
@@ -76,3 +76,7 @@ No post-preparation corrections, arbitrary discounts, payment voids, UPI refunds
 ## Local migration verification — 2026-09-30
 
 Migration 014 was applied with the normal migration runner. Before/after row counts and SHA-256 fingerprints matched for all 23 pre-existing operational tables; only migration and RBAC metadata gained the intended entries. Existing 23 orders, 21 bills, 14 payments, 92 status records, users, menu/image metadata, audits, reminders and timers were preserved. Both new revision tables started empty. The migration does not access or alter local image files. The updated local API passed its readiness check.
+
+## Business-date cutoff (2026-09-30)
+
+New amendment quotes/commits, including cancellation and instruction-only changes, require the parent Bill to belong to the current restaurant business date. BILL_NOT_CURRENT_BUSINESS_DATE rejects stale-day food changes even if the round is still QUEUED. The date is read from the shared PostgreSQL restaurant clock after locking; a quote spanning midnight is revalidated at commit. Successful same-request replay remains safe after midnight. Historical audit reads and legitimate collection/refund/closure are not blocked by this food-only rule. Frontend hides new food controls using backend canChangeFood while preserving pending-request recovery.

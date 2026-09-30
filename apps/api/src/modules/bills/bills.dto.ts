@@ -12,6 +12,15 @@ export class CollectPaymentDto {
   @IsString() @Matches(/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/) amount!: string;
 }
 export class BillsQueryDto {
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  fromBusinessDate?: string;
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  toBusinessDate?: string;
+
   @ValidateIf((_o, v) => v !== undefined) @IsUUID('4') after?: string;
   @ValidateIf((_o, v) => v !== undefined)
   @IsString()

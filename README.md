@@ -196,7 +196,7 @@ Set CHROME_BINARY to local Chromium and run `npm run test:responsive-browser` fo
 Apply migration 012 using `npm run db:migrate`, then build/restart the API. Existing orders become marked legacy bills; no service type or historical payment is invented. Review legacy financial history before collecting any displayed balance.
 
 1. In POS, add dishes, choose **Dine In** or **Takeaway** in Current Order, and optionally enter **Table / Reference** (for example Table 4). Confirm creates a Bill and first Kitchen token atomically.
-2. Use **View Bill / Payment**, or **Open Bills** to find a tab. **Add Items** creates another token under that bill; prior tokens stay unchanged.
+2. Use **View Bill / Payment**, or **Open Bills** to find a tab. **Add Items** creates another token only for an OPEN bill on the current restaurant business date; prior tokens stay unchanged.
 3. Record money received using **Cash** or **UPI**, including partial amounts. The system records receipt; it does not verify UPI or generate QR codes. Bill history shows actor/time and immutable collections.
 4. Dine In tokens may be served unpaid. Takeaway handover is blocked until its whole current bill due is zero. CASHIER+DISPATCH can use **Collect Payment** from Dispatch; pure DISPATCH cannot collect.
 5. After every round completes and balance settles, explicitly **Close Bill**. Payment alone leaves a tab open. Closed bills reject more food/collections.
@@ -230,3 +230,9 @@ Apply migration 014 (`npm run db:migrate`) before running this build. In POS →
 Collect additional due through the existing Cash/UPI form. If **CASH REFUND DUE** appears, enter cash actually returned and **Confirm Cash Refund**; partial refunds are supported and there is no UPI refund option. Changes and payment history preserve originals, actors and amounts. An uncertain request offers safe retry; do not exchange money again. See [Amendments](docs/modules/amendments.md) for rules, recovery, tax snapshots and concurrency.
 
 Browser verification: `CHROME_BINARY=/path/to/chromium AMEND_BROWSER_WIDTH=390 npm run test:amendments-browser`; repeat with 768, 1024 and 1440 for all touch workflow classes. Tests use isolated local fixtures, not restaurant data.
+
+### Bills: Today, dates and historical search
+
+**Open Bills** initially shows today’s open and closed bills, using the restaurant timezone. Search `1` or `#1` to find that **Bill number** across all dates; text searches reference/table labels, never Kitchen tokens. **From / To → Apply dates** selects an inclusive range and restricts any search. **Clear dates** preserves search; **Today** clears both. Clearing search with no applied dates returns to Today. Results display business dates and use newest-first, 100-row cursor pages.
+
+Historical bills show **Historical Bill** and cannot accept Add Items or queued food changes/cancellation. Existing food/history remains visible, and legitimate payments, cash refunds and closure remain available under their usual rules. The backend enforces this even for stale carts/direct requests. No historical bill is automatically closed or settled. Apply index-only migration 015 with `npm run db:migrate` before the updated build. All behavior remains local/LAN-capable.

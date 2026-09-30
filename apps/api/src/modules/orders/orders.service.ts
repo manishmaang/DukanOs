@@ -1,3 +1,4 @@
+import { RestaurantClock } from '../../database/restaurant-clock';
 import { BillsService } from '../bills/bills.service';
 import {
   BadRequestException,
@@ -26,6 +27,7 @@ export class OrdersService {
     private readonly db: DatabaseService,
     private readonly menu: MenuService,
     private readonly bills: BillsService,
+    private readonly clock: RestaurantClock,
   ) {}
   config() {
     return this.configuration;
@@ -160,6 +162,13 @@ export class OrdersService {
       const payable =
         paise(existingDue) - paise(existingRefund) + paise(total.grandTotal);
       const due = payable > 0n ? payable : 0n;
+      const timing = await this.clock.read(client);
+      if (input.billId)
+        await this.bills.lockForFood(
+          client,
+          input.billId,
+          timing.business_date,
+        );
       if (quoteOnly)
         return {
           roundTotal: total.grandTotal,
@@ -183,12 +192,6 @@ export class OrdersService {
               'Record a positive collection no greater than the current bill due.',
           });
       }
-      const timing = (
-        await client.query<{ queued_at: Date; business_date: string }>(
-          'SELECT t AS queued_at,(t AT TIME ZONE $1)::date::text AS business_date FROM (SELECT clock_timestamp() AS t) stamp',
-          [this.configuration.timezone],
-        )
-      ).rows[0]!;
       const token = (
         await client.query<{ last_token: number }>(
           'INSERT INTO order_daily_tokens(business_date,last_token) VALUES($1,1) ON CONFLICT(business_date) DO UPDATE SET last_token=order_daily_tokens.last_token+1 RETURNING last_token',

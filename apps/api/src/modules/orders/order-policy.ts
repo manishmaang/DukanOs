@@ -1,3 +1,4 @@
+import { restaurantTimezone } from '../../database/restaurant-clock';
 import type { OrderConfiguration, OrderStatus } from '@dukanos/shared-types';
 export function paise(value: string): bigint {
   if (!/^\d+(\.\d{1,2})?$/.test(value)) throw new Error('Invalid exact amount');
@@ -19,12 +20,7 @@ export function totals(subtotal: bigint, rate: string) {
 export function orderConfiguration(
   env: NodeJS.ProcessEnv = process.env,
 ): OrderConfiguration {
-  const timezone = env.RESTAURANT_TIMEZONE ?? 'Asia/Kolkata';
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: timezone }).format();
-  } catch {
-    throw new Error('RESTAURANT_TIMEZONE must be a valid IANA timezone');
-  }
+  const timezone = restaurantTimezone(env);
   const taxRate = env.ORDER_TAX_RATE ?? '0';
   if (!/^\d{1,3}(\.\d{1,2})?$/.test(taxRate) || paise(taxRate) > 10000n)
     throw new Error(

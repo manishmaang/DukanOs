@@ -101,3 +101,7 @@ The same transaction creates/attaches the bill, order/items/history/token and up
 ## Amendment integration (014)
 
 Original confirmed records remain immutable; append-only full revisions supply effective items and totals through shared SQL views. Generic reads include revision (0 initially); original confirmation retry keeps its original receipt snapshots. Only QUEUED rounds on open Bills may change. Retain original tax configuration, use current Counter price for replacements, snapshot price for reductions/removals, and new rounds for additional food. CANCEL has zero effective food/total and permanent history/token. See [Amendments](amendments.md) for quote, audit, idempotency and race policy.
+
+## Current-day parent Bill requirement
+
+Additional food requires an OPEN parent Bill whose business_date equals the current restaurant business date. Quote and confirmation reject other dates with BILL_NOT_CURRENT_BUSINESS_DATE before allocating tokens or persisting food/payment. RestaurantClock centralizes the existing PostgreSQL clock/timezone conversion; confirmation uses one captured instant for eligibility, queued_at and token date after the restaurant lock. Successfully committed idempotency replays remain valid across midnight. No older Bill is silently closed or altered. See Bills for listing/search scopes.
