@@ -361,3 +361,19 @@ Default listing to Today, search alone to all history, and paired dates to an in
 ### Consequences
 
 Food cannot be changed after restaurant midnight even if an old round remains queued. Financial and Kitchen lifecycle rules remain independent. Date filters and eligibility come from the server, not device clocks. Two additive indexes support the new query order; no old records or monetary history are rewritten. More flexible shift cutoffs or post-day food corrections need an explicit future policy.
+
+## 018 — Read-only reporting with separate sales and cash-flow attribution
+
+Date: 2026-10-01.
+
+### Context and options considered
+
+Bills may be paid partially, amended, refunded and contain several Kitchen rounds. Original item rows and payment totals independently misstate effective sales. Considered payment-based sales, raw item aggregation, cached/precomputed reporting, and direct effective projections. Legacy Bills lack reliable service/payment history and may predate same-day food restrictions.
+
+### Decision
+
+Read current effective commercial values by immutable Bill business-date cohort, including open Bills. Group items by stable menu/variant IDs using effective snapshot quantities/prices. Attribute trend to original round confirmation, exposing an explicit outside-period bucket for old cross-date Bills. Read cash collections/refunds and amendment events by their own restaurant-local recording dates. Keep current cohort due/refund due separate; do not assert unknown legacy receipts or debt. Use existing reports.read grants and read-only repeatable-read aggregate SQL with bounded inputs, without new reporting tables or infrastructure.
+
+### Reason and consequences
+
+This matches real food sold and real money movement without double subtraction, fabricated tender or multiplying multi-round Bills. Each response is coherent during operational writes. Historical reports restate effective sales and current balances rather than claiming immutable day-end accounting. Cash flow can differ from sales or be negative on a refund-only day. Future Reports V2 must retain these definitions or explicitly name a distinct accounting view. No production data or permission migration is needed.

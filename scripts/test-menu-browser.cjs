@@ -976,6 +976,9 @@ const { UsersService } = require(
         deviceScaleFactor: 1,
         mobile: false,
       });
+      await wait(
+        "document.querySelector('.order-cart')?.getBoundingClientRect().width > 0 && Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--usable-height')) - innerHeight) < 1",
+      );
       await evaluate('window.scrollTo(0,0)');
       const cartLayout = await evaluate(
         "(()=>{const c=document.querySelector('.order-cart'),i=document.querySelector('.cart-items'),b=document.querySelector('.confirm-order');return {width:c.getBoundingClientRect().width,scroll:i.scrollHeight>i.clientHeight,buttonBottom:b.getBoundingClientRect().bottom,viewport:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth};})()",
@@ -998,6 +1001,9 @@ const { UsersService } = require(
         deviceScaleFactor: 1,
         mobile: false,
       });
+      await wait(
+        "document.querySelector('.mobile-order-trigger')?.getBoundingClientRect().width > 0",
+      );
       await evaluate("document.querySelector('.mobile-order-trigger').click()");
       await wait("!!document.querySelector('.cart-dialog:modal')");
       assert.ok(

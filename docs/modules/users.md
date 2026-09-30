@@ -20,7 +20,7 @@ Every user has exactly one privileged role (OWNER or MANAGER) OR a nonempty subs
 | MANAGER  | All operational capabilities plus menu.manage, reports.read, payments.refund, orders.cancel, orders.prioritize, credit.adjust, users.password.reset |
 | OWNER    | All MANAGER capabilities plus users.manage                                                                                                          |
 
-Permission grants are explicit rows, not a hard-coded privileged bypass. Some capability names (reports, priority and credit) remain reserved contracts; their business actions are not yet implemented. Role/permission administration APIs are not exposed; future matrix changes require reviewed migrations.
+Permission grants are explicit rows, not a hard-coded privileged bypass. reports.read now governs Dashboard and Reports V1. Priority and credit capabilities remain reserved contracts; their business actions are not yet implemented. Role/permission administration APIs are not exposed; future matrix changes require reviewed migrations.
 
 ## APIs
 

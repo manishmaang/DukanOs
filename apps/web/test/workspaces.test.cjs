@@ -21,3 +21,22 @@ test('multi-role workspaces follow capabilities, not role names', () => {
   user.permissions = [];
   assert.deepEqual(allowedWorkspaces(user), []);
 });
+
+test('financial workspaces require reports.read, independent of staff administration', () => {
+  const user = {
+    id: 'x',
+    name: 'Reader',
+    roles: ['CASHIER', 'KITCHEN', 'DISPATCH'],
+    permissions: ['orders.create', 'kitchen.read', 'dispatch.read'],
+  };
+  assert.ok(
+    !allowedWorkspaces(user).some((w) =>
+      ['Dashboard', 'Reports'].includes(w.label),
+    ),
+  );
+  user.permissions = ['reports.read'];
+  assert.deepEqual(
+    allowedWorkspaces(user).map((w) => w.label),
+    ['Dashboard', 'Reports'],
+  );
+});

@@ -2,8 +2,8 @@
 
 ## Repository
 
-- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu/Orders/Kitchen/Dispatch modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
-- `apps/web`: one React application, with hash routes for POS, kitchen, dispatch, and administration.
+- `apps/api`: NestJS entry point, HTTP configuration, health module; Auth/Users/Menu/Orders/Kitchen/Dispatch/Reports modules under `src/modules/<domain>` and shared database infrastructure under `src/database`.
+- `apps/web`: one React application, with hash routes for POS, kitchen, dispatch, administration, Dashboard and Reports.
 - `packages/shared-types`: compile-time public contracts only; no runtime database models or business logic.
 - `database/migrations`: ordered, immutable SQL migrations.
 - `scripts/migrate.mjs`: PostgreSQL migration runner.
@@ -108,3 +108,9 @@ A frontend OperationalAudio coordinator consumes those existing projections, nev
 Orders owns amendment quote/commit/history commands; Bills continues to own the immutable financial ledger. Original confirmation rows are never repurposed as mutable state. Two shared SQL views select complete latest revisions for current operational/financial consumers, avoiding per-module reconstruction. Kitchen and Dispatch retain existing polling, FIFO/ready order and operational-only contracts. Bills aggregates effective totals and derives due/refund due against unchanged ledger. Original confirmation idempotency returns original receipt snapshots; current reads expose effective revision state. See decision 016 and modules/amendments.md. No new service, provider, scheduler or network dependency is introduced.
 
 RestaurantClock is a small shared provider alongside the database connection. Orders and Bills use the same PostgreSQL timestamp/IANA-timezone conversion for token dates, Today queries and food-change eligibility. It adds no scheduler, persisted clock, frontend date inference or external dependency.
+
+## Reporting boundary
+
+ReportsModule reads existing Bills/effective Orders/Payments/revision/history projections through DatabaseService and RestaurantClock. It owns no writes or new ledger. Five aggregate GET APIs require reports.read and return shared typed decimal-string contracts. Each response uses a REPEATABLE READ, READ ONLY transaction with an eight-second statement timeout, inclusive bounded date scope and fifty-group item pages. No advisory write lock or external service is required.
+
+Sales and item metrics use the Bill cohort's current effective values; ledger and amendment events use their restaurant-local event dates. See [Reports](modules/reports.md) and decision 018 for exact semantics and legacy handling. React renders summaries/CSS bars with visible values, not browser-side aggregation of raw orders. Dashboard and Reports refresh Today every 60 seconds while visible and offer manual retry/refresh. No materialized reporting infrastructure is introduced.
