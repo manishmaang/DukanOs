@@ -37,7 +37,7 @@ Counter or provider → normalized order → queued → preparing → ready → 
 
 ## Pending work and questions
 
-Queued amendments and cash refunds are complete. The next milestone is not selected; deployment backup/restore verification is recommended before shop rollout. Later phases include Customers, Credit, Reports and Integrations; none should begin automatically. Menu modifiers remain deferred.
+Queued amendments and cash refunds are complete. The current authorized milestone is Owner Dashboard + Reports V1, using existing reliable transactional data only. Customers, Credit, Integrations, deployment and backup work must not begin automatically. Menu modifiers remain deferred.
 
 Resolve before relevant feature implementation: production tax configuration, future discount/cash-rounding rules, post-preparation commercial corrections, receipt hardware, provider API access, shop hardware and backup budget. Menu prices use INR; currency remains INR. Restaurant timezone defaults to Asia/Kolkata; local environment config supplies timezone and generic exclusive order tax (default zero).
 
@@ -48,6 +48,8 @@ Channel: source of an order and pricing context. Variant: portion of a menu prod
 ## Version control and delivery
 
 The MVP source baseline is the fixed annotated GitHub tag `v0.1.0-mvp`, marked on 2026-09-23 at commit `df2d141b11dd8463359dd3509b9cc9415b6c0a8a`. It includes authentication/RBAC, Menu, Counter Orders and Kitchen through the Production title refinement. Never move or overwrite this checkpoint; give later milestones new tags. See [README checkpoint instructions](../README.md#mvp-checkpoint) to create a recovery branch. Git does not preserve live PostgreSQL data, uploads or local environment configuration, and switching versions does not reverse migrations; compatible backups are separate requirements.
+
+MVP 2.0 is the fixed annotated tag `v0.2.0-mvp` at `e9378f03a367159b065cac95ba49a8c154d940d2`, manually tested on 2026-09-30. It extends the first MVP through Dispatch, Bills/payments, reminders/timers/audio, amendments/cash refunds, historical Bill protection and date/search filtering. Preserve both tags unchanged; Reports V1 follows this checkpoint.
 
 The workspace is initialized as a Git repository. The GitHub remote is `git@github.com:manishmaang/DukanOs.git`. The user has authorized committing and pushing every completed major or minor achievement after relevant checks and documentation updates. Every new module/milestone uses a separate branch created from freshly updated main. Intermediate achievements are pushed to that work branch; completed and verified work is merged back into main with a merge commit and pushed. See AGENTS.md sections 22–23 for the persistent delivery workflow. Never commit local environment secrets or generated/dependency files.
 

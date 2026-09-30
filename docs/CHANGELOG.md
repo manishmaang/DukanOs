@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-30 — MVP 2.0 checkpoint
+
+- Documented the existing fixed v0.2.0-mvp tag at e9378f0 as the manually tested operational/financial baseline before Dashboard/Reports V1. Neither MVP checkpoint is moved.
+
 ## 2026-09-30 — Bill business dates and scoped history
 
 - Block new rounds and queued food amendments/cancellation on non-current business-date Bills using the shared restaurant PostgreSQL clock; preserve successful retries and historical financial reconciliation.
