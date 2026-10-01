@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-02 — Refresh stale local Reports runtime
+
+- Diagnosed Dashboard 404s as an API process started before Reports V1 while the browser served updated assets. Rebuilt/restarted the local API without changing schema, sessions or operational data.
+- Verified database readiness, registration/authentication boundaries for all five report routes and successful read-only queries for every period and report section.
+- Documented the required restart after compiled backend updates and missing-route troubleshooting in README and Reports context. No domain or frontend behavior changed.
+
 ## 2026-10-01 — Owner Dashboard and Reports V1
 
 - Add reports.read Dashboard and separate Sales/Payments/Items/Operations reports using read-only, repeatable-read PostgreSQL aggregates and shared contracts.
