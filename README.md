@@ -40,6 +40,8 @@ npm run build
 npm start
 ```
 
+After pulling or building backend changes, stop the existing `npm start` process with Ctrl+C and run `npm start` again. A build updates files on disk; it does not reload an already running API. Otherwise new frontend assets can call routes missing from the old process.
+
 With PostgreSQL running and `.env` configured, visit `http://localhost:3000`. NestJS serves compiled web assets from `apps/web/dist`, including hash routes such as `/#/kitchen`. Run through the root npm scripts to preserve documented environment paths. No external fonts, scripts, or CDNs are used at runtime. Production process supervision, TLS, backups, and restore drills remain to be completed before real shop use.
 
 ## Checks
@@ -248,3 +250,7 @@ Sign in as OWNER or MANAGER and choose **Dashboard** for today's sales, Bills, c
 Sales means current effective Bill value, including open unpaid Bills. Collections are actual Cash/UPI ledger receipts by recording date; Net Collected subtracts recorded cash refunds. Refunds are never subtracted again from amended Sales. Due/refund due are current balances of selected Bills, not historical closing balances. Legacy unknown receipts/service remain explicitly unknown. Item reports use effective snapshot prices and stable item/portion IDs. See [Reports definitions and API contracts](docs/modules/reports.md) before interpreting historical periods.
 
 No migration, seed, runtime internet dependency or operational-data change is required for Reports. Browser verification: `CHROME_BINARY=/path/to/chrome npm run test:reports-browser`; financial/date/read-only/performance tests run with `npm run test:integration`. No exports, customer/profit/credit analytics or tax-filing claims are included.
+
+### Dashboard says “Cannot GET /api/dashboard”
+
+This 404 can mean the frontend has been updated while the API process still runs the pre-Reports build. In the terminal running DukanOS, stop it with Ctrl+C, then run `npm run build` and `npm start` from the repository root. Refresh the browser. Changing the date filter or resetting the database will not repair a missing server route. An unauthenticated request to an installed report route returns 401, not 404; use your normal OWNER/MANAGER login to view reports.
