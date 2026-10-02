@@ -313,3 +313,5 @@
 ### Local verification
 
 - `npm run check` and all 146 PostgreSQL tests passed, including rollback/retry and timezone/concurrency coverage. Actual local startup closed 23 historical sessions; all financial balances, 25 other source tables and 3 menu images were unchanged. No active local reminder required pausing.
+
+- All eight browser suites passed: Reports, responsive shell, Kitchen, Dispatch, Bills, alerts/audio, amendments/refunds and Menu/POS. Four-class touch workflows, eight widths plus constrained height and screenshot review passed with external traffic blocked. Physical Android/iOS keyboard, speaker and background-suspension checks remain outstanding.

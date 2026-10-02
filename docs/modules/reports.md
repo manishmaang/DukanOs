@@ -101,3 +101,13 @@ GET /api/dashboard adds `explanation` decimal strings calculated in its PostgreS
 UI combines these with existing outstandingDue, refundDue and cashRefunds, e.g. ₹650 received from earlier Bills and ₹200 still unpaid. It does not invent an arithmetic bridge. Legacy unknowns retain a review explanation. Detailed report endpoints/calculations remain unchanged.
 
 Rollover changes only session counts. CLOSED Bills stay in sales/items/balance reports; later receipts stay in event-date cash flow. Today's UNPAID does not import yesterday's balance. CLOSED never implies PAID. Customer Ledger remains future work.
+
+## Dashboard refinement verification (2026-10-02)
+
+`npm run check` passed (11 API/unit and 18 frontend unit tests); all 146 PostgreSQL integration tests passed. The 1,200-Bill four-month Dashboard including explanation data completed in 123 ms locally; this is a fixture measurement, not a production guarantee. Added coverage verifies older ₹650 receipts separately from current food, partial ₹500/₹300 settlement, other-date receipts/refunds and unchanged financial projections across rollover.
+
+Reports browser verification passed eight required sizes plus 390×420 and complete touch workflows at 390×844, 768×1024, 1024×768 and 1440×900. Checks include simple labels, precise detailed Reports, specific mixed explanations, historical payment/refund forms, cached reminder removal, periods, retry and permissions. External traffic was blocked; screenshots of financial explanations and mobile/tablet/desktop layouts were reviewed. Physical-device limitations above remain.
+
+Read-only local verification after rollover still returned Last 7 Days Food Sold ₹360, Cash Received ₹1,010, UPI Received ₹530, Cash Returned ₹440 and Net Money Received ₹1,100. The explanation identified ₹740 collected for earlier Bills. Those three period Bills were CLOSED, without changing sales or money.
+
+All seven existing browser regression suites also passed: responsive shell, Menu/POS, Kitchen, Dispatch, Bills, operational alerts/audio and amendments/refunds. This milestone does not start Customer Profiles or Customer Ledger.

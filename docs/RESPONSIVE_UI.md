@@ -98,3 +98,5 @@ Verification on 2026-10-01 passed all Reports workflows and boundary sizes, incl
 Phone stacks Food Sold, Bills/Avg Bill, Unpaid, then label/value Money Received rows and separated Net total. Larger screens retain compact cards and three tender columns. Explanations wrap, refund due remains distinct and operations collapse. Historical collection/refund forms use natural-flow touch controls without food actions.
 
 Reports browser coverage includes older receipts/mixed unpaid explanations, cached reminder removal and historical settlement/refund at four workflow classes. Eight prescribed sizes plus constrained height remain required. Desktop Chromium does not prove physical mobile keyboard, native picker or suspended-background behavior.
+
+2026-10-02 refinement verification passed the eight-size/short-height matrix and four-class historical collection/refund and reminder-sync workflows. Money Received screenshot review covered mobile stacking, both tablet orientations and desktop wrapping. Detailed Reports counts/labels remain tested separately. External requests were blocked.

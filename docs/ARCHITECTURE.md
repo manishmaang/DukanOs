@@ -23,7 +23,7 @@ All HTTP endpoints use `/api`. Global validation rejects unknown properties on a
 
 The same application can run locally or on a cloud host. The baseline for required WAN-outage continuity is a single authoritative shop instance. Serve the built frontend and API on port 3000; PostgreSQL is bound to loopback on host port 5433 by default. Development Vite runs on port 5173. LAN access requires appropriate host firewall configuration. Public deployment needs TLS, network hardening, and backup/restore verification before business use. Production session cookies require HTTPS. Docker Compose currently runs the database only.
 
-Do not run local and cloud databases as independent writable authorities. No replication, synchronization, failover, service worker, disconnected browser queue, exist. One local Bill rollover check runs at HTTP startup and every 60 seconds; no generic job framework is introduced. Backups and restore procedures remain a release requirement. Choose cloud vs local based on available shop hardware, electricity, maintenance, and backup cost, not an assumed monthly price.
+Do not run local and cloud databases as independent writable authorities. No replication, synchronization, failover, service worker or disconnected browser queue exists. One local Bill rollover check runs at HTTP startup and every 60 seconds; no generic job framework is introduced. Backups and restore procedures remain a release requirement. Choose cloud vs local based on available shop hardware, electricity, maintenance, and backup cost, not an assumed monthly price.
 
 ## Local freshness and integration boundary
 
