@@ -401,7 +401,11 @@ const root = require('node:path').resolve(__dirname, '..');
       console.log(`Checked ${label} ${width}x${height}`);
       report.push({ label, width, height, ...result });
       if (screenshot) {
-        if (label === 'sales-trend')
+        if (label === 'mixed-explanation' || label === 'money-boundary')
+          await c.read(
+            "document.querySelector('.owner-money').scrollIntoView({block:'start'})",
+          );
+        else if (label === 'sales-trend')
           await c.read(
             "document.querySelector('.report-trend').closest('section').scrollIntoView({block:'start'})",
           );
@@ -472,18 +476,44 @@ const root = require('node:path').resolve(__dirname, '..');
       await metric('refunds', '₹50');
       await metric('net', '₹820');
       assert.ok(await c.read("document.body.textContent.includes('₹306.67')"));
+      for (const label of [
+        'FOOD SOLD',
+        'BILLS',
+        'UNPAID',
+        'AVG BILL',
+        'MONEY RECEIVED',
+        'Cash Received',
+        'UPI Received',
+        'Cash Returned',
+        'Net Money Received',
+      ])
+        assert.ok(
+          await c.read(
+            `document.body.textContent.includes(${JSON.stringify(label)})`,
+          ),
+        );
+      assert.ok(
+        await c.read(
+          "!document.querySelector('.dashboard-summary').textContent.includes(' open') && !document.querySelector('.owner-money').textContent.includes('transactions')",
+        ),
+      );
+      assert.ok(
+        await c.read(
+          "document.querySelector('.dashboard-explanation').textContent.includes('₹100 from bills in this period is still unpaid.')",
+        ),
+      );
       await inspect('dashboard', width, height, true);
       await choose('YESTERDAY', yesterday, yesterday);
       await metric('sales', '₹0');
       assert.ok(
         await c.read(
-          "document.body.textContent.includes('No sales in this period.')",
+          "document.body.textContent.includes('No food sold in this period.')",
         ),
       );
       await choose('LAST_7_DAYS', weekFrom, today);
       await metric('sales', '₹920');
       assert.ok(
-        await c.read("document.body.textContent.includes('Sales by Day')"),
+        await c.read("document.body.textContent.includes('Food Sold by Day')"),
       );
       await choose('THIS_MONTH', today.slice(0, 7) + '-01', today);
       await metric('sales', '₹920');
@@ -504,6 +534,11 @@ const root = require('node:path').resolve(__dirname, '..');
       assert.ok(
         await c.read(
           "document.body.textContent.includes('Total collections ₹870')",
+        ),
+      );
+      assert.ok(
+        await c.read(
+          "document.body.textContent.includes('transactions') && document.body.textContent.includes('Cash Collected')",
         ),
       );
       await inspect('payments', width, height, true);
@@ -551,6 +586,7 @@ const root = require('node:path').resolve(__dirname, '..');
       await go('/dashboard', '.reports-workspace');
       await loaded();
       await inspect('dashboard-boundary', width, height, true);
+      await inspect('money-boundary', width, height, true);
       await choose('CUSTOM', today, today);
       await inspect('custom-boundary', width, height, true);
       await go('/reports', '.report-tabs');
@@ -609,6 +645,115 @@ const root = require('node:path').resolve(__dirname, '..');
     await metric('net', '₹1060');
     await metric('refunds', '₹100');
     await inspect('live-refresh', 390, 844, true);
+    // Previous-day receipts must not become today's food sales. Exercise rollover and
+    // historical financial forms on all four workflow classes, with external traffic blocked.
+    const {
+      RestaurantClock,
+    } = require('../apps/api/dist/database/restaurant-clock');
+    const {
+      BillRolloverService,
+    } = require('../apps/api/dist/modules/bills/bill-rollover.service');
+    const clock = app.get(RestaurantClock),
+      realRead = clock.read.bind(clock);
+    menu.Older = await ownerCall('/menu/items', {
+      categoryId: category.id,
+      name: 'Older meal',
+      variants: [
+        {
+          name: 'Full',
+          channels: [{ channelCode: 'COUNTER', price: '650', available: true }],
+        },
+      ],
+    });
+    let fixtureInstant;
+    clock.read = (connection) =>
+      realRead({
+        query: (text, values) =>
+          connection.query(
+            text.replace('clock_timestamp()', '$2::timestamptz'),
+            [...values, fixtureInstant],
+          ),
+      });
+    for (const [width, height] of [
+      [390, 844],
+      [768, 1024],
+      [1024, 768],
+      [1440, 900],
+    ]) {
+      await resize(width, height);
+      fixtureInstant = new Date(Date.now() - 2 * 86400000).toISOString();
+      const old = await create('Older', {
+        reference: 'Historical unpaid ' + width,
+      });
+      const returnBill = await create('Pasta', {
+        reference: 'Historical refund ' + width,
+      });
+      await pay(returnBill, '170', 'UPI');
+      await replace(returnBill, 'Noodles');
+      await ownerCall(`/bills/${old.billId}/reminder`, { intervalMinutes: 5 });
+      fixtureInstant = new Date().toISOString();
+      await go('/pos', '.pos-card');
+      await c.wait(
+        `!!document.querySelector('[data-bill-reminder="${old.billId}"]')`,
+      );
+      const before = (await c.http('/dashboard')).body;
+      await app.get(BillRolloverService).run();
+      await c.wait(
+        `!document.querySelector('[data-bill-reminder="${old.billId}"]')`,
+      );
+      const after = (await c.http('/dashboard')).body;
+      assert.equal(
+        after.sales.summary.salesValue,
+        before.sales.summary.salesValue,
+      );
+      assert.equal(after.payments.netCollected, before.payments.netCollected);
+      await c.read(`location.hash='/pos?bill=${old.billId}'`);
+      await c.wait("!!document.querySelector('.bill-payment')");
+      assert.ok(
+        await c.read(
+          "document.querySelector('.bills-workspace').textContent.includes('CLOSED') && document.querySelector('.bill-historical') && document.querySelector('.bill-closure').textContent.includes('Automatically')",
+        ),
+      );
+      assert.ok(
+        await c.read(
+          "![...document.querySelectorAll('.bills-workspace button')].some(e=>['Add Items','Close Bill'].includes(e.textContent.trim())) && !document.querySelector('.reminder-setting')",
+        ),
+      );
+      await inspect('historical-unpaid', width, height, true);
+      await c.fill('[aria-label="Payment amount"]', '650');
+      await button('Record Payment');
+      await c.wait(
+        "!document.querySelector('.bill-payment') && document.querySelector('.bill-payment-status')?.textContent.trim()==='PAID'",
+      );
+      await c.read(`location.hash='/pos?bill=${returnBill.billId}'`);
+      await c.wait("!!document.querySelector('.bill-refund')");
+      await inspect('historical-refund', width, height, true);
+      await c.fill('[aria-label="Cash refund amount"]', '50');
+      await button('Confirm Cash Refund');
+      await c.wait(
+        "!document.querySelector('.bill-refund') && document.querySelector('.bill-payment-status')?.textContent.trim()==='PAID'",
+      );
+      await go('/dashboard', '.reports-workspace');
+      await loaded();
+      await metric('sales', '₹1160');
+      const updated = (await c.http('/dashboard')).body;
+      assert.equal(
+        BigInt(
+          updated.explanation.collectionsForEarlierBills.replace('.', ''),
+        ) -
+          BigInt(
+            before.explanation.collectionsForEarlierBills.replace('.', ''),
+          ),
+        65000n,
+      );
+      assert.ok(
+        await c.read(
+          "document.querySelector('.dashboard-explanation').textContent.includes('came from earlier bills') && document.querySelector('.dashboard-explanation').textContent.includes('₹100 from bills in this period is still unpaid')",
+        ),
+      );
+      await inspect('mixed-explanation', width, height, true);
+    }
+    clock.read = realRead;
     for (const user of ['manager', 'cashier', 'cook', 'dispatcher', 'multi']) {
       const other = await device(user);
       const visible = await other.read(

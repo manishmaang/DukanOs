@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { BillRolloverService } from './modules/bills/bill-rollover.service';
 import { NestFactory } from '@nestjs/core';
 import express from 'express';
 import { existsSync } from 'node:fs';
@@ -13,7 +14,14 @@ async function bootstrap() {
   app.enableShutdownHooks();
   const webRoot = resolve(__dirname, '../../web/dist');
   if (existsSync(webRoot)) app.use(express.static(webRoot));
-  await app.listen(config.port, config.host);
+  try {
+    await app.init();
+    await app.get(BillRolloverService).start();
+    await app.listen(config.port, config.host);
+  } catch (error) {
+    await app.close();
+    throw error;
+  }
 }
 bootstrap().catch(() => {
   console.error(

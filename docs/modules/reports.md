@@ -2,7 +2,7 @@
 
 ## Purpose and current implementation
 
-Provide OWNER/MANAGER with reconciled restaurant sales, cash flow, effective item sales and operational summaries from existing records. Dashboard is a quick overview; Reports has separate Sales, Payments, Items and Operations sections. This is a read-only module, not a second financial ledger or an accounting/tax compliance system.
+Provide OWNER/MANAGER with reconciled restaurant sales, cash flow, effective item sales and operational summaries from existing records. Dashboard is a simplified operational overview; Reports is detailed financial/operational analysis with separate Sales, Payments, Items and Operations sections. This is a read-only module, not a second financial ledger or an accounting/tax compliance system.
 
 ## Financial definitions
 
@@ -55,7 +55,7 @@ Operations reports distinct Bills and service counts, Kitchen rounds, current QU
 
 All routes require authenticated `reports.read` through the existing backend capability guard. OWNER and MANAGER already have it; pure CASHIER/KITCHEN/DISPATCH and their operational unions do not. No grant migration or privileged role-name bypass is introduced. Dashboard and Reports links use the same capability; staff Admin remains controlled by user-management capabilities.
 
-- `GET /api/dashboard`: period, Sales report, Payments report, top five Items, Operations.
+- `GET /api/dashboard`: period, Sales report, Payments report, explanation aggregates, top five Items, Operations.
 - `GET /api/reports/sales`: period, summary, serviceTypes and trend.
 - `GET /api/reports/payments`: period, tender/refund totals/counts and current cohort balances.
 - `GET /api/reports/items`: period, paginated effective groups, counts and totals.
@@ -71,7 +71,7 @@ Existing Bill date/order, order Bill/queue, payment Bill, revision order/version
 
 ## Frontend and LAN behavior
 
-Dashboard: Sales/Bills/Average/Customer Due, separate Cash/UPI/Refund/Net section, labelled sales trend, top items, service mix, balances and operations. Reports separates Sales/Payments/Items/Operations; period controls are independent of Bills filters. Every chart value is visible as text; CSS bars are decorative and have no external dependency.
+Dashboard: FOOD SOLD (strongest card), BILLS, UNPAID, AVG BILL; separate MONEY RECEIVED (Cash Received / UPI Received / Cash Returned / Net Money Received), specific explanations, Food Sold trend, top items, service mix and collapsed Operations. Nonzero REFUND DUE stays separate. Transaction and open/closed counts remain in Reports. Reports separates Sales/Payments/Items/Operations; period controls are independent of Bills filters. Every chart value is visible as text; CSS bars are decorative and have no external dependency.
 
 Phone stacks sections; tablet and desktop use compact summary grids. Native dates and large labelled controls support touch and keyboard. Manual Refresh is always available; Today refreshes every 60 seconds while visible, historical ranges do not poll. Request sequencing prevents older results replacing newer requests. Loading/error states clear figures and offer retry; report failure does not disable POS/Kitchen. LAN + server + PostgreSQL suffice; no internet call is needed.
 
@@ -86,3 +86,28 @@ Verification completed 2026-10-01: npm run check, all 133 PostgreSQL tests (14 r
 ## Runtime troubleshooting
 
 `npm start` runs a compiled API without watch mode. Rebuilding files while that process remains alive can serve the new frontend alongside an old API route registry. If every period returns `Cannot GET /api/dashboard?...`, verify the running process/build and restart the API after building. Do not reset data, change period semantics or weaken authentication. Registered report routes return 401 without a session and require the normal reports.read login.
+
+## Owner-friendly explanation contract
+
+Food Sold = effective commercial value of Bills in selected business dates, including tax/amendments/cancellations. Money Received = event-date Cash + UPI receipts minus CASH returned. It is neither profit nor cash-drawer balance. Different date bases are intentional.
+
+GET /api/dashboard adds `explanation` decimal strings calculated in its PostgreSQL read-only snapshot:
+
+- collectionsForSelectedBills: period receipts for Bills inside the date cohort.
+- collectionsForEarlierBills / collectionsForLaterBills: period receipts for Bills dated before/after it.
+- refundsForOtherBills: period cash refunds for Bills outside the sales cohort.
+- selectedBillCollectionsOutsidePeriod / selectedBillRefundsOutsidePeriod: other-date events for Bills inside the cohort.
+
+UI combines these with existing outstandingDue, refundDue and cashRefunds, e.g. ₹650 received from earlier Bills and ₹200 still unpaid. It does not invent an arithmetic bridge. Legacy unknowns retain a review explanation. Detailed report endpoints/calculations remain unchanged.
+
+Rollover changes only session counts. CLOSED Bills stay in sales/items/balance reports; later receipts stay in event-date cash flow. Today's UNPAID does not import yesterday's balance. CLOSED never implies PAID. Customer Ledger remains future work.
+
+## Dashboard refinement verification (2026-10-02)
+
+`npm run check` passed (11 API/unit and 18 frontend unit tests); all 146 PostgreSQL integration tests passed. The 1,200-Bill four-month Dashboard including explanation data completed in 123 ms locally; this is a fixture measurement, not a production guarantee. Added coverage verifies older ₹650 receipts separately from current food, partial ₹500/₹300 settlement, other-date receipts/refunds and unchanged financial projections across rollover.
+
+Reports browser verification passed eight required sizes plus 390×420 and complete touch workflows at 390×844, 768×1024, 1024×768 and 1440×900. Checks include simple labels, precise detailed Reports, specific mixed explanations, historical payment/refund forms, cached reminder removal, periods, retry and permissions. External traffic was blocked; screenshots of financial explanations and mobile/tablet/desktop layouts were reviewed. Physical-device limitations above remain.
+
+Read-only local verification after rollover still returned Last 7 Days Food Sold ₹360, Cash Received ₹1,010, UPI Received ₹530, Cash Returned ₹440 and Net Money Received ₹1,100. The explanation identified ₹740 collected for earlier Bills. Those three period Bills were CLOSED, without changing sales or money.
+
+All seven existing browser regression suites also passed: responsive shell, Menu/POS, Kitchen, Dispatch, Bills, operational alerts/audio and amendments/refunds. This milestone does not start Customer Profiles or Customer Ledger.

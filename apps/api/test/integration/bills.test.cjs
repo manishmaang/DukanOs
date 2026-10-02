@@ -453,7 +453,7 @@ test(
             );
           await assert.rejects(
             sql.query(
-              "UPDATE bills SET status='CLOSED',closed_at=clock_timestamp(),closed_by=$2 WHERE id=$1",
+              "UPDATE bills SET status='CLOSED',closure_reason='MANUAL',closed_at=clock_timestamp(),closed_by=$2 WHERE id=$1",
               [o.billId, owner.id],
             ),
             /BILL_NOT_SETTLED/,

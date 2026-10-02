@@ -105,6 +105,7 @@ test(
       const menu = {};
       for (const [name, price] of [
         ['Meal', '500'],
+        ['Older meal', '650'],
         ['Snack', '300'],
         ['Small', '200'],
         ['Noodles', '120'],
@@ -336,6 +337,8 @@ test(
             [menu.Noodles.variants[0].id],
           );
           assert.deepEqual((await get('/reports/items')).items, before.items);
+          // Advance the fixture clock so latest snapshot selection does not depend on a UUID tie.
+          instant = new Date(Date.parse(instant) + 1).toISOString();
           const newOrder = await create('Noodles');
           const items = (await get('/reports/items')).items;
           const n = items.find((i) => i.menuItemId === menu.Noodles.id);
@@ -449,6 +452,56 @@ test(
         },
       );
       await t.test(
+        'backend explanation separates older receipts, unpaid and other payment dates without changing sales',
+        async () => {
+          const before = await get();
+          instant = new Date(
+            now.queued_at.getTime() - 2 * 86400000,
+          ).toISOString();
+          const old = await create('Older meal');
+          instant = now.queued_at.toISOString();
+          await pay(old, '650');
+          let d = await get();
+          assert.equal(
+            d.sales.summary.salesValue,
+            before.sales.summary.salesValue,
+          );
+          assert.equal(
+            exact(d.payments.netCollected) -
+              exact(before.payments.netCollected),
+            65000n,
+          );
+          assert.equal(d.explanation.collectionsForEarlierBills, '650.00');
+          const current = await create('Meal');
+          await pay(current, '300');
+          d = await get();
+          assert.equal(
+            exact(d.sales.summary.salesValue) -
+              exact(before.sales.summary.salesValue),
+            50000n,
+          );
+          assert.equal(
+            exact(d.sales.summary.outstandingDue) -
+              exact(before.sales.summary.outstandingDue),
+            20000n,
+          );
+          assert.equal(
+            exact(d.explanation.collectionsForSelectedBills) -
+              exact(before.explanation.collectionsForSelectedBills),
+            30000n,
+          );
+          const oldPeriod = await get(
+            `/dashboard?from=${old.businessDate}&to=${old.businessDate}`,
+          );
+          assert.equal(
+            oldPeriod.explanation.selectedBillCollectionsOutsidePeriod,
+            '650.00',
+          );
+          assert.equal(oldPeriod.payments.totalCollections, '0.00');
+          reconcile(d);
+        },
+      );
+      await t.test(
         'report period presets, midnight, event cash dates and negative refund-only cash flow',
         async () => {
           instant = '2025-01-30T18:29:59.999Z';
@@ -468,6 +521,12 @@ test(
           assert.equal(d.sales.summary.salesValue, '0.00');
           assert.equal(d.payments.netCollected, '-200.00');
           assert.equal(d.payments.cashRefunds, '200.00');
+          assert.equal(d.explanation.refundsForOtherBills, '200.00');
+          assert.equal(
+            (await get('/dashboard?period=YESTERDAY')).explanation
+              .selectedBillRefundsOutsidePeriod,
+            '200.00',
+          );
           assert.equal(
             (await get('/dashboard?period=YESTERDAY')).payments.upiCollections,
             '200.00',

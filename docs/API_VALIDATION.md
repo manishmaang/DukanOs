@@ -70,3 +70,7 @@ Order quote/confirmation and new amendment quote/commit additionally require cur
 ## Dashboard / Reports V1
 
 GET /dashboard and /reports/sales, /payments, /items, /operations require reports.read and reject request bodies. ReportPeriodDto validates optional enum period and YYYY-MM-DD from/to strings; domain checks reject impossible dates, one-sided/custom-conflicting ranges, reversed dates and ranges longer than 366 inclusive days. Items alone permits QUANTITY/SALES sort and page 1–99999, with fifty rows per page. Nulls, repeated query arrays and unknown keys fail existing strict validation. SQL parameters handle date/page values; finite validated choices select ordering only. Aggregates execute in read-only repeatable-read transactions with an eight-second per-statement timeout. No endpoint can alter source records.
+
+## Rollover and Dashboard explanation contracts
+
+No new writable API/capability. Bill responses add nullable closureReason (MANUAL / BUSINESS_DAY_ROLLOVER); closedAt is actual processing time. Clients cannot submit system closure identity/reason. Financial POSTs accept rollover-closed Bills under existing permission/amount/idempotency/due checks; manual closures remain protected. Food/manual-close checks remain strict. Dashboard adds exact-decimal explanation aggregates; period/unknown-field validation is unchanged.

@@ -2579,3 +2579,67 @@ header > div button {
     grid-column: auto;
   }
 }
+
+.owner-money .report-money-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.owner-net {
+  grid-column: 1/-1;
+  border-top: 1px solid #c7d3ca;
+  padding-top: 1rem;
+}
+.owner-net dd {
+  font-size: 1.8rem;
+}
+.dashboard-explanation {
+  border-left: 3px solid #9bb9a7;
+  padding: 0.2rem 0.9rem;
+  margin-top: 1rem;
+  background: #f4f8f5;
+}
+.dashboard-explanation h3 {
+  margin: 0.5rem 0;
+}
+.dashboard-explanation ul {
+  padding-left: 1.2rem;
+  line-height: 1.65;
+}
+.owner-refund-due {
+  display: grid;
+  gap: 0.3rem;
+  border-top: 1px solid #c7d3ca;
+  padding-top: 1rem;
+}
+.dashboard-operations summary {
+  min-height: 44px;
+  padding: 0.75rem;
+  cursor: pointer;
+}
+@media (max-width: 599px) {
+  .dashboard-summary article:last-child {
+    grid-column: auto;
+  }
+  .dashboard-summary article:nth-child(2) {
+    order: 1;
+  }
+  .dashboard-summary article:last-child {
+    order: 2;
+  }
+  .dashboard-summary .dashboard-unpaid {
+    order: 3;
+    grid-column: 1/-1;
+  }
+  .owner-money .report-money-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+  .owner-money .report-money-grid > div:not(.owner-net) {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+  .owner-money dd {
+    margin: 0;
+  }
+}

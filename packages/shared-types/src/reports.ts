@@ -84,7 +84,16 @@ export interface OperationsReport {
   averageQueuedToReadySeconds: number | null;
   readySampleCount: number;
 }
+export interface DashboardExplanation {
+  collectionsForSelectedBills: string;
+  collectionsForEarlierBills: string;
+  collectionsForLaterBills: string;
+  refundsForOtherBills: string;
+  selectedBillCollectionsOutsidePeriod: string;
+  selectedBillRefundsOutsidePeriod: string;
+}
 export interface DashboardReport {
+  explanation: DashboardExplanation;
   period: ReportPeriod;
   sales: SalesReport;
   payments: PaymentsReport;

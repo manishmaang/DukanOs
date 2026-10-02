@@ -44,7 +44,7 @@ A cheaper partially paid Bill may still owe money; no refund is invented. Positi
 
 POST Bill refunds appends REFUND/CASH to the existing payments ledger. Amount must be positive, exact to at most two decimals and <= locked current refund_due. Partial cash refunds are supported. The API has no method selector/field; the database also prohibits REFUND/UPI and refund confirmation-order provenance. No arbitrary refund is possible with zero entitlement. Refund actor/time and request identity remain permanent. Refunds use the existing actor-scoped ledger key namespace with a type-bound hash, preventing collection/refund key confusion and duplicate cash returns.
 
-Bill closure requires both due values zero and all rounds COMPLETED/CANCELLED. Takeaway handover requires both values zero in backend and database; Dispatch displays REFUND ₹… AT COUNTER when appropriate. Dine In may serve with either collection due or refund due. Dispatch/Kitchen never record refunds.
+Manual Bill closure requires both due values zero and all rounds COMPLETED/CANCELLED. Business-day rollover closes historical sessions independently of settlement without changing effective food or ledger. Takeaway handover requires both values zero in backend and database; Dispatch displays REFUND ₹… AT COUNTER when appropriate. Dine In may serve with either collection due or refund due. Dispatch/Kitchen never record refunds.
 
 Revision insertion synchronizes the saved Dine In reminder preference: positive due resumes a paused schedule; refund/zero due pauses it. No recurring refund alarm is added. Existing visual/audio projections remove paused reminders on reconciliation; canonical Bill reads also suppress paid/refund-due collection audio.
 
@@ -80,3 +80,5 @@ Migration 014 was applied with the normal migration runner. Before/after row cou
 ## Business-date cutoff (2026-09-30)
 
 New amendment quotes/commits, including cancellation and instruction-only changes, require the parent Bill to belong to the current restaurant business date. BILL_NOT_CURRENT_BUSINESS_DATE rejects stale-day food changes even if the round is still QUEUED. The date is read from the shared PostgreSQL restaurant clock after locking; a quote spanning midnight is revalidated at commit. Successful same-request replay remains safe after midnight. Historical audit reads and legitimate collection/refund/closure are not blocked by this food-only rule. Frontend hides new food controls using backend canChangeFood while preserving pending-request recovery.
+
+Migration 016 closes historical OPEN sessions with BUSINESS_DAY_ROLLOVER, without authorizing amendments/cancellation or modifying food. Current-day OPEN plus QUEUED and all quote/revision checks remain required. Legitimate financial reconciliation on rollover-closed tabs is separate from food changes.

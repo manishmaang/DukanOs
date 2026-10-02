@@ -87,8 +87,16 @@ The Bills browser regression exercises Today, historical detail/direct API denia
 
 ## Dashboard and Reports V1
 
-Dashboard gives Sales a prominent full-width phone card, groups Bill count/average, and stacks cash flow, labelled trend, items and service mix. Tablet/desktop summary grids preserve readable labels. Reports uses wrapping 44px tabs and native date controls; item groups stack on phones. Charts use a keyboard-focusable vertical region with visible currency values, not color-only meaning. No page-level horizontal scroll or external chart library.
+Dashboard gives FOOD SOLD a prominent full-width phone card, groups Bill count/average, and stacks cash flow, labelled trend, items and service mix. Tablet/desktop summary grids preserve readable labels. Reports uses wrapping 44px tabs and native date controls; item groups stack on phones. Charts use a keyboard-focusable vertical region with visible currency values, not color-only meaning. No page-level horizontal scroll or external chart library.
 
 `test:reports-browser` exercises exact money, Today/Yesterday/Last 7 Days/This Month/Custom, all four report sections, item sorting, live new Bills/rounds/payment/amendment/refund refresh, error/retry and capability navigation. Workflows run at 390×844, 768×1024, 1024×768 and 1440×900; all eight prescribed boundaries plus 390×420 are checked for touch targets and overflow with external traffic blocked. Screenshots use `/tmp/dukanos-reports-*`. Physical Android/iOS date pickers, keyboards and assistive technologies remain separate verification requirements.
 
 Verification on 2026-10-01 passed all Reports workflows and boundary sizes, including retry without stale figures, live financial changes and unauthorized routes. Visual review covered phone long item names, portrait custom dates, landscape labelled trends and desktop summary spacing. Existing responsive/Menu/POS/Kitchen/Dispatch/Bills/reminder/audio/amendment/refund browser regressions also passed. The Menu test now waits for responsive reflow before measuring cart dimensions. No operational UI behavior changed.
+
+## Dashboard clarity and historical settlement
+
+Phone stacks Food Sold, Bills/Avg Bill, Unpaid, then label/value Money Received rows and separated Net total. Larger screens retain compact cards and three tender columns. Explanations wrap, refund due remains distinct and operations collapse. Historical collection/refund forms use natural-flow touch controls without food actions.
+
+Reports browser coverage includes older receipts/mixed unpaid explanations, cached reminder removal and historical settlement/refund at four workflow classes. Eight prescribed sizes plus constrained height remain required. Desktop Chromium does not prove physical mobile keyboard, native picker or suspended-background behavior.
+
+2026-10-02 refinement verification passed the eight-size/short-height matrix and four-class historical collection/refund and reminder-sync workflows. Money Received screenshot review covered mobile stacking, both tablet orientations and desktop wrapping. Detailed Reports counts/labels remain tested separately. External requests were blocked.

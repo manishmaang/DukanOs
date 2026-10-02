@@ -58,10 +58,10 @@ export class BillsService {
         message: 'Permission is required.',
       });
   }
-  async lockOpen(c: PoolClient, id: string) {
+  async lockOpen(c: PoolClient, id: string, allowRolloverSettlement = false) {
     const row = (
       await c.query(
-        'SELECT status,business_date::text AS business_date FROM bills WHERE id=$1 FOR UPDATE',
+        'SELECT status,closure_reason,business_date::text AS business_date FROM bills WHERE id=$1 FOR UPDATE',
         [id],
       )
     ).rows[0];
@@ -70,7 +70,14 @@ export class BillsService {
         code: 'BILL_NOT_FOUND',
         message: 'Bill was not found.',
       });
-    if (row.status !== 'OPEN')
+    if (
+      row.status !== 'OPEN' &&
+      !(
+        allowRolloverSettlement &&
+        row.status === 'CLOSED' &&
+        row.closure_reason === 'BUSINESS_DAY_ROLLOVER'
+      )
+    )
       throw new ConflictException({
         code: 'BILL_CLOSED',
         message: 'This bill is closed. Start a new bill.',
@@ -116,7 +123,7 @@ export class BillsService {
     currentBusinessDate ??= (await this.clock.read(c)).business_date;
     const r = (
       await c.query(
-        `SELECT b.id,b.business_date::text AS "businessDate",b.bill_number AS "billNumber",b.service_type AS "serviceType",b.legacy,b.reference,b.status,b.opened_at AS "openedAt",b.closed_at AS "closedAt",f.bill_total::text AS "billTotal",f.total_collected::text AS "totalCollected",f.total_refunded::text AS "totalRefunded",f.net_paid::text AS "netPaid",f.amount_due::text AS "amountDue",f.refund_due::text AS "refundDue" FROM bills b JOIN bill_balances f ON f.id=b.id WHERE b.id=$1`,
+        `SELECT b.id,b.business_date::text AS "businessDate",b.bill_number AS "billNumber",b.service_type AS "serviceType",b.legacy,b.reference,b.status,b.opened_at AS "openedAt",b.closed_at AS "closedAt",b.closure_reason AS "closureReason",f.bill_total::text AS "billTotal",f.total_collected::text AS "totalCollected",f.total_refunded::text AS "totalRefunded",f.net_paid::text AS "netPaid",f.amount_due::text AS "amountDue",f.refund_due::text AS "refundDue" FROM bills b JOIN bill_balances f ON f.id=b.id WHERE b.id=$1`,
         [id],
       )
     ).rows[0];
@@ -333,7 +340,7 @@ export class BillsService {
           });
         return this.detail(c, prior.bill_id);
       }
-      await this.lockOpen(c, id);
+      await this.lockOpen(c, id, true);
       const bill = await this.summary(c, id);
       const due = type === 'REFUND' ? bill.refundDue : bill.amountDue;
       if (value > paise(due))
@@ -382,7 +389,7 @@ export class BillsService {
             'Settle the bill and complete all Kitchen rounds before closing.',
         });
       await c.query(
-        "UPDATE bills SET status='CLOSED',closed_at=clock_timestamp(),closed_by=$2 WHERE id=$1",
+        "UPDATE bills SET status='CLOSED',closed_at=clock_timestamp(),closed_by=$2,closure_reason='MANUAL' WHERE id=$1",
         [id, actor.user.id],
       );
       return this.detail(c, id);

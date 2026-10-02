@@ -377,3 +377,19 @@ Read current effective commercial values by immutable Bill business-date cohort,
 ### Reason and consequences
 
 This matches real food sold and real money movement without double subtraction, fabricated tender or multiplying multi-round Bills. Each response is coherent during operational writes. Historical reports restate effective sales and current balances rather than claiming immutable day-end accounting. Cash flow can differ from sales or be negative on a refund-only day. Future Reports V2 must retain these definitions or explicitly name a distinct accounting view. No production data or permission migration is needed.
+
+## 019 — Historical tab closure independent of settlement
+
+Date: 2026-10-02
+
+### Context and options
+
+Older tabs must stop being active despite unpaid money/unfinished Kitchen rounds. Considered keeping tabs open, fabricating settlement, browser cleanup and a local periodic backend check. The first violates the session rule, fake settlement corrupts history, browser cleanup misses idle nights. This supersedes decision 017's no-auto-close choice and refines decisions 014/016; manual close stays strict.
+
+### Decision and reason
+
+CLOSED means ordering session ended, not guaranteed payment. HTTP startup catch-up and a 60-second local worker close older OPEN tabs under the restaurant transaction lock/PostgreSQL clock. Bill fields record MANUAL or BUSINESS_DAY_ROLLOVER, actual time, null system actor and closure timezone. Old manual identity stays intact. Legitimate collections/refunds remain possible on rollover-closed tabs. Reminders pause with an honest cause and last human editor preserved.
+
+### Consequences
+
+Kitchen continues; Takeaway retains both financial gates; food stays current-day OPEN only. Rollover is atomic/idempotent, periodic failures retry and startup failure prevents listening. No external scheduler, fake money/user, customer workflow or generic job framework. Dashboard backend aggregates explain payment-date versus Bill-date differences; Reports stays detailed. Offline clients learn reminder closure on authoritative reconnect.

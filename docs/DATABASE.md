@@ -140,10 +140,10 @@ Adds partial order_history_ready_queue_idx(occurred_at,order_id) WHERE to_status
 
 ## Bills and Payments — 012_bills_payments.sql
 
-- bills: UUID PK, unique business_date/bill_number, DINE_IN/TAKEAWAY for new bills, explicit legacy marker with null service only for imported orders, 80-character reference, OPEN/CLOSED, opening and closing actors/timestamps. Closing is guarded against unsettled balance/active rounds; metadata/history cannot be rewritten or deleted.
+- bills: UUID PK, unique business_date/bill_number, DINE_IN/TAKEAWAY for new bills, explicit legacy marker with null service only for imported orders, 80-character reference, OPEN/CLOSED, opening and closing actors/timestamps. Manual closing is guarded against unsettled balance/active rounds; migration 016 adds historical session rollover; metadata/history cannot be rewritten or deleted.
 - bill_daily_numbers: date PK and positive last_number, allocated atomically inside first order confirmation, with guards preventing rewind/deletion. Bill numbering is independent of order_daily_tokens.
 - orders.bill_id: NOT NULL restrictive FK, index (bill_id,queued_at,id). Each old order maps to one marked legacy bill; only this new relationship is backfilled. Existing fields/history remain unchanged, no payment invented. New insert requires open bill; existing immutable-order guard protects bill membership.
-- payments: UUID PK; restrictive bill/user FKs; COLLECTION/REFUND type; CASH/UPI method; positive checked numeric <=999999999999.99 and scale <=2; REFUND implies CASH; actor/time; request UUID/hash with actor-scoped uniqueness; bill/time/id index. Trigger rejects updates/deletes, closed-bill/excess collections and all currently unimplemented refund inserts.
+- payments: UUID PK; restrictive bill/user FKs; COLLECTION/REFUND type; CASH/UPI method; positive checked numeric <=999999999999.99 and scale <=2; REFUND implies CASH; actor/time; request UUID/hash with actor-scoped uniqueness; bill/time/id index. Current trigger rejects updates/deletes, manually closed-bill ledger inserts and excess due. Migration 014 enables entitlement-limited CASH refunds; 016 permits rollover-closed settlement.
 - bill_balances view: exact sums over confirmed order snapshots and payment ledger; total/collected/refunded/net_paid/amount_due/refund_due, without persisted derived payment status.
 - Takeaway history trigger checks bill due before READY→COMPLETED, preserving existing order history/FIFO guards. Legacy null-service and Dine In are not payment-gated.
 - Grants bills.read/manage and payments.read/collect to OWNER/MANAGER/CASHIER; removes KITCHEN orders.read. Kitchen keeps operational read capability and receives no financial data.
@@ -175,3 +175,16 @@ Adds bills_business_date_listing_idx(business_date DESC,opened_at DESC,id DESC) 
 No schema/index migration or record rewrite is added. Reports reads `bills`, `bill_balances`, `orders`, `effective_orders`, `effective_order_items`, `payments`, `order_amendments` and `order_status_history`. Bill business-date filtering selects commercial cohorts; payments and amendments filter timestamp intervals constructed from restaurant-local midnight. Stable menu/variant IDs group effective snapshot values. READY history supplies measured turnaround.
 
 Repeatable-read/read-only transactions keep each aggregate response internally consistent and prevent side effects. Numeric SQL sums and BigInt paise formatting preserve money. Existing Bill date, order Bill/queue, payment Bill, revision and history indexes remain authoritative. Integration fixtures inspect actual report query plans against 1,200 Bills over four months; new indexes are deferred pending demonstrated need. Current cohort balances are not historical closing balances. See [Reports](modules/reports.md) for definitions, bounds and cross-date trend reconciliation.
+
+## Bill session closure — 016_bill_session_rollover.sql
+
+bills adds closure_reason and closure_timezone. OPEN requires all closing fields null. CLOSED requires closed_at >= opened_at and one of:
+
+- MANUAL: real closed_by user FK, closure_timezone null; guard requires both dues zero and all rounds terminal.
+- BUSINESS_DAY_ROLLOVER: closed_by NULL, closure_timezone nonnull, business_date strictly earlier than the restaurant date of actual closed_at. Worker records configured IANA timezone; unsettled money/active rounds are retained.
+
+Existing CLOSED rows receive MANUAL without actor/time changes. Migration does not close OPEN rows; HTTP startup does. guard_bill protects all other fields and forbids reopen/rewrite/delete. guard_payment allows OPEN or rollover-closed bills only with unchanged immutable ledger, positive amounts, due limits and request uniqueness.
+
+bill_reminders adds nullable pause_reason: BALANCE_SETTLED, MANUAL_CLOSE or BUSINESS_DAY_ROLLOVER. Active next_due_at requires null reason. Synchronization records cause only on active-to-paused transition; last human updated_by is preserved, timestamp/version advance. Existing paused unknown reasons stay null. Repeated checks do not rewrite them.
+
+Rollover obtains advisory transaction lock 742019323 before reading PostgreSQL time. Closures/reminder pauses commit together; financial projections/orders/ledger are untouched. No tables dropped/reseeded, permissions, indexes or financial snapshots added.

@@ -297,3 +297,21 @@
 
 - Complete check suite, all 95 PostgreSQL tests and Menu/POS, Kitchen, Dispatch, Bills, responsive and new operational-alert browser suites passed. Four touch workflow sizes, eight layout sizes, offline fallback/reconciliation and combined-payment retry were exercised with external requests blocked.
 - Local migration 013 preserved all 23 existing tables after accounting for intentional grants/new nullable provenance; the restarted application passed readiness/protected-endpoint checks. Physical device/background alarm behavior remains outside Chromium emulation coverage.
+
+## 2026-10-02 — Dashboard clarity and historical Bill sessions
+
+### Changed
+
+- Dashboard uses Food Sold, Bills, Unpaid, Avg Bill and Money Received with backend explanations; detailed Reports retain precise labels/counts/calculations.
+- Older OPEN Bills close at HTTP startup and every minute with BUSINESS_DAY_ROLLOVER audit. CLOSED ends a session, preserving balances and Kitchen work. Historical collections/refunds remain usable; manual close and Takeaway gates stay strict.
+
+### Added
+
+- Migration 016: closure reason/timezone and reminder pause reason, preserving existing identity and financial history.
+- PostgreSQL rollover/midnight/concurrency/integrity tests and responsive Dashboard/historical-settlement/reminder coverage.
+
+### Local verification
+
+- `npm run check` and all 146 PostgreSQL tests passed, including rollback/retry and timezone/concurrency coverage. Actual local startup closed 23 historical sessions; all financial balances, 25 other source tables and 3 menu images were unchanged. No active local reminder required pausing.
+
+- All eight browser suites passed: Reports, responsive shell, Kitchen, Dispatch, Bills, alerts/audio, amendments/refunds and Menu/POS. Four-class touch workflows, eight widths plus constrained height and screenshot review passed with external traffic blocked. Physical Android/iOS keyboard, speaker and background-suspension checks remain outstanding.

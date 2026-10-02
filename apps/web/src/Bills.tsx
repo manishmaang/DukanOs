@@ -287,7 +287,8 @@ export function Bills({
                 <h2>Bill #{b.billNumber}</h2>
                 {b.reference && <p>{b.reference}</p>}
                 <p>
-                  <strong>{b.businessDate}</strong> · {b.status}
+                  <strong>{b.businessDate}</strong> · {b.status}{' '}
+                  {b.businessDate < b.currentBusinessDate && '· HISTORICAL'}
                 </p>
                 <p>
                   {b.serviceType?.replace('_', ' ') ??
@@ -301,7 +302,7 @@ export function Bills({
                     ? 'PAID'
                     : b.paymentStatus === 'REFUND_DUE'
                       ? `CASH REFUND DUE ₹${rupees(b.refundDue)}`
-                      : `Due ₹${rupees(b.amountDue)}`}
+                      : `₹${rupees(b.amountDue)} UNPAID`}
                 </strong>
                 <button
                   onClick={() => {
@@ -348,6 +349,16 @@ export function Bills({
               <br />
               Food cannot be added or changed on a bill from another business
               date.
+            </p>
+          )}
+          {bill.closureReason && (
+            <p className="bill-closure">
+              {bill.closureReason === 'BUSINESS_DAY_ROLLOVER'
+                ? 'Automatically closed at business-day rollover. The tab has ended; unpaid or refund balances can still be settled.'
+                : 'Manually closed after settlement and completion of Kitchen rounds.'}
+              {bill.closedAt && (
+                <span> Closed {new Date(bill.closedAt).toLocaleString()}.</span>
+              )}
             </p>
           )}
           {bill.legacy && (
@@ -412,7 +423,9 @@ export function Bills({
             </div>
           )}
           {canCollect &&
-            ((bill.status === 'OPEN' && bill.amountDue !== '0.00') ||
+            (((bill.status === 'OPEN' ||
+              bill.closureReason === 'BUSINESS_DAY_ROLLOVER') &&
+              bill.amountDue !== '0.00') ||
               (pending && pending.type !== 'REFUND')) &&
             pending?.type !== 'REFUND' && (
               <form
@@ -471,7 +484,8 @@ export function Bills({
             )}
           {canRefund &&
             ((!pending &&
-              bill.status === 'OPEN' &&
+              (bill.status === 'OPEN' ||
+                bill.closureReason === 'BUSINESS_DAY_ROLLOVER') &&
               bill.refundDue !== '0.00') ||
               pending?.type === 'REFUND') && (
               <form

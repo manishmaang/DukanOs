@@ -23,7 +23,7 @@ All HTTP endpoints use `/api`. Global validation rejects unknown properties on a
 
 The same application can run locally or on a cloud host. The baseline for required WAN-outage continuity is a single authoritative shop instance. Serve the built frontend and API on port 3000; PostgreSQL is bound to loopback on host port 5433 by default. Development Vite runs on port 5173. LAN access requires appropriate host firewall configuration. Public deployment needs TLS, network hardening, and backup/restore verification before business use. Production session cookies require HTTPS. Docker Compose currently runs the database only.
 
-Do not run local and cloud databases as independent writable authorities. No replication, synchronization, failover, service worker, disconnected browser queue, or background jobs exist. Backups and restore procedures remain a release requirement. Choose cloud vs local based on available shop hardware, electricity, maintenance, and backup cost, not an assumed monthly price.
+Do not run local and cloud databases as independent writable authorities. No replication, synchronization, failover, service worker or disconnected browser queue exists. One local Bill rollover check runs at HTTP startup and every 60 seconds; no generic job framework is introduced. Backups and restore procedures remain a release requirement. Choose cloud vs local based on available shop hardware, electricity, maintenance, and backup cost, not an assumed monthly price.
 
 ## Local freshness and integration boundary
 
@@ -114,3 +114,11 @@ RestaurantClock is a small shared provider alongside the database connection. Or
 ReportsModule reads existing Bills/effective Orders/Payments/revision/history projections through DatabaseService and RestaurantClock. It owns no writes or new ledger. Five aggregate GET APIs require reports.read and return shared typed decimal-string contracts. Each response uses a REPEATABLE READ, READ ONLY transaction with an eight-second statement timeout, inclusive bounded date scope and fifty-group item pages. No advisory write lock or external service is required.
 
 Sales and item metrics use the Bill cohort's current effective values; ledger and amendment events use their restaurant-local event dates. See [Reports](modules/reports.md) and decision 018 for exact semantics and legacy handling. React renders summaries/CSS bars with visible values, not browser-side aggregation of raw orders. Dashboard and Reports refresh Today every 60 seconds while visible and offer manual retry/refresh. No materialized reporting infrastructure is introduced.
+
+## Bill session rollover and Dashboard explanations
+
+BillsModule owns BillRolloverService. HTTP bootstrap explicitly awaits catch-up before listen, starts a 60-second unref interval, and closes the app on startup failure. Teardown clears the interval and awaits running work. Read-only contexts do not start jobs. The worker coalesces local overlap and uses the restaurant transaction lock across processes, reading RestaurantClock after locking. Only older OPEN tabs close; PostgreSQL protects immutable metadata and historical eligibility via closure_timezone.
+
+Migration 016 creates no ledger event: immutable Bill closure fields are the system audit. Existing reminder synchronization pauses active reminders atomically. Financial writes allow OPEN or rollover-closed tabs; food stays OPEN/current-date only. Kitchen uses its existing lifecycle and financial gates independently of parent status.
+
+Dashboard adds one aggregate explanation query inside its existing read-only snapshot, grouping ledger events by payment dates and Bill dates. No frontend inference, synthetic reconciliation, reporting writes or scheduled aggregates. Detailed Reports preserve calculations/contracts.
