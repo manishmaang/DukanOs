@@ -52,3 +52,7 @@ Cards display DINE IN/TAKEAWAY (or legacy unknown service) and PAID/DUE. TAKEAWA
 A Cash/UPI receipt captured with POS confirmation is the same bill ledger used by handover gating. Pay Later remains allowed for Takeaway creation, but backend/database still reject handover until current bill due is zero. Dine In serving remains independent of settlement. Dispatch does not display or manage payment reminders or Kitchen timers; operational role unions can switch to the authorized workspace. No Dispatch lifecycle or grid change was made.
 
 Migration 014 reads effective items and blocks Takeaway completion for REFUND_DUE as well as collection due, in both Orders and the database. The card displays REFUND ₹… AT COUNTER and disables handover until settled. Dine In may serve with either due. Cashier+Dispatch may navigate to Counter settlement; pure Dispatch cannot record refunds.
+
+## Historical session rollover
+
+CLOSED means the ordering session ended, not handover or settlement. Existing READY rounds remain in Dispatch. Takeaway still requires amount_due == 0 AND refund_due == 0 under existing transaction/database checks; rollover never bypasses this. Dine In/legacy behavior is unchanged. Counter can settle rollover-closed Bills before handover. No Dispatch refund workflow is added.

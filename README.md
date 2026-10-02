@@ -237,7 +237,7 @@ Browser verification: `CHROME_BINARY=/path/to/chromium AMEND_BROWSER_WIDTH=390 n
 
 **Open Bills** initially shows today’s open and closed bills, using the restaurant timezone. Search `1` or `#1` to find that **Bill number** across all dates; text searches reference/table labels, never Kitchen tokens. **From / To → Apply dates** selects an inclusive range and restricts any search. **Clear dates** preserves search; **Today** clears both. Clearing search with no applied dates returns to Today. Results display business dates and use newest-first, 100-row cursor pages.
 
-Historical bills show **Historical Bill** and cannot accept Add Items or queued food changes/cancellation. Existing food/history remains visible, and legitimate payments, cash refunds and closure remain available under their usual rules. The backend enforces this even for stale carts/direct requests. No historical bill is automatically closed or settled. Apply index-only migration 015 with `npm run db:migrate` before the updated build. All behavior remains local/LAN-capable.
+Historical bills show **Historical Bill** and cannot accept Add Items or queued food changes/cancellation. Existing food/history remains visible, and legitimate payments, cash refunds and closure remain available under their usual rules. The backend enforces this even for stale carts/direct requests. Older OPEN tabs close at startup and within one minute of the running-server date change. CLOSED means session ended, not settled. Balances and Counter financial actions remain; reminders stop after sync. Apply migration 016 with `npm run db:migrate` before starting the updated API. All behavior remains local/LAN-capable.
 
 ### MVP 2.0 checkpoint
 
@@ -245,7 +245,7 @@ The manually tested operational/financial baseline is the fixed annotated tag **
 
 ## Owner Dashboard and Reports V1
 
-Sign in as OWNER or MANAGER and choose **Dashboard** for today's sales, Bills, cash flow, balances, top portions, service mix and Kitchen summary. Choose **Reports** for Sales, Payments, Items or Operations. Select Yesterday, Last 7 Days, This Month or paired inclusive Custom dates (up to 366 days); use Refresh for live changes. Today refreshes once per minute while visible. CASHIER/KITCHEN/DISPATCH do not receive financial report access by default.
+Sign in as OWNER or MANAGER and choose **Dashboard** for FOOD SOLD, BILLS, UNPAID and AVG BILL, plus MONEY RECEIVED with Cash/UPI received, Cash returned and Net Money Received. Specific explanations identify older-bill receipts and unpaid/refund balances. Trends, top portions, service mix and collapsed Kitchen summary remain. Choose **Reports** for Sales, Payments, Items or Operations. Select Yesterday, Last 7 Days, This Month or paired inclusive Custom dates (up to 366 days); use Refresh for live changes. Today refreshes once per minute while visible. CASHIER/KITCHEN/DISPATCH do not receive financial report access by default.
 
 Sales means current effective Bill value, including open unpaid Bills. Collections are actual Cash/UPI ledger receipts by recording date; Net Collected subtracts recorded cash refunds. Refunds are never subtracted again from amended Sales. Due/refund due are current balances of selected Bills, not historical closing balances. Legacy unknown receipts/service remain explicitly unknown. Item reports use effective snapshot prices and stable item/portion IDs. See [Reports definitions and API contracts](docs/modules/reports.md) before interpreting historical periods.
 
@@ -254,3 +254,11 @@ No migration, seed, runtime internet dependency or operational-data change is re
 ### Dashboard says “Cannot GET /api/dashboard”
 
 This 404 can mean the frontend has been updated while the API process still runs the pre-Reports build. In the terminal running DukanOS, stop it with Ctrl+C, then run `npm run build` and `npm start` from the repository root. Refresh the browser. Changing the date filter or resetting the database will not repair a missing server route. An unauthenticated request to an installed report route returns 401, not 404; use your normal OWNER/MANAGER login to view reports.
+
+### Automatic previous-day tab closure
+
+Run migrations, build and restart API. Startup catches up older OPEN Bills, then checks every 60 seconds with PostgreSQL time and RESTAURANT_TIMEZONE (default Asia/Kolkata). No internet dependency. BUSINESS_DAY_ROLLOVER records actual processing time and null system actor. It creates no payment/refund and preserves food, money and audit history.
+
+Search older bills or select dates to inspect CLOSED/HISTORICAL tabs with UNPAID or REFUND DUE. Authorized Counter staff can record genuine settlement/refunds. No new food. Kitchen tickets continue; Takeaway requires both dues zero. Manual close still requires settled money and terminal rounds. Reminders stop at next successful poll; offline clients learn closure after reconnect.
+
+Dashboard = simplified operational overview. Reports = detailed financial/operational analysis. Net Money Received is not profit. Customer Ledger/Khata remains unimplemented.

@@ -13,6 +13,7 @@ export interface BillSummary {
   status: 'OPEN' | 'CLOSED';
   openedAt: string;
   closedAt: string | null;
+  closureReason: 'MANUAL' | 'BUSINESS_DAY_ROLLOVER' | null;
   billTotal: string;
   totalCollected: string;
   totalRefunded: string;

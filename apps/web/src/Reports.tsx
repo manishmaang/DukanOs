@@ -28,6 +28,143 @@ type Result =
   | PaymentsReport
   | ItemsReport
   | OperationsReport;
+function OwnerSummary({ s }: { s: SalesSummary }) {
+  return (
+    <section
+      aria-label="Food sold summary"
+      className="report-summary dashboard-summary"
+    >
+      <article className="report-sales-hero">
+        <span>FOOD SOLD</span>
+        <strong data-metric="sales">{money(s.salesValue)}</strong>
+        <small>
+          Final value of food sold, including tax, after order changes and
+          cancellations.
+        </small>
+      </article>
+      <article>
+        <span>BILLS</span>
+        <strong data-metric="bills">{s.billCount}</strong>
+      </article>
+      <article className="dashboard-unpaid">
+        <span>UNPAID</span>
+        <strong data-metric="due">{money(s.outstandingDue)}</strong>
+        <small>Money still to collect from bills in this period.</small>
+      </article>
+      <article>
+        <span>AVG BILL</span>
+        <strong>{money(s.averageBill)}</strong>
+        <small>Food sold ÷ bills</small>
+      </article>
+    </section>
+  );
+}
+function OwnerMoney({ d }: { d: DashboardReport }) {
+  const p = d.payments,
+    e = d.explanation,
+    s = d.sales.summary;
+  const reasons: string[] = [];
+  if (e.collectionsForEarlierBills !== '0.00')
+    reasons.push(
+      `${money(e.collectionsForEarlierBills)} received during this period came from earlier bills.`,
+    );
+  if (e.collectionsForLaterBills !== '0.00')
+    reasons.push(
+      `${money(e.collectionsForLaterBills)} received during this period belongs to bills dated after this period.`,
+    );
+  if (s.outstandingDue !== '0.00')
+    reasons.push(
+      `${money(s.outstandingDue)} from bills in this period is still unpaid.`,
+    );
+  if (p.cashRefunds !== '0.00')
+    reasons.push(
+      `${money(p.cashRefunds)} was returned in cash during this period.`,
+    );
+  if (e.refundsForOtherBills !== '0.00')
+    reasons.push(
+      `${money(e.refundsForOtherBills)} of those returns belonged to bills outside this sales period.`,
+    );
+  if (s.refundDue !== '0.00')
+    reasons.push(
+      `${money(s.refundDue)} still needs to be returned for bills in this period.`,
+    );
+  if (e.selectedBillCollectionsOutsidePeriod !== '0.00')
+    reasons.push(
+      `${money(e.selectedBillCollectionsOutsidePeriod)} for bills in this period was received on other dates.`,
+    );
+  if (e.selectedBillRefundsOutsidePeriod !== '0.00')
+    reasons.push(
+      `${money(e.selectedBillRefundsOutsidePeriod)} was returned for these bills on other dates.`,
+    );
+  if (s.legacyDue !== '0.00')
+    reasons.push(
+      `${money(s.legacyDue)} of legacy balances needs review because historical receipts are unknown.`,
+    );
+  return (
+    <section className="report-panel owner-money" aria-label="Money received">
+      <h2>MONEY RECEIVED</h2>
+      <dl className="report-money-grid">
+        <div>
+          <dt>Cash Received</dt>
+          <dd data-metric="cash">{money(p.cashCollections)}</dd>
+        </div>
+        <div>
+          <dt>UPI Received</dt>
+          <dd data-metric="upi">{money(p.upiCollections)}</dd>
+        </div>
+        <div>
+          <dt>Cash Returned</dt>
+          <dd data-metric="refunds">{money(p.cashRefunds)}</dd>
+        </div>
+        <div className="owner-net">
+          <dt>Net Money Received</dt>
+          <dd data-metric="net">{money(p.netCollected)}</dd>
+          <small>
+            Cash + UPI received, minus cash returned during this period.
+          </small>
+        </div>
+      </dl>
+      <p className="report-caption">
+        Payments can belong to bills from an earlier day. Net Money Received is
+        not profit or cash-drawer balance.
+      </p>
+      {(reasons.length > 0 || s.salesValue !== p.netCollected) && (
+        <div
+          className="dashboard-explanation"
+          aria-label="Food sold and money received explained"
+        >
+          <h3>
+            {s.salesValue !== p.netCollected
+              ? 'Why are these different?'
+              : 'How these amounts relate'}
+          </h3>
+          {reasons.length > 0 ? (
+            <ul>
+              {reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>
+              Food Sold follows bill dates and current order changes. Money
+              Received follows payment dates.
+            </p>
+          )}
+        </div>
+      )}
+      {s.refundDue !== '0.00' && (
+        <div className="owner-refund-due">
+          <strong>REFUND DUE</strong>
+          <strong>{money(s.refundDue)}</strong>
+          <span>
+            Money still to return for bills in this period. This is separate
+            from Unpaid.
+          </span>
+        </div>
+      )}
+    </section>
+  );
+}
 function Summary({ s }: { s: SalesSummary }) {
   return (
     <section aria-label="Sales summary" className="report-summary">
@@ -125,7 +262,13 @@ function Balances({
     </section>
   );
 }
-function Trend({ trend }: { trend: SalesTrend }) {
+function Trend({
+  trend,
+  owner = false,
+}: {
+  trend: SalesTrend;
+  owner?: boolean;
+}) {
   const amounts = trend.buckets.map((b) =>
     BigInt(b.salesValue.replace('.', '')),
   );
@@ -137,7 +280,10 @@ function Trend({ trend }: { trend: SalesTrend }) {
       : key;
   return (
     <section className="report-panel">
-      <h2>Sales by {trend.granularity === 'HOUR' ? 'Hour' : 'Day'}</h2>
+      <h2>
+        {owner ? 'Food Sold' : 'Sales'} by{' '}
+        {trend.granularity === 'HOUR' ? 'Hour' : 'Day'}
+      </h2>
       <p className="report-caption">
         Effective values attributed to original Kitchen-round confirmation time.
       </p>
@@ -471,22 +617,32 @@ export function ReportsWorkspace({ dashboard }: { dashboard: boolean }) {
       )}
       {sales && (
         <>
-          <Summary s={sales.summary} />
+          {dashboard ? (
+            <OwnerSummary s={sales.summary} />
+          ) : (
+            <Summary s={sales.summary} />
+          )}
           {sales.summary.salesValue === '0.00' && (
             <p className="report-empty">
               {period?.preset === 'TODAY'
-                ? 'No sales yet today.'
-                : 'No sales in this period.'}
+                ? dashboard
+                  ? 'No food sold yet today.'
+                  : 'No sales yet today.'
+                : dashboard
+                  ? 'No food sold in this period.'
+                  : 'No sales in this period.'}
             </p>
           )}
-          <p className="report-caption">
-            Sales use current effective bill totals, whether paid or unpaid.
-            Refund payments do not reduce sales a second time.
-          </p>
+          {!dashboard && (
+            <p className="report-caption">
+              Sales use current effective bill totals, whether paid or unpaid.
+              Refund payments do not reduce sales a second time.
+            </p>
+          )}
         </>
       )}
-      {payments && <PaymentSummary p={payments} />}
-      {sales && <Trend trend={sales.trend} />}
+      {d ? <OwnerMoney d={d} /> : payments && <PaymentSummary p={payments} />}
+      {sales && <Trend trend={sales.trend} owner={dashboard} />}
       {d && (
         <div className="report-columns">
           <section className="report-panel">
@@ -504,7 +660,7 @@ export function ReportsWorkspace({ dashboard }: { dashboard: boolean }) {
         </div>
       )}
       {sales && !dashboard && <ServiceTypes sales={sales} />}
-      {payments && (
+      {payments && !dashboard && (
         <Balances
           due={payments.outstandingDue}
           refund={payments.refundDue}
@@ -562,7 +718,15 @@ export function ReportsWorkspace({ dashboard }: { dashboard: boolean }) {
           </div>
         </section>
       )}
-      {operations && <Operations o={operations} />}
+      {operations &&
+        (dashboard ? (
+          <details className="dashboard-operations">
+            <summary>Operations summary</summary>
+            <Operations o={operations} />
+          </details>
+        ) : (
+          <Operations o={operations} />
+        ))}
     </section>
   );
 }

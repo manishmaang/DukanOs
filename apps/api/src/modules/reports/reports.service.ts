@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import type {
   DashboardReport,
+  DashboardExplanation,
   ItemsReport,
   OperationsReport,
   PaymentsReport,
@@ -313,10 +314,43 @@ export class ReportsService {
   operations(q: ReportPeriodDto) {
     return this.read(q, (c, p) => this.operationsData(c, p));
   }
+  private async explanationData(
+    c: PoolClient,
+    p: ReportPeriod,
+  ): Promise<DashboardExplanation> {
+    const during = eventWindow.replaceAll('created_at', 'p.created_at');
+    const selected = 'b.business_date BETWEEN $1::date AND $2::date';
+    const r = (
+      await c.query(
+        `SELECT
+      coalesce(sum(p.amount) FILTER(WHERE p.type='COLLECTION' AND (${during}) AND (${selected})),0)::text AS "collectionsForSelectedBills",
+      coalesce(sum(p.amount) FILTER(WHERE p.type='COLLECTION' AND (${during}) AND b.business_date<$1::date),0)::text AS "collectionsForEarlierBills",
+      coalesce(sum(p.amount) FILTER(WHERE p.type='COLLECTION' AND (${during}) AND b.business_date>$2::date),0)::text AS "collectionsForLaterBills",
+      coalesce(sum(p.amount) FILTER(WHERE p.type='REFUND' AND (${during}) AND NOT (${selected})),0)::text AS "refundsForOtherBills",
+      coalesce(sum(p.amount) FILTER(WHERE p.type='COLLECTION' AND NOT (${during}) AND (${selected})),0)::text AS "selectedBillCollectionsOutsidePeriod",
+      coalesce(sum(p.amount) FILTER(WHERE p.type='REFUND' AND NOT (${during}) AND (${selected})),0)::text AS "selectedBillRefundsOutsidePeriod"
+      FROM payments p JOIN bills b ON b.id=p.bill_id WHERE (${during}) OR (${selected})`,
+        [p.from, p.to, p.timezone],
+      )
+    ).rows[0];
+    return {
+      collectionsForSelectedBills: amount(paise(r.collectionsForSelectedBills)),
+      collectionsForEarlierBills: amount(paise(r.collectionsForEarlierBills)),
+      collectionsForLaterBills: amount(paise(r.collectionsForLaterBills)),
+      refundsForOtherBills: amount(paise(r.refundsForOtherBills)),
+      selectedBillCollectionsOutsidePeriod: amount(
+        paise(r.selectedBillCollectionsOutsidePeriod),
+      ),
+      selectedBillRefundsOutsidePeriod: amount(
+        paise(r.selectedBillRefundsOutsidePeriod),
+      ),
+    };
+  }
   dashboard(q: ReportPeriodDto): Promise<DashboardReport> {
     return this.read(q, async (c, p) => ({
       period: p,
       sales: await this.salesData(c, p),
+      explanation: await this.explanationData(c, p),
       payments: await this.paymentsData(c, p),
       topItems: (await this.itemsData(c, p, {}, 5)).items,
       operations: await this.operationsData(c, p),

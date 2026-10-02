@@ -42,7 +42,7 @@ export class AlertsService {
           message: 'Payment reminders require an open unpaid Dine In bill.',
         });
       await c.query(
-        `INSERT INTO bill_reminders(bill_id,interval_minutes,next_due_at,created_by,updated_by) VALUES($1,$2,clock_timestamp()+make_interval(mins=>$2),$3,$3) ON CONFLICT(bill_id) DO UPDATE SET interval_minutes=$2,next_due_at=clock_timestamp()+make_interval(mins=>$2),updated_by=$3`,
+        `INSERT INTO bill_reminders(bill_id,interval_minutes,next_due_at,created_by,updated_by) VALUES($1,$2,clock_timestamp()+make_interval(mins=>$2),$3,$3) ON CONFLICT(bill_id) DO UPDATE SET interval_minutes=$2,next_due_at=clock_timestamp()+make_interval(mins=>$2),updated_by=$3,pause_reason=NULL`,
         [id, minutes, actor.user.id],
       );
       return { saved: true };
