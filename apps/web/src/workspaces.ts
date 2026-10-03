@@ -10,6 +10,7 @@ export const workspaces: WorkspaceLink[] = [
   { path: '/kitchen', label: 'Kitchen', permissions: ['kitchen.read'] },
   { path: '/menu', label: 'Menu', permissions: ['menu.manage'] },
   { path: '/dispatch', label: 'Dispatch', permissions: ['dispatch.read'] },
+  { path: '/expenses', label: 'Expenses', permissions: ['expenses.read'] },
   { path: '/reports', label: 'Reports', permissions: ['reports.read'] },
   {
     path: '/admin',

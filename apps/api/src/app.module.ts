@@ -1,3 +1,4 @@
+import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
@@ -18,6 +19,7 @@ import { AuthModule } from './modules/auth/auth.module';
     DispatchModule,
     AlertsModule,
     ReportsModule,
+    ExpensesModule,
   ],
   controllers: [HealthController],
 })

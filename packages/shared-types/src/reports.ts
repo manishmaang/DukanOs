@@ -93,6 +93,7 @@ export interface DashboardExplanation {
   selectedBillRefundsOutsidePeriod: string;
 }
 export interface DashboardReport {
+  recordedExpenses: string;
   explanation: DashboardExplanation;
   period: ReportPeriod;
   sales: SalesReport;

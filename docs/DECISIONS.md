@@ -393,3 +393,21 @@ CLOSED means ordering session ended, not guaranteed payment. HTTP startup catch-
 ### Consequences
 
 Kitchen continues; Takeaway retains both financial gates; food stays current-day OPEN only. Rollover is atomic/idempotent, periodic failures retry and startup failure prevents listening. No external scheduler, fake money/user, customer workflow or generic job framework. Dashboard backend aggregates explain payment-date versus Bill-date differences; Reports stays detailed. Offline clients learn reminder closure on authoritative reconnect.
+
+## 020 — Separate recorded expenses with immutable entries and audited voids
+
+Date: 2026-10-02
+
+### Context and options
+
+Restaurant petty expenditure must be quick to record from phones and later support owner reports. Considered reusing customer payments, editable expense rows and separate immutable entries with audited voids. Customer payments have different meaning and must not alter customer balances; silent edits lose financial history. Full correction revisions and supplier/inventory accounting exceed this milestone.
+
+### Decision
+
+Use ExpensesModule with independent precise-money records, snapshotted category names and ACTIVE → VOIDED audit; corrections void then record anew. Capability-based cashier entry/read is separate from owner reports, category management and voids. Normal entry resolves the restaurant date under lock; deliberate historical entry allows 30 previous days, no future dates. Existing report period and live mutation authorization become shared utilities rather than parallel implementations.
+
+Receipt uploads stage local validated 2400px quality-90 WebP files, then attach once; original/voided receipts remain. Explicit cleanup reclaims abandoned stages after 24 hours. Reports totals/trends use active expense business dates; Dashboard adds only Recorded Expenses, never profit or a subtraction from customer cash flow.
+
+### Reason and consequences
+
+This preserves audit, concurrency and LAN operation with existing infrastructure. Historical voids restate effective period totals, not immutable accounting close snapshots. There is no vendor refund ledger, receipt replacement, supplier balance or general approval engine. Future Daily Reports reuse aggregate APIs; Email/WhatsApp belong behind future provider adapters, with transactional and marketing purposes kept distinct. No messaging code is introduced now.

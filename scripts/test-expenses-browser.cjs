@@ -17,12 +17,12 @@ const root = require('node:path').resolve(__dirname, '..');
 (async () => {
   const admin = new Client({ connectionString: process.env.DATABASE_URL });
   await admin.connect();
-  const schema = 'reports_browser_' + randomUUID().replaceAll('-', '');
+  const schema = 'expenses_browser_' + randomUUID().replaceAll('-', '');
   await admin.query(`CREATE SCHEMA "${schema}"`);
   const url = new URL(process.env.DATABASE_URL);
   url.searchParams.set('options', `-csearch_path=${schema}`);
   process.env.DATABASE_URL = url.toString();
-  const profile = fs.mkdtempSync('/tmp/dukanos-reports-');
+  const profile = fs.mkdtempSync('/tmp/dukanos-expenses-');
   process.env.DUKANOS_DATA_DIR = profile + '/media';
   let app, chrome, browser;
   const clients = [];
@@ -419,7 +419,7 @@ const root = require('node:path').resolve(__dirname, '..');
           captureBeyondViewport: false,
         });
         fs.writeFileSync(
-          `/tmp/dukanos-reports-${label}-${width}.png`,
+          `/tmp/dukanos-expenses-${label}-${width}.png`,
           Buffer.from(shot.data, 'base64'),
         );
       }
@@ -439,25 +439,47 @@ const root = require('node:path').resolve(__dirname, '..');
       c.wait(
         "!!document.querySelector('.report-period') && !document.querySelector('.reports-workspace [role=status]')",
       );
-    const today = (await c.http('/dashboard')).body.period.currentBusinessDate;
+    const expenseConfig = (await c.http('/expense-categories')).body;
+    const vegetables = expenseConfig.categories.find(
+      (x) => x.name === 'Vegetables / Raw Material',
+    ).id;
+    const bread = expenseConfig.categories.find(
+      (x) => x.name === 'Bread / Bakery',
+    ).id;
+    const today = expenseConfig.currentBusinessDate;
     const yesterday = new Date(Date.parse(today + 'T00:00:00Z') - 86400000)
       .toISOString()
       .slice(0, 10);
-    const weekFrom = new Date(Date.parse(today + 'T00:00:00Z') - 6 * 86400000)
-      .toISOString()
-      .slice(0, 10);
-    async function choose(period, from, to) {
-      await select('[aria-label="Report period"]', period);
-      if (period === 'CUSTOM') {
-        await c.fill('[aria-label="Report from"]', from);
-        await c.fill('[aria-label="Report to"]', to);
-        await button('Apply period');
-      }
-      await loaded();
-      if (from)
-        await c.wait(
-          `document.querySelector('.report-period')?.textContent.includes(${JSON.stringify(from + ' → ' + to)})`,
-        );
+    let total = 0n;
+    const currency = (n) =>
+      '₹' +
+      (n / 100n).toString() +
+      (n % 100n ? '.' + (n % 100n).toString().padStart(2, '0') : '');
+    const expenseLoaded = () =>
+      c.wait(
+        "!!document.querySelector('.expense-period') && !!document.querySelector('[data-expense-total]')",
+      );
+    const expenseTotal = () =>
+      c.wait(
+        `document.querySelector('[data-expense-total]')?.textContent===${JSON.stringify(currency(total))}`,
+      );
+    async function entry(value, cat, method = 'Cash', date) {
+      await button('Add Expense');
+      await c.wait(
+        '!!document.querySelector(\'[aria-label="Expense amount"]\')',
+      );
+      await c.fill('[aria-label="Expense amount"]', value);
+      await select('[aria-label="Expense category"]', cat);
+      await button(method);
+      if (date) await c.fill('[aria-label="Expense business date"]', date);
+      await c.fill(
+        '[aria-label="Expense vendor"]',
+        'Fresh Market ' + 'long vendor name '.repeat(4),
+      );
+      await c.fill(
+        '[aria-label="Expense note"]',
+        'Morning purchase <plain text>',
+      );
     }
     for (const [width, height] of [
       [390, 844],
@@ -466,324 +488,185 @@ const root = require('node:path').resolve(__dirname, '..');
       [1440, 900],
     ]) {
       await resize(width, height);
+      await go('/expenses', '.expenses-workspace');
+      await expenseLoaded();
+      await entry('1250', vegetables);
+      await inspect('entry', width, height, true);
+      // Native file input is filled through CDP with a local generated image.
+      const sharp = require('sharp');
+      const receiptFile = profile + '/receipt.png';
+      await sharp({
+        create: {
+          width: 1200,
+          height: 1800,
+          channels: 3,
+          background: '#fafafa',
+        },
+      })
+        .png()
+        .toFile(receiptFile);
+      const document = (await c.send('DOM.getDocument')).root.nodeId;
+      const input = (
+        await c.send('DOM.querySelector', {
+          nodeId: document,
+          selector: 'input[type=file]',
+        })
+      ).nodeId;
+      await c.send('DOM.setFileInputFiles', {
+        nodeId: input,
+        files: [receiptFile],
+      });
+      await c.wait("!!document.querySelector('.expense-receipt-preview img')");
+      await button('Save Expense');
+      await c.wait("!!document.querySelector('.expense-detail')");
+      assert.ok(
+        await c.read(
+          "document.querySelector('.expense-detail').textContent.includes('₹1250') && !!document.querySelector('.expense-receipt-link')",
+        ),
+      );
+      total += 125000n;
+      await inspect('receipt-detail', width, height, true);
+      await button('Back to expenses');
+      await expenseLoaded();
+      await expenseTotal();
+      await entry('600', bread, 'UPI');
+      // Double submission uses the synchronous in-flight guard and server idempotency.
+      await c.read(
+        "document.querySelector('.expense-entry').requestSubmit();document.querySelector('.expense-entry').requestSubmit()",
+      );
+      await c.wait("!!document.querySelector('.expense-detail')");
+      total += 60000n;
+      await button('Back to expenses');
+      await expenseLoaded();
+      await expenseTotal();
+      await button('Manage categories');
+      await c.fill(
+        '[aria-label="Expense category name"]',
+        'Staff Tea ' + width,
+      );
+      await button('Save category');
+      await c.wait(
+        `document.querySelector('.expense-category-list').textContent.includes('Staff Tea ${width}')`,
+      );
+      const tea = (await c.http('/expense-categories')).body.categories.find(
+        (x) => x.name === 'Staff Tea ' + width,
+      );
+      await button('Back to expenses');
+      await expenseLoaded();
+      await entry('150', tea.id);
+      await button('Save Expense');
+      await c.wait("!!document.querySelector('.expense-detail')");
+      total += 15000n;
+      await tap('.expense-void summary');
+      await select('[aria-label="Expense void reason"]', 'WRONG_AMOUNT');
+      await c.fill(
+        '[aria-label="Expense void note"]',
+        'Correct value entered separately',
+      );
+      await button('Confirm void');
+      await c.wait("!!document.querySelector('.expense-void-audit')");
+      total -= 15000n;
+      await inspect('void-audit', width, height, true);
+      await button('Back to expenses');
+      await expenseLoaded();
+      await expenseTotal();
+      await button('Manage categories');
+      await button('Edit Staff Tea ' + width);
+      await c.fill(
+        '[aria-label="Expense category name"]',
+        'Tea renamed ' + width,
+      );
+      await tap('.expense-checkbox');
+      await button('Save category');
+      await c.wait(
+        `document.querySelector('.expense-category-list').textContent.includes('Tea renamed ${width} · Inactive')`,
+      );
+      await button('Back to expenses');
+      await expenseLoaded();
+      await entry('25.50', bread, 'Cash', yesterday);
+      assert.ok(
+        await c.read("!!document.querySelector('.expense-historical')"),
+      );
+      await button('Save Expense');
+      await c.wait("!!document.querySelector('.expense-detail')");
+      assert.ok(
+        await c.read(
+          `document.querySelector('.expense-detail').textContent.includes(${JSON.stringify(yesterday)})`,
+        ),
+      );
+      await button('Back to expenses');
+      await expenseLoaded();
+      await expenseTotal();
+      await select('[aria-label="Expense period"]', 'YESTERDAY');
+      await c.wait(
+        `document.querySelector('.expense-period').textContent.startsWith(${JSON.stringify(yesterday)})`,
+      );
+      await select('[aria-label="Expense period"]', 'LAST_7_DAYS');
+      await expenseLoaded();
+      await select('[aria-label="Expense period"]', 'THIS_MONTH');
+      await expenseLoaded();
+      await select('[aria-label="Expense period"]', 'CUSTOM');
+      await c.fill('[aria-label="Expense from"]', today);
+      await c.fill('[aria-label="Expense to"]', today);
+      await button('Apply expense dates');
+      await expenseTotal();
+      await c.fill('[aria-label="Search expenses"]', 'no matching expense');
+      await c.wait(
+        "document.body.textContent.includes('No entries match these filters.')",
+      );
+      await c.fill('[aria-label="Search expenses"]', '');
+      await expenseTotal();
       await go('/dashboard', '.reports-workspace');
       await loaded();
       await metric('sales', '₹920');
-      await metric('bills', '3');
-      await metric('due', '₹100');
-      await metric('cash', '₹500');
-      await metric('upi', '₹370');
-      await metric('refunds', '₹50');
       await metric('net', '₹820');
-      assert.ok(await c.read("document.body.textContent.includes('₹306.67')"));
-      for (const label of [
-        'FOOD SOLD',
-        'BILLS',
-        'UNPAID',
-        'AVG BILL',
-        'MONEY RECEIVED',
-        'Cash Received',
-        'UPI Received',
-        'Cash Returned',
-        'Net Money Received',
-      ])
-        assert.ok(
-          await c.read(
-            `document.body.textContent.includes(${JSON.stringify(label)})`,
-          ),
-        );
-      assert.ok(
-        await c.read(
-          "!document.querySelector('.dashboard-summary').textContent.includes(' open') && !document.querySelector('.owner-money').textContent.includes('transactions')",
-        ),
-      );
-      assert.ok(
-        await c.read(
-          "document.querySelector('.dashboard-explanation').textContent.includes('₹100 from bills in this period is still unpaid.')",
-        ),
-      );
-      await inspect('dashboard', width, height, true);
-      await choose('YESTERDAY', yesterday, yesterday);
-      await metric('sales', '₹0');
-      assert.ok(
-        await c.read(
-          "document.body.textContent.includes('No food sold in this period.')",
-        ),
-      );
-      await choose('LAST_7_DAYS', weekFrom, today);
-      await metric('sales', '₹920');
-      assert.ok(
-        await c.read("document.body.textContent.includes('Food Sold by Day')"),
-      );
-      await choose('THIS_MONTH', today.slice(0, 7) + '-01', today);
-      await metric('sales', '₹920');
-      await choose('CUSTOM', today, today);
-      await metric('sales', '₹920');
-      await inspect('custom-period', width, height, true);
-      await choose('TODAY', today, today);
+      await metric('expenses', currency(total));
       await go('/reports', '.report-tabs');
       await loaded();
-      await metric('sales', '₹920');
-      await button('Sales');
-      await loaded(); // selecting the current section must preserve it
-      await inspect('sales', width, height, true);
-      await inspect('sales-trend', width, height, true);
-      await button('Payments');
-      await loaded();
-      await metric('net', '₹820');
-      assert.ok(
-        await c.read(
-          "document.body.textContent.includes('Total collections ₹870')",
-        ),
-      );
-      assert.ok(
-        await c.read(
-          "document.body.textContent.includes('transactions') && document.body.textContent.includes('Cash Collected')",
-        ),
-      );
-      await inspect('payments', width, height, true);
-      await button('Items');
-      await loaded();
-      await c.wait(
-        "document.querySelector('.report-items')?.textContent.includes('Noodles')",
-      );
-      assert.ok(
-        await c.read(
-          "!document.querySelector('.report-items').textContent.includes('Pasta')",
-        ),
-      );
-      await select('[aria-label="Sort report items"]', 'SALES');
-      await c.wait(
-        "document.querySelector('.report-items li:first-child')?.textContent.includes('Meal')",
-      );
-      await inspect('items', width, height, true);
-      await button('Operations');
-      await loaded();
-      assert.ok(
-        await c.read(
-          "document.body.textContent.includes('3 Bills · 3 Kitchen Rounds') && document.body.textContent.includes('Amendments: 1')",
-        ),
-      );
-      assert.ok(
-        await c.read(
-          "document.body.textContent.includes('Dine In: 2 bills') && document.body.textContent.includes('Takeaway: 1 bills')",
-        ),
-      );
-      await inspect('operations', width, height, true);
-      await choose('CUSTOM', '2001-01-01', '2001-01-02');
-      assert.ok(
-        await c.read(
-          "document.body.textContent.includes('0 Bills · 0 Kitchen Rounds')",
-        ),
-      );
-      await choose('TODAY', today, today);
+      await button('Expenses');
+      await c.wait("!!document.querySelector('.expense-trend')");
+      await expenseTotal();
+      await inspect('expense-report', width, height, true);
       console.log(
-        `Reports workflow PASS ${width}x${height}: periods, tabs, exact money, effective items, touch controls.`,
+        `Expenses workflow PASS ${width}x${height}: receipt, Cash/UPI, double submit, category rename/deactivate, void audit, dates, search, Dashboard independence and report.`,
       );
     }
     for (const [width, height] of [...sizes, [390, 420]]) {
       await resize(width, height);
-      await go('/dashboard', '.reports-workspace');
-      await loaded();
-      await inspect('dashboard-boundary', width, height, true);
-      await inspect('money-boundary', width, height, true);
-      await choose('CUSTOM', today, today);
-      await inspect('custom-boundary', width, height, true);
+      await go('/expenses', '.expenses-workspace');
+      await expenseLoaded();
+      await inspect('list-boundary', width, height, true);
+      await entry('1.50', vegetables);
+      await inspect('entry-boundary', width, height, true);
+      await button('Back to expenses');
+      await button('Manage categories');
+      await inspect('categories-boundary', width, height);
+      await button('Back to expenses');
       await go('/reports', '.report-tabs');
       await loaded();
-      for (const tab of [
-        'Sales',
-        'Payments',
-        'Items',
-        'Operations',
-        'Expenses',
-      ]) {
-        await button(tab);
-        await loaded();
-        await inspect(tab.toLowerCase() + '-boundary', width, height);
-      }
+      await button('Expenses');
+      await c.wait("!!document.querySelector('.expense-trend')");
+      await inspect('report-boundary', width, height);
     }
-    // A network failure removes old figures and offers an explicit retry; POS navigation still works.
-    await resize(390, 844);
-    await go('/dashboard', '.reports-workspace');
-    await loaded();
-    c.fail = true;
-    await button('Refresh');
-    await c.wait("!!document.querySelector('.reports-workspace [role=alert]')");
-    assert.equal(
-      await c.read("document.querySelectorAll('[data-metric]').length"),
-      0,
-    );
-    await inspect('retry', 390, 844, true);
-    await go('/pos', '.pos-card');
-    c.fail = false;
-    await go('/dashboard', '.reports-workspace');
-    await loaded();
-    c.fail = true;
-    await button('Refresh');
-    await c.wait("!!document.querySelector('.reports-workspace [role=alert]')");
-    c.fail = false;
-    await button('Retry report');
-    await metric('sales', '₹920');
-    // Refresh observes existing writes without restarting the application.
-    const live = await create('Pasta');
-    await button('Refresh');
-    await metric('sales', '₹1090');
-    await metric('bills', '4');
-    await create('Noodles', { billId: live.billId });
-    await pay(live, '290', 'UPI');
-    await button('Refresh');
-    await metric('sales', '₹1210');
-    await metric('net', '₹1110');
-    await replace(live, 'Noodles');
-    await button('Refresh');
-    await metric('sales', '₹1160');
-    assert.ok(
-      await c.read(
-        "document.body.textContent.includes('4 Bills · 5 Kitchen Rounds')",
-      ),
-    );
-    await ownerCall(`/bills/${live.billId}/refunds`, {
-      requestId: randomUUID(),
-      amount: '50',
-    });
-    await button('Refresh');
-    await metric('net', '₹1060');
-    await metric('refunds', '₹100');
-    await inspect('live-refresh', 390, 844, true);
-    // Previous-day receipts must not become today's food sales. Exercise rollover and
-    // historical financial forms on all four workflow classes, with external traffic blocked.
-    const {
-      RestaurantClock,
-    } = require('../apps/api/dist/database/restaurant-clock');
-    const {
-      BillRolloverService,
-    } = require('../apps/api/dist/modules/bills/bill-rollover.service');
-    const clock = app.get(RestaurantClock),
-      realRead = clock.read.bind(clock);
-    menu.Older = await ownerCall('/menu/items', {
-      categoryId: category.id,
-      name: 'Older meal',
-      variants: [
-        {
-          name: 'Full',
-          channels: [{ channelCode: 'COUNTER', price: '650', available: true }],
-        },
-      ],
-    });
-    let fixtureInstant;
-    clock.read = (connection) =>
-      realRead({
-        query: (text, values) =>
-          connection.query(
-            text.replace('clock_timestamp()', '$2::timestamptz'),
-            [...values, fixtureInstant],
-          ),
-      });
-    for (const [width, height] of [
-      [390, 844],
-      [768, 1024],
-      [1024, 768],
-      [1440, 900],
-    ]) {
-      await resize(width, height);
-      fixtureInstant = new Date(Date.now() - 2 * 86400000).toISOString();
-      const old = await create('Older', {
-        reference: 'Historical unpaid ' + width,
-      });
-      const returnBill = await create('Pasta', {
-        reference: 'Historical refund ' + width,
-      });
-      await pay(returnBill, '170', 'UPI');
-      await replace(returnBill, 'Noodles');
-      await ownerCall(`/bills/${old.billId}/reminder`, { intervalMinutes: 5 });
-      fixtureInstant = new Date().toISOString();
-      await go('/pos', '.pos-card');
-      await c.wait(
-        `!!document.querySelector('[data-bill-reminder="${old.billId}"]')`,
-      );
-      const before = (await c.http('/dashboard')).body;
-      await app.get(BillRolloverService).run();
-      await c.wait(
-        `!document.querySelector('[data-bill-reminder="${old.billId}"]')`,
-      );
-      const after = (await c.http('/dashboard')).body;
+    for (const name of ['cashier', 'manager', 'cook', 'dispatcher']) {
+      const other = await device(name);
+      const allowed = ['cashier', 'manager'].includes(name);
+      assert.equal((await other.http('/expenses')).status, allowed ? 200 : 403);
       assert.equal(
-        after.sales.summary.salesValue,
-        before.sales.summary.salesValue,
+        (await other.http('/reports/expenses')).status,
+        name === 'manager' ? 200 : 403,
       );
-      assert.equal(after.payments.netCollected, before.payments.netCollected);
-      await c.read(`location.hash='/pos?bill=${old.billId}'`);
-      await c.wait("!!document.querySelector('.bill-payment')");
-      assert.ok(
-        await c.read(
-          "document.querySelector('.bills-workspace').textContent.includes('CLOSED') && document.querySelector('.bill-historical') && document.querySelector('.bill-closure').textContent.includes('Automatically')",
-        ),
-      );
-      assert.ok(
-        await c.read(
-          "![...document.querySelectorAll('.bills-workspace button')].some(e=>['Add Items','Close Bill'].includes(e.textContent.trim())) && !document.querySelector('.reminder-setting')",
-        ),
-      );
-      await inspect('historical-unpaid', width, height, true);
-      await c.fill('[aria-label="Payment amount"]', '650');
-      await button('Record Payment');
-      await c.wait(
-        "!document.querySelector('.bill-payment') && document.querySelector('.bill-payment-status')?.textContent.trim()==='PAID'",
-      );
-      await c.read(`location.hash='/pos?bill=${returnBill.billId}'`);
-      await c.wait("!!document.querySelector('.bill-refund')");
-      await inspect('historical-refund', width, height, true);
-      await c.fill('[aria-label="Cash refund amount"]', '50');
-      await button('Confirm Cash Refund');
-      await c.wait(
-        "!document.querySelector('.bill-refund') && document.querySelector('.bill-payment-status')?.textContent.trim()==='PAID'",
-      );
-      await go('/dashboard', '.reports-workspace');
-      await loaded();
-      await metric('sales', '₹1160');
-      const updated = (await c.http('/dashboard')).body;
-      assert.equal(
-        BigInt(
-          updated.explanation.collectionsForEarlierBills.replace('.', ''),
-        ) -
-          BigInt(
-            before.explanation.collectionsForEarlierBills.replace('.', ''),
-          ),
-        65000n,
-      );
-      assert.ok(
-        await c.read(
-          "document.querySelector('.dashboard-explanation').textContent.includes('came from earlier bills') && document.querySelector('.dashboard-explanation').textContent.includes('₹100 from bills in this period is still unpaid')",
-        ),
-      );
-      await inspect('mixed-explanation', width, height, true);
-    }
-    clock.read = realRead;
-    for (const user of ['manager', 'cashier', 'cook', 'dispatcher', 'multi']) {
-      const other = await device(user);
-      const visible = await other.read(
-        "[...document.querySelectorAll('nav[aria-label=Workspaces] a')].map(e=>e.textContent)",
-      );
-      const allowed = user === 'manager';
-      assert.equal(visible.includes('Dashboard'), allowed, user);
-      assert.equal(visible.includes('Reports'), allowed, user);
-      for (const path of [
-        '/dashboard',
-        '/reports/sales',
-        '/reports/payments',
-        '/reports/items',
-        '/reports/operations',
-        '/reports/expenses',
-      ])
+      await other.read("location.hash='/expenses'");
+      if (allowed) {
+        await other.wait("!!document.querySelector('.expenses-workspace')");
+        await other.wait("!!document.querySelector('.expense-period')");
         assert.equal(
-          (await other.http(path)).status,
-          allowed ? 200 : 403,
-          user + path,
+          await other.read(
+            "[...document.querySelectorAll('button')].some(b=>b.textContent==='Manage categories')",
+          ),
+          name === 'manager',
         );
-      await other.read("location.hash='/reports'");
-      if (allowed) await other.wait("!!document.querySelector('.report-tabs')");
-      else
+      } else
         await other.wait(
           "document.body.textContent.includes('Workspace unavailable')",
         );
@@ -791,11 +674,11 @@ const root = require('node:path').resolve(__dirname, '..');
     assert.deepEqual(external, []);
     assert.deepEqual(failures, []);
     fs.writeFileSync(
-      '/tmp/dukanos-reports-results.json',
+      '/tmp/dukanos-expenses-results.json',
       JSON.stringify(report, null, 2),
     );
     console.log(
-      'Reports browser PASS: exact dashboard amounts, all periods and sections, eight sizes + keyboard height, live mutations/refund reconciliation, retry, capability navigation, external traffic blocked.',
+      'Expenses browser PASS: four touch workflows, all eight sizes and constrained height, local receipts, category/void permissions, exact Reports and unchanged customer money, external traffic blocked.',
     );
   } finally {
     for (const c of clients) c.socket.close();

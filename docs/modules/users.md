@@ -92,3 +92,5 @@ Staff responsibility labels and disclosure summaries have at least 44px touch ar
 New reminder/timer capabilities follow the existing many-to-many union: OWNER/MANAGER/CASHIER have bills.reminders.read/manage; OWNER/MANAGER/KITCHEN have kitchen.timers.read/manage. Pure DISPATCH has neither, while combined operational staff receive both sets when appropriate. No new role or staff editing behavior is introduced.
 
 Migration 014 grants orders.amend, orders.cancel and payments.refund to OWNER/MANAGER/CASHIER. Pure KITCHEN/DISPATCH cannot amend or refund; role unions apply normally. Capability checks are revalidated inside commercial transactions. Refund posting is cash-only and entitlement-limited; amendment is QUEUED-only. See [Amendments](amendments.md).
+
+Migration 017 grants cashier expense entry/read and privileged expense void/category management through the existing role-permission map. It does not change role exclusivity, staff administration or Reports permission. Multi-role staff retain the normal permission union.

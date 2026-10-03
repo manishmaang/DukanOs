@@ -315,3 +315,21 @@
 - `npm run check` and all 146 PostgreSQL tests passed, including rollback/retry and timezone/concurrency coverage. Actual local startup closed 23 historical sessions; all financial balances, 25 other source tables and 3 menu images were unchanged. No active local reminder required pausing.
 
 - All eight browser suites passed: Reports, responsive shell, Kitchen, Dispatch, Bills, alerts/audio, amendments/refunds and Menu/POS. Four-class touch workflows, eight widths plus constrained height and screenshot review passed with external traffic blocked. Physical Android/iOS keyboard, speaker and background-suspension checks remain outstanding.
+
+## 2026-10-02 — Restaurant Expense Tracking
+
+### Added
+
+- Independent Cash/UPI expense records with server business dates, 30-day deliberate backdating, idempotent entry and immutable original facts plus audited voids.
+- Configurable/versioned/audited categories with ten defaults, cashier entry/read and privileged category/void permissions.
+- Local validated receipt images, authorized retrieval, retained void receipts and explicit abandoned-stage cleanup.
+- Responsive Expenses entry/list/filter/audit workspace, separate Dashboard Recorded Expenses and Reports expense totals/categories/daily trend. Customer sales/payment calculations remain unchanged.
+
+### Changed
+
+- Shared existing report-period resolution and live mutation authorization utilities for reuse by Expenses. Messaging/daily report generation remains deferred.
+
+### Verification (completed 2026-10-03)
+
+- Passed `npm run check`, all 158 PostgreSQL integration tests and expense, Dashboard/Reports and existing responsive browser suites with external traffic blocked. Four device-class workflows and eight widths plus constrained height passed; reviewed mobile, tablet and desktop screenshots.
+- Applied migration 017 locally and restarted the API. Before/after fingerprints preserved all 25 existing source tables (including 26 Bills, 29 orders and 24 payment/refund records), existing permission grants and all 3 menu images. Added only expense schema, ten category defaults and intended expense permission grants; no sample expenses were inserted.

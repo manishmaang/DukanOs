@@ -188,3 +188,11 @@ Existing CLOSED rows receive MANUAL without actor/time changes. Migration does n
 bill_reminders adds nullable pause_reason: BALANCE_SETTLED, MANUAL_CLOSE or BUSINESS_DAY_ROLLOVER. Active next_due_at requires null reason. Synchronization records cause only on active-to-paused transition; last human updated_by is preserved, timestamp/version advance. Existing paused unknown reasons stay null. Repeated checks do not rewrite them.
 
 Rollover obtains advisory transaction lock 742019323 before reading PostgreSQL time. Closures/reminder pauses commit together; financial projections/orders/ledger are untouched. No tables dropped/reseeded, permissions, indexes or financial snapshots added.
+
+## Restaurant expenses — 017_restaurant_expenses.sql
+
+Adds expense_categories (UUID, unique normalized name, active, version, timestamps), append-only expense_category_audit (actor/time/before/after), expense_receipts (opaque UUID, uploader/time/dimensions/size) and expenses. Seeds ten category configuration rows and four capabilities; no fake financial entry or change to existing records. OWNER/MANAGER gain expenses.read/create/manage and expense_categories.manage; CASHIER gains read/create only.
+
+expenses retains positive numeric amount (<1e12, scale<=2), date/timezone, category FK/name snapshot, CASH/UPI method, bounded vendor/note, unique optional receipt FK, creator/time, actor/request hash uniqueness, ACTIVE/VOIDED and complete void metadata. Checks/triggers enforce immutable originals, no hard delete, single audited transition, active category/name, entry within captured restaurant date minus 30 through date, receipt ownership and consistent void metadata. Void identity is separately unique per actor/request. Attached receipts and category audit cannot be rewritten/deleted. Category changes require next version; categories cannot be deleted.
+
+Indexes support descending business-date/created-time/id listing and category/date filtering. Aggregate queries include only ACTIVE expenses by business date. They never join the customer payment ledger. The shared restaurant transaction lock serializes writes, live authorization, deactivation, voids and receipt cleanup. Existing Bills/orders/payments/refunds/views remain unchanged.
