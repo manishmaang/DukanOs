@@ -1,3 +1,4 @@
+import { Expenses } from './Expenses';
 import { ReportsWorkspace } from './Reports';
 import { OperationalAudioProvider } from './OperationalAudio';
 import { useVisualViewport } from './useVisualViewport';
@@ -236,6 +237,8 @@ function App() {
                         key={user.id + link.path}
                         dashboard={link.path === '/dashboard'}
                       />
+                    ) : link.path === '/expenses' ? (
+                      <Expenses user={user} key={user.id} />
                     ) : link.path === '/dispatch' ? (
                       <Dispatch
                         canCollect={user.permissions.includes(

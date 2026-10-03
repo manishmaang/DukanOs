@@ -33,7 +33,9 @@
     "test:bills-browser": "npm run build && node --env-file=.env scripts/test-bills-browser.cjs",
     "test:alerts-browser": "npm run build && node --env-file=.env scripts/test-alerts-browser.cjs",
     "test:amendments-browser": "npm run build && node --env-file=.env scripts/test-amendments-browser.cjs",
-    "test:reports-browser": "npm run build && node --env-file=.env scripts/test-reports-browser.cjs"
+    "test:reports-browser": "npm run build && node --env-file=.env scripts/test-reports-browser.cjs",
+    "expenses:cleanup": "npm run build -w @dukanos/api && node --env-file=.env scripts/cleanup-expense-media.cjs",
+    "test:expenses-browser": "npm run build && node --env-file=.env scripts/test-expenses-browser.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

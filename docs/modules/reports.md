@@ -111,3 +111,9 @@ Reports browser verification passed eight required sizes plus 390×420 and compl
 Read-only local verification after rollover still returned Last 7 Days Food Sold ₹360, Cash Received ₹1,010, UPI Received ₹530, Cash Returned ₹440 and Net Money Received ₹1,100. The explanation identified ₹740 collected for earlier Bills. Those three period Bills were CLOSED, without changing sales or money.
 
 All seven existing browser regression suites also passed: responsive shell, Menu/POS, Kitchen, Dispatch, Bills, operational alerts/audio and amendments/refunds. This milestone does not start Customer Profiles or Customer Ledger.
+
+## Recorded Expenses
+
+Reports → Expenses uses GET /api/reports/expenses with the same reports.read requirement and period validation. Response contains period, total/cash/upi decimal strings, active count, categoryId/name/amount/count groups and daily businessDate/amount trend including zero days. Only ACTIVE expenses count; voids restate their original date. Category names are selected-period snapshots grouped by stable category ID.
+
+Dashboard adds recordedExpenses from the same coherent read snapshot and a separate RECORDED EXPENSES card. Existing sales, collections/refunds, net received and Bill balances are unchanged. CASHIER's expenses.read/create grants permit entry/list totals, not this analytics endpoint. Recorded expenditure is incomplete business cost; no profit calculation. Future Daily Owner Report can consume this model directly; delivery remains deferred.

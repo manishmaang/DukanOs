@@ -74,3 +74,9 @@ GET /dashboard and /reports/sales, /payments, /items, /operations require report
 ## Rollover and Dashboard explanation contracts
 
 No new writable API/capability. Bill responses add nullable closureReason (MANUAL / BUSINESS_DAY_ROLLOVER); closedAt is actual processing time. Clients cannot submit system closure identity/reason. Financial POSTs accept rollover-closed Bills under existing permission/amount/idempotency/due checks; manual closures remain protected. Food/manual-close checks remain strict. Dashboard adds exact-decimal explanation aggregates; period/unknown-field validation is unchanged.
+
+## Expense endpoints
+
+Expenses uses JsonInput/QueryInput/MultipartInput and class-validator DTOs with no implicit money conversion. Create requires UUIDv4 request/category, positive decimal string <=999999999999.99 with at most two fractional digits, CASH/UPI, optional real YYYY-MM-DD (today or previous 30 restaurant dates), vendor<=120, note<=500, optional UUIDv4 receipt. Category PATCH requires name/active/version; whitespace-only names, stale versions, duplicate names and inactive references are rejected. Void requires UUID request, finite reason and optional 500-character note; OTHER requires nonblank explanation. Original facts are not editable.
+
+List supports existing bounded report periods plus category/method/status/search<=120 and positive bounded page; unknown/repeated fields and GET bodies fail. Receipts accept one image/no fields up to 5 MiB, validate actual still JPEG/PNG/WebP <=24MP, and are retrieved only with expenses.read. Stages belong to uploader; attachment and cleanup serialize. Reports/expenses stays reports.read despite cashier entry permission.

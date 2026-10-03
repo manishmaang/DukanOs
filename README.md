@@ -262,3 +262,13 @@ Run migrations, build and restart API. Startup catches up older OPEN Bills, then
 Search older bills or select dates to inspect CLOSED/HISTORICAL tabs with UNPAID or REFUND DUE. Authorized Counter staff can record genuine settlement/refunds. No new food. Kitchen tickets continue; Takeaway requires both dues zero. Manual close still requires settled money and terminal rounds. Reminders stop at next successful poll; offline clients learn closure after reconnect.
 
 Dashboard = simplified operational overview. Reports = detailed financial/operational analysis. Net Money Received is not profit. Customer Ledger/Khata remains unimplemented.
+
+## Restaurant Expense Tracking
+
+Apply migration 017 with `npm run db:migrate`, build and restart the API. OWNER/MANAGER/CASHIER can open **Expenses → Add Expense**, enter amount/category, choose Cash or UPI and save. Restaurant Today is server-derived; choosing a previous date (up to 30 days) is explicit. Vendor/note/receipt are optional. JPEG/PNG/WebP receipts remain under DUKANOS_DATA_DIR/uploads/expenses, separate from menu images.
+
+OWNER/MANAGER can manage categories and **View expense → Void this expense** with a reason; correct mistakes by voiding then entering the right record. Original amounts/category labels, creator, receipt and void audit stay visible. Cashier cannot void/manage categories or access owner Reports. No expense changes customer Bills/payments/refunds.
+
+Dashboard shows separate **RECORDED EXPENSES**; **Reports → Expenses** provides period totals, Cash/UPI, category breakdown and daily trend. Recorded Expenses is not complete cost or profit. Future Daily Owner Report → Email delivery and provider-based WhatsApp remain deferred. See [Expense contracts and policies](docs/modules/expenses.md).
+
+Cleanup abandoned receipt stages after 24 hours: preview with `npm run expenses:cleanup -- --dry-run`, then run `npm run expenses:cleanup`. Attached/voided receipts are retained. Test using `npm run test:integration` and `CHROME_BINARY=/path/to/chrome npm run test:expenses-browser`. No fake expense data is automatically created.

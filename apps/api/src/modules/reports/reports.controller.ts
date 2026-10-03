@@ -1,3 +1,4 @@
+import { ExpensesService } from '../expenses/expenses.service';
 import { Controller, Get, Query } from '@nestjs/common';
 import { QueryInput } from '../../input-boundary';
 import { RequirePermissions } from '../auth/access';
@@ -6,7 +7,13 @@ import { ReportsService } from './reports.service';
 @Controller()
 @RequirePermissions('reports.read')
 export class ReportsController {
-  constructor(private readonly reports: ReportsService) {}
+  constructor(
+    private readonly reports: ReportsService,
+    private readonly expenseReports: ExpensesService,
+  ) {}
+  @Get('reports/expenses') @QueryInput() expenses(@Query() q: ReportPeriodDto) {
+    return this.expenseReports.report(q);
+  }
   @Get('dashboard') @QueryInput() dashboard(@Query() q: ReportPeriodDto) {
     return this.reports.dashboard(q);
   }

@@ -122,3 +122,9 @@ BillsModule owns BillRolloverService. HTTP bootstrap explicitly awaits catch-up 
 Migration 016 creates no ledger event: immutable Bill closure fields are the system audit. Existing reminder synchronization pauses active reminders atomically. Financial writes allow OPEN or rollover-closed tabs; food stays OPEN/current-date only. Kitchen uses its existing lifecycle and financial gates independently of parent status.
 
 Dashboard adds one aggregate explanation query inside its existing read-only snapshot, grouping ledger events by payment dates and Bill dates. No frontend inference, synthetic reconciliation, reporting writes or scheduled aggregates. Detailed Reports preserve calculations/contracts.
+
+## Expense boundary and future messaging
+
+ExpensesModule owns restaurant expenditure, category audit and local receipt storage; it does not depend on BillsModule or write customer Payments. ReportsModule imports its aggregate service and composes Dashboard expense totals in the existing read snapshot. Shared reporting/period utilities preserve the current date semantics; Auth mutation-access centralizes the existing restaurant-lock/live-session/capability checks previously in Bills. No generic framework or new dependency is added.
+
+Receipt staging follows Menu's Sharp/private-data-directory/metadata/compensation/explicit-cleanup pattern in a separate uploads/expenses namespace, with higher resolution and quality for text. No receipt replacement after recording. The future Daily Owner Report consumes existing Reports reads. Future MessagingService will isolate EmailAdapter and WhatsAppAdapter, separating transactional owner reports/invoices/order updates/payment reminders from consent-based marketing. No messaging runtime, scheduled report, Email delivery, WhatsApp API/Web automation or external service is implemented.

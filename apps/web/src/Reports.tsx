@@ -1,6 +1,8 @@
+import { ExpenseSummary } from './Expenses';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   DashboardReport,
+  ExpensesReport,
   ItemsReport,
   OperationsReport,
   PaymentsReport,
@@ -21,13 +23,14 @@ const presets: { value: ReportPreset; label: string }[] = [
   { value: 'THIS_MONTH', label: 'This Month' },
   { value: 'CUSTOM', label: 'Custom' },
 ];
-type Tab = 'sales' | 'payments' | 'items' | 'operations';
+type Tab = 'sales' | 'payments' | 'items' | 'operations' | 'expenses';
 type Result =
   | DashboardReport
   | SalesReport
   | PaymentsReport
   | ItemsReport
-  | OperationsReport;
+  | OperationsReport
+  | ExpensesReport;
 function OwnerSummary({ s }: { s: SalesSummary }) {
   return (
     <section
@@ -580,7 +583,9 @@ export function ReportsWorkspace({ dashboard }: { dashboard: boolean }) {
       </div>
       {!dashboard && (
         <nav className="report-tabs" aria-label="Report sections">
-          {(['sales', 'payments', 'items', 'operations'] as const).map((t) => (
+          {(
+            ['sales', 'payments', 'items', 'operations', 'expenses'] as const
+          ).map((t) => (
             <button
               className={tab === t ? '' : 'secondary'}
               aria-pressed={tab === t}
@@ -640,6 +645,22 @@ export function ReportsWorkspace({ dashboard }: { dashboard: boolean }) {
             </p>
           )}
         </>
+      )}
+      {d && (
+        <section className="report-panel dashboard-expenses">
+          <h2>RECORDED EXPENSES</h2>
+          <strong data-metric="expenses">{money(d.recordedExpenses)}</strong>
+          <p className="report-caption">
+            Expenses recorded for this period, excluding voided entries. Shown
+            separately from sales and customer payments.
+          </p>
+        </section>
+      )}
+      {!dashboard && tab === 'expenses' && data && (
+        <ExpenseSummary
+          data={data as ExpensesReport}
+          trend={(data as ExpensesReport).trend}
+        />
       )}
       {d ? <OwnerMoney d={d} /> : payments && <PaymentSummary p={payments} />}
       {sales && <Trend trend={sales.trend} owner={dashboard} />}

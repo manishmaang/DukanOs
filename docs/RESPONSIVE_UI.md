@@ -100,3 +100,9 @@ Phone stacks Food Sold, Bills/Avg Bill, Unpaid, then label/value Money Received 
 Reports browser coverage includes older receipts/mixed unpaid explanations, cached reminder removal and historical settlement/refund at four workflow classes. Eight prescribed sizes plus constrained height remain required. Desktop Chromium does not prove physical mobile keyboard, native picker or suspended-background behavior.
 
 2026-10-02 refinement verification passed the eight-size/short-height matrix and four-class historical collection/refund and reminder-sync workflows. Money Received screenshot review covered mobile stacking, both tablet orientations and desktop wrapping. Detailed Reports counts/labels remain tested separately. External requests were blocked.
+
+## Expenses
+
+Expense entry is a primary phone workflow: large decimal amount input, native category/date/file controls, 48px Cash/UPI/save actions, optional vendor/note/receipt and no modal accounting table. Natural document flow keeps actions reachable with short keyboards. Lists/filters/categories/breakdowns wrap on phones and expand to grids on larger screens; long category/vendor/note text must not create page overflow. Void audit remains visible and receipts open through authenticated local URLs.
+
+`CHROME_BINARY=/path/to/chrome npm run test:expenses-browser` exercises Cash/UPI, receipt selection, repeated submit, category management, void audit, historical dates, filters, Dashboard independence and Reports at the four workflow classes; all eight required sizes plus 390×420 are checked. External requests are blocked and fixtures isolated. Camera/native picker, physical receipt readability and device keyboard/assistive behavior remain physical-device smoke tests.
