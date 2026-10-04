@@ -239,7 +239,10 @@ const root = require('node:path').resolve(__dirname, '..');
         mobile: false,
       });
       await c.send('Page.navigate', { url: origin });
-      await c.wait("!!document.querySelector('input[name=username]')");
+      // Admin also has username/password fields; wait for logout to finish.
+      await c.wait(
+        "!document.querySelector('nav') && !!document.querySelector('input[name=username]')",
+      );
       await c.read(
         `(()=>{document.querySelector('[name=username]').value=${JSON.stringify(username)};document.querySelector('[name=password]').value=${JSON.stringify(password)};document.querySelector('form').requestSubmit();})()`,
       );
@@ -428,7 +431,10 @@ const root = require('node:path').resolve(__dirname, '..');
       await resize(width, height);
       // Log out and sign in using touch controls at each representative size.
       await button('Sign out');
-      await c.wait("!!document.querySelector('input[name=username]')");
+      // Admin also has username/password fields; wait for logout to finish.
+      await c.wait(
+        "!document.querySelector('nav') && !!document.querySelector('input[name=username]')",
+      );
       await inspect('login', width, height, true);
       await c.fill('[name=username]', 'owner');
       await c.fill('[name=password]', password);
@@ -770,7 +776,10 @@ const root = require('node:path').resolve(__dirname, '..');
     await c.fill('[name=newPassword]', password + 'changed');
     await c.fill('[name=confirmation]', password + 'changed');
     await button('Change password and sign out');
-    await c.wait("!!document.querySelector('input[name=username]')");
+    // Admin also has username/password fields; wait for logout to finish.
+    await c.wait(
+      "!document.querySelector('nav') && !!document.querySelector('input[name=username]')",
+    );
     await c.fill('[name=username]', 'owner');
     await c.fill('[name=password]', password + 'changed');
     await button('Sign in');

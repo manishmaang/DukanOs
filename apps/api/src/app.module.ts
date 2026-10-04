@@ -1,3 +1,4 @@
+import { DailyReportsModule } from './modules/daily-reports/daily-reports.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
@@ -12,6 +13,7 @@ import { AuthModule } from './modules/auth/auth.module';
 @Module({
   imports: [
     DatabaseModule,
+    DailyReportsModule,
     AuthModule,
     MenuModule,
     OrdersModule,

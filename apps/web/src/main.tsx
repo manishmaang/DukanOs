@@ -236,6 +236,8 @@ function App() {
                       <ReportsWorkspace
                         key={user.id + link.path}
                         dashboard={link.path === '/dashboard'}
+                        permissions={user.permissions}
+                        userId={user.id}
                       />
                     ) : link.path === '/expenses' ? (
                       <Expenses user={user} key={user.id} />

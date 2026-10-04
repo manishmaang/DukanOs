@@ -2824,3 +2824,52 @@ header > div button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.daily-reports {
+  max-width: 1050px;
+  margin: 1rem auto;
+  padding: clamp(16px, 3vw, 32px);
+  background: white;
+  border: 1px solid #bdd2c7;
+  border-radius: 16px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.daily-reports form {
+  display: grid;
+  gap: 16px;
+  max-width: 650px;
+  margin: 24px 0;
+}
+.daily-reports label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.daily-reports input:not([type='checkbox']),
+.daily-reports select,
+.daily-reports textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 48px;
+  font: inherit;
+  padding: 10px;
+}
+.daily-reports button {
+  min-height: 48px;
+  white-space: normal;
+}
+.daily-card {
+  padding: 16px;
+  border: 1px solid #bdd2c7;
+  border-radius: 10px;
+  margin: 16px 0;
+  min-width: 0;
+}
+.daily-reports .daily-check {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  gap: 12px;
+}

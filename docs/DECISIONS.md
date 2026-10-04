@@ -411,3 +411,19 @@ Receipt uploads stage local validated 2400px quality-90 WebP files, then attach 
 ### Reason and consequences
 
 This preserves audit, concurrency and LAN operation with existing infrastructure. Historical voids restate effective period totals, not immutable accounting close snapshots. There is no vendor refund ledger, receipt replacement, supplier balance or general approval engine. Future Daily Reports reuse aggregate APIs; Email/WhatsApp belong behind future provider adapters, with transactional and marketing purposes kept distinct. No messaging code is introduced now.
+
+## 021 — Immutable daily snapshots and durable SMTP delivery
+
+Date: 2026-10-04.
+
+### Context and options
+
+Live financial Reports intentionally restate historical corrections. Previously emailed values must remain reproducible. Considered rendering live values on every send, storing HTML only, and immutable structured versioned snapshots; considered synchronous SMTP and PostgreSQL jobs.
+
+### Decision
+
+Store immutable schema-versioned JSONB reports with unique business date/version; explicit reasoned regeneration inserts v2+. Render UI/plain text/HTML from stored values and bind every delivery to a report UUID and captured recipient. Generate consistently using existing effective reporting queries. Use a local PostgreSQL worker, durable catch-up cursor, leased jobs and append-only attempt audit, with provider-neutral SMTP outside transactions. First initialization begins yesterday to avoid surprise historical email floods; later restarts catch up chronologically. Automatic email defaults OFF/no recipients.
+
+### Reason and consequences
+
+Corrections update live Reports but cannot change prior communications. Delivery failure does not lose reports or block operational transactions. Explicit resend is auditable; SMTP acceptance uncertainty precludes exactly-once delivery. Future WhatsApp can consume snapshots through another adapter without recalculating historical money. No external queue, marketing system, PDF or customer domain is introduced.

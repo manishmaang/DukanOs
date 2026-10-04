@@ -12,6 +12,9 @@ export type MoneyAmount = string;
 
 export type RoleCode = 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' | 'DISPATCH';
 export type PermissionCode =
+  | 'daily_reports.read'
+  | 'daily_reports.manage'
+  | 'daily_reports.send'
   | 'expenses.read'
   | 'expenses.create'
   | 'expenses.manage'
@@ -77,3 +80,5 @@ export type * from './amendments';
 export type * from './reports';
 
 export type * from './expenses';
+
+export type * from './daily-reports';

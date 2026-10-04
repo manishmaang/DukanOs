@@ -1,3 +1,4 @@
+import { DailyWorkerService } from './modules/daily-reports/daily-worker.service';
 import 'reflect-metadata';
 import { BillRolloverService } from './modules/bills/bill-rollover.service';
 import { NestFactory } from '@nestjs/core';
@@ -18,6 +19,7 @@ async function bootstrap() {
     await app.init();
     await app.get(BillRolloverService).start();
     await app.listen(config.port, config.host);
+    app.get(DailyWorkerService).start();
   } catch (error) {
     await app.close();
     throw error;

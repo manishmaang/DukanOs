@@ -3,6 +3,7 @@ import { reportPeriod } from '../../reporting/period';
 import { Injectable } from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import type {
+  DailyReportSnapshot,
   DashboardReport,
   DashboardExplanation,
   ItemsReport,
@@ -295,6 +296,71 @@ export class ReportsService {
       selectedBillRefundsOutsidePeriod: amount(
         paise(r.selectedBillRefundsOutsidePeriod),
       ),
+    };
+  }
+  async dailySnapshot(
+    c: PoolClient,
+    businessDate: string,
+  ): Promise<DailyReportSnapshot> {
+    const p = await reportPeriod(c, this.clock, {
+      from: businessDate,
+      to: businessDate,
+    });
+    const sales = await this.salesData(c, p);
+    const payments = await this.paymentsData(c, p);
+    const expenses = await this.expenses.totals(c, p);
+    const winner = (
+      await c.query(
+        `${foods}, dishes AS (
+      SELECT menu_item_id,sum(quantity) quantity,sum(sales_value) sales_value FROM grouped GROUP BY menu_item_id
+    ) SELECT menu_item_id,quantity::text,sales_value::text FROM dishes d ORDER BY d.quantity DESC,d.sales_value DESC,d.menu_item_id LIMIT 1`,
+        [businessDate, businessDate],
+      )
+    ).rows[0];
+    let bestSeller: DailyReportSnapshot['bestSeller'] = null;
+    if (winner) {
+      const rows = (
+        await c.query(
+          `${foods} SELECT g.variant_id AS "variantId",l.variant_name_snapshot AS name,g.quantity::text,g.sales_value::text AS "salesValue" FROM grouped g JOIN labels l USING(menu_item_id,variant_id) WHERE g.menu_item_id=$3 ORDER BY g.variant_id`,
+          [businessDate, businessDate, winner.menu_item_id],
+        )
+      ).rows;
+      const label = (
+        await c.query(
+          `${foods} SELECT item_name_snapshot FROM selected_items WHERE menu_item_id=$3 ORDER BY queued_at DESC,order_id DESC,position DESC LIMIT 1`,
+          [businessDate, businessDate, winner.menu_item_id],
+        )
+      ).rows[0];
+      bestSeller = {
+        menuItemId: winner.menu_item_id,
+        name: label.item_name_snapshot,
+        quantity: winner.quantity,
+        salesValue: amount(paise(winner.sales_value)),
+        variants: rows.map((r) => ({
+          ...r,
+          salesValue: amount(paise(r.salesValue)),
+        })),
+      };
+    }
+    const entries = (
+      await c.query(
+        `SELECT id,amount::text,category_name_snapshot AS "categoryName",payment_method AS "paymentMethod",vendor,note FROM expenses WHERE business_date=$1 AND status='ACTIVE' ORDER BY created_at,id`,
+        [businessDate],
+      )
+    ).rows;
+    return {
+      schemaVersion: 1,
+      businessDate,
+      timezone: p.timezone,
+      foodSold: sales.summary.salesValue,
+      cashReturned: payments.cashRefunds,
+      recordedExpenses: expenses.total,
+      expenseCategories: expenses.categories,
+      expenseEntries: entries.map((r) => ({
+        ...r,
+        amount: amount(paise(r.amount)),
+      })),
+      bestSeller,
     };
   }
   dashboard(q: ReportPeriodDto): Promise<DashboardReport> {

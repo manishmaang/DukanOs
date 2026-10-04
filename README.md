@@ -272,3 +272,11 @@ OWNER/MANAGER can manage categories and **View expense → Void this expense** w
 Dashboard shows separate **RECORDED EXPENSES**; **Reports → Expenses** provides period totals, Cash/UPI, category breakdown and daily trend. Recorded Expenses is not complete cost or profit. Future Daily Owner Report → Email delivery and provider-based WhatsApp remain deferred. See [Expense contracts and policies](docs/modules/expenses.md).
 
 Cleanup abandoned receipt stages after 24 hours: preview with `npm run expenses:cleanup -- --dry-run`, then run `npm run expenses:cleanup`. Attached/voided receipts are retained. Test using `npm run test:integration` and `CHROME_BINARY=/path/to/chrome npm run test:expenses-browser`. No fake expense data is automatically created.
+
+## Daily Owner Reports and SMTP
+
+Reports → Daily Reports contains immutable daily snapshots, revisions and delivery history. OWNER/MANAGER can configure recipients, enable automatic email, send a test and explicitly regenerate/resend completed dates. Run migration 018 using `npm run db:migrate` and rebuild/restart the API after updating. No recipients or SMTP credentials are seeded.
+
+Copy SMTP placeholders from `.env.example` into local environment configuration: SMTP_HOST/PORT/SECURE, paired optional USERNAME/PASSWORD, EMAIL_FROM_ADDRESS/NAME. Remote SMTP requires TLS. With no SMTP host, the application reports Not configured and continues local generation/operations. Automatic email defaults OFF; enable it explicitly after saving intended recipients. DAILY_REPORT_DELAY_MINUTES defaults to 5. The first worker start begins with yesterday; thereafter missed dates catch up from its persisted cursor.
+
+Historical corrections change live Reports, never stored v1. Regenerate with a reason creates v2 and does not automatically email it. Retry uses the same delivery; confirmed resend creates new history for the selected version. SMTP acceptance cannot guarantee exactly-once inbox delivery. See [Daily Reports](docs/modules/daily-reports.md) for routes, audit, retry and catch-up semantics. `npm run test:daily-reports-browser` uses isolated fixtures and CHROME_BINARY; SMTP integration tests use a loopback capture server, never real recipients.
