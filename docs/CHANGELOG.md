@@ -333,3 +333,19 @@
 
 - Passed `npm run check`, all 158 PostgreSQL integration tests and expense, Dashboard/Reports and existing responsive browser suites with external traffic blocked. Four device-class workflows and eight widths plus constrained height passed; reviewed mobile, tablet and desktop screenshots.
 - Applied migration 017 locally and restarted the API. Before/after fingerprints preserved all 25 existing source tables (including 26 Bills, 29 orders and 24 payment/refund records), existing permission grants and all 3 menu images. Added only expense schema, ten category defaults and intended expense permission grants; no sample expenses were inserted.
+
+## 2026-10-04 — Daily Owner Reports and Email
+
+### Added
+
+- Immutable structured daily snapshots, concurrent version allocation, explicit reasoned regeneration and version-specific delivery history, following the mandatory preflight design.
+- Authoritative Food Sold, actual Cash Returned, Recorded Expenses/category/detail and dish-level best seller across every sold portion, reusing existing effective reporting queries.
+- Post-rollover generation delay, persistent chronological catch-up, optional provider-neutral SMTP, recipient settings, HTML/plain-text email, test email and PostgreSQL claim/retry/attempt audit.
+- Responsive Reports history/detail/settings with exact-version send/resend and request recovery; OWNER/MANAGER capabilities only.
+
+### Verification
+
+- `npm run check` and all 168 PostgreSQL integration tests passed; targeted Daily Reports tests passed again after final history/recipient normalization changes. Real SMTP exchange used an isolated loopback capture server; no real recipients or credentials were configured.
+- Daily Reports browser workflows and eight-size/short-height boundaries passed, including long dish names, regenerated versions, test/send/resend and HTML email layouts. Existing Reports, Expenses and full operational responsive browser regressions passed with external traffic blocked.
+- Migration 018 and actual local startup preserved fingerprints for all 29 existing source tables (28 Bills, 31 orders, 25 payment/refund records) and all 3 upload files. Added three capabilities/six grants; startup generated one previous-day snapshot with zero email jobs because delivery remains OFF.
+- Corrected a responsive regression harness race: Admin also has username/password fields, so login checks now await signed-out navigation state before filling credentials. No authentication behavior changed.

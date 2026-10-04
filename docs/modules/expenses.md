@@ -71,8 +71,12 @@ Forms use natural document flow, wrapping labels and 48px controls, with no desk
 
 GET /reports/expenses provides period/timezone/asOf, total, cash, upi, count, per-category amount/count and daily amounts. The future Daily Owner Report can combine this with existing food sales, refunds and effective item/variant quantities without querying raw expenses or recalculating money in messaging code.
 
-Next sequence is Expense Tracking → Daily Report Generator → Email Delivery, only in separately authorized milestones. Future MessagingService will use EmailAdapter and WhatsAppAdapter at the integration boundary. No runtime placeholder or provider dependency is added now. Owner daily reports, customer invoices, order updates and credit reminders are transactional purposes; marketing campaigns are distinct and will require consent, opt-out and preferences. Build a shared WhatsApp integration when customer/profile/invoice requirements are known. Email, WhatsApp API/Web automation, customers, Khata and marketing remain explicitly deferred.
+Daily Report Generator and Email Delivery are now implemented in DailyReportsModule with an EmailDeliveryAdapter; WhatsApp remains a future adapter. Owner daily reports, customer invoices, order updates and credit reminders are transactional purposes; marketing campaigns are distinct and will require consent, opt-out and preferences. Build a shared WhatsApp integration when customer/profile/invoice requirements are known. WhatsApp API/Web automation, customers, Khata and marketing remain explicitly deferred.
 
 ## Verification
 
 The full 158-test PostgreSQL suite passes, including exact amounts, permission boundaries, immutable records, category/version races, revoked sessions, idempotency, restaurant midnight, receipt ownership/validation and cleanup. Isolated expense browser workflows cover entry, receipts, duplicate submission, category maintenance, void audit, historical dates, filters and report reconciliation. Existing Reports and responsive regressions pass with external traffic blocked. Workflows were exercised at 390×844, 768×1024, 1024×768 and 1440×900; layout checks also cover 360, 430, 1280 and 1600 widths plus 390×420. These are Chromium emulation results, not physical-device certification.
+
+## Daily Report integration
+
+Daily Reports now stores active expense totals, category snapshots and compact entries in immutable report JSON. Later backdating/voiding updates live expense reports only. Explicit report regeneration captures a new version; older report detail/resend never recalculates expenses. Receipt images remain local and are not embedded in email. See [Daily Reports](daily-reports.md).

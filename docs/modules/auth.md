@@ -83,3 +83,5 @@ OWNER/MANAGER/CASHIER receive bills.reminders.read/manage; OWNER/MANAGER/KITCHEN
 Migration 014 grants orders.amend, orders.cancel and payments.refund to OWNER/MANAGER/CASHIER. Pure KITCHEN/DISPATCH cannot amend or refund; role unions apply normally. Capability checks are revalidated inside commercial transactions. Refund posting is cash-only and entitlement-limited; amendment is QUEUED-only. See [Amendments](amendments.md).
 
 Expense capabilities added by migration 017: OWNER/MANAGER receive expenses.read/create/manage and expense_categories.manage; CASHIER receives expenses.read/create only. Existing reports.read remains privileged. Expense writes use the shared live-session/capability recheck under the restaurant transaction lock; operational roles gain no expense authority implicitly beyond their assigned capabilities.
+
+Daily Owner Reports (018): OWNER/MANAGER receive daily_reports.read, daily_reports.manage and daily_reports.send. Operational roles receive none. Settings, history, generation, regeneration and send/retry remain backend capability-guarded.

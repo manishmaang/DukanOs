@@ -94,3 +94,5 @@ New reminder/timer capabilities follow the existing many-to-many union: OWNER/MA
 Migration 014 grants orders.amend, orders.cancel and payments.refund to OWNER/MANAGER/CASHIER. Pure KITCHEN/DISPATCH cannot amend or refund; role unions apply normally. Capability checks are revalidated inside commercial transactions. Refund posting is cash-only and entitlement-limited; amendment is QUEUED-only. See [Amendments](amendments.md).
 
 Migration 017 grants cashier expense entry/read and privileged expense void/category management through the existing role-permission map. It does not change role exclusivity, staff administration or Reports permission. Multi-role staff retain the normal permission union.
+
+Daily Owner Reports (018): OWNER/MANAGER receive daily_reports.read, daily_reports.manage and daily_reports.send. Operational roles receive none. Settings, history, generation, regeneration and send/retry remain backend capability-guarded.

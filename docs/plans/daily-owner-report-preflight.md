@@ -1,6 +1,6 @@
 # Daily Owner Report preflight — 2026-10-04
 
-Status: design verified against existing implementation; implementation and executable verification pending.
+Status: design verified before implementation (commit a92283c); implementation and PostgreSQL/browser snapshot verification are now complete. See docs/modules/daily-reports.md for the final contract and verification record.
 
 ## Mandatory snapshot invariants
 

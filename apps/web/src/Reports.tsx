@@ -1,3 +1,5 @@
+import { DailyReports } from './DailyReports';
+import type { PermissionCode } from '@dukanos/shared-types';
 import { ExpenseSummary } from './Expenses';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
@@ -432,7 +434,7 @@ function Operations({ o }: { o: OperationsReport }) {
     </section>
   );
 }
-export function ReportsWorkspace({ dashboard }: { dashboard: boolean }) {
+function LiveReportsWorkspace({ dashboard }: { dashboard: boolean }) {
   const [tab, setTab] = useState<Tab>('sales');
   const [choice, setChoice] = useState<ReportPreset>('TODAY');
   const [periodQuery, setPeriodQuery] = useState('period=TODAY');
@@ -749,5 +751,42 @@ export function ReportsWorkspace({ dashboard }: { dashboard: boolean }) {
           <Operations o={operations} />
         ))}
     </section>
+  );
+}
+
+export function ReportsWorkspace({
+  dashboard,
+  permissions,
+  userId,
+}: {
+  dashboard: boolean;
+  permissions: PermissionCode[];
+  userId: string;
+}) {
+  const [daily, setDaily] = useState(false);
+  return (
+    <>
+      {!dashboard && permissions.includes('daily_reports.read') && (
+        <nav className="report-tabs" aria-label="Report mode">
+          <button
+            className={daily ? 'secondary' : ''}
+            onClick={() => setDaily(false)}
+          >
+            Live Reports
+          </button>
+          <button
+            className={daily ? '' : 'secondary'}
+            onClick={() => setDaily(true)}
+          >
+            Daily Reports
+          </button>
+        </nav>
+      )}
+      {daily && !dashboard ? (
+        <DailyReports permissions={permissions} userId={userId} />
+      ) : (
+        <LiveReportsWorkspace dashboard={dashboard} />
+      )}
+    </>
   );
 }

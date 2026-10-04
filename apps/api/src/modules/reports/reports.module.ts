@@ -6,5 +6,6 @@ import { ReportsService } from './reports.service';
   imports: [ExpensesModule],
   controllers: [ReportsController],
   providers: [ReportsService],
+  exports: [ReportsService],
 })
 export class ReportsModule {}
