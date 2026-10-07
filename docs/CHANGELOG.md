@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-07 — Production readiness audit
+
+- Add blocking readiness findings, measured local performance and a deployment planning guide with environment inventory, worker recovery, security, AWS/local topology, full backup scope and rollback boundaries. No infrastructure, business behavior, dependency or migration changes.
+- Record dependency advisories, schema-blind readiness, development superuser credentials, TLS/proxy/backup gaps and temporary SMTP rejection retry limitation for a separate hardening milestone.
+- Link persistent project context to the audit and correct obsolete Database summary descriptions of implemented financial operations.
+- Make the Menu browser harness select a page target explicitly instead of Chrome's first target, which can be an extension background page.
+- Passed npm run check (13 API + 18 frontend tests), all 168 PostgreSQL integration tests and all ten existing browser suites; recorded Chromium device emulation/physical-device limitations. No deployment verification is claimed.
+
 ## 2026-10-02 — Refresh stale local Reports runtime
 
 - Diagnosed Dashboard 404s as an API process started before Reports V1 while the browser served updated assets. Rebuilt/restarted the local API without changing schema, sessions or operational data.

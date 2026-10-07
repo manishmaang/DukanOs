@@ -16,6 +16,8 @@ Node.js (development verified with 24.13.1), NestJS 11, TypeScript, React 19, Vi
 
 ## Deployment and continuity
 
+Production readiness is blocked pending the [2026-10-07 audit findings](PRODUCTION_READINESS_AUDIT.md): dependency review, schema/assets readiness, least-privilege runtime credentials, trusted HTTPS/proxy configuration and proven full backup/restore. The [deployment plan](DEPLOYMENT.md) records environment and worker inventories and local/cloud recommendations; no deployment or synchronization is implemented.
+
 The owner has not chosen local or cloud hosting; cost matters. Internet outages must not stop ordering or kitchen operations. The baseline design therefore permits running the API, built web assets, and PostgreSQL on one shop server reachable over LAN. No CDN or internet-hosted assets are required. Expense receipts use DUKANOS_DATA_DIR/uploads/expenses with permission-protected local retrieval. Menu photos are processed locally with Sharp and stored under DUKANOS_DATA_DIR/uploads/menu (default ~/.local/share/dukanos/uploads/menu), outside source/build assets. Backups must include PostgreSQL and this persistent directory. Local operation requires a working LAN, server, database, and power; disconnected browser writes are not supported. A cloud-only deployment cannot meet the internet-outage requirement without additional local execution and synchronization. Cloud backup or reporting replication is future work, not implemented functionality.
 
 Counter confirmation, KDS and Dispatch use only local API/PostgreSQL and locally served assets. Installation initially needs internet access to download packages/images.

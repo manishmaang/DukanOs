@@ -25,6 +25,8 @@ The same application can run locally or on a cloud host. The baseline for requir
 
 Do not run local and cloud databases as independent writable authorities. No replication, synchronization, failover, service worker or disconnected browser queue exists. Local Bill rollover and Daily Report/delivery workers run at HTTP startup and every 60 seconds; no generic job framework is introduced. Backups and restore procedures remain a release requirement. Choose cloud vs local based on available shop hardware, electricity, maintenance, and backup cost, not an assumed monthly price.
 
+See [deployment planning](DEPLOYMENT.md) for the environment inventory, TLS/proxy, worker, storage, backup and rollback requirements. The audit does not deploy the application or approve production readiness.
+
 ## Local freshness and integration boundary
 
 Kitchen uses two-second authoritative polling (there was no socket infrastructure), with immediate action/conflict/focus/reconnect refetch and local elapsed timers. Orders and production arrive in one consistent read snapshot; stale responses cannot overwrite newer results. No runtime event bus or socket server exists. A future push transport should publish only after commit and still refetch canonical state on reconnect; select an outbox if durable external delivery becomes required. Provider-specific adapters will validate, normalize and deduplicate provider order IDs; core Orders must not import provider types. See decision 012.
@@ -35,7 +37,7 @@ Runtime compatibility was checked against [NestJS first steps](https://docs.nest
 
 ## Dependency maintenance
 
-The root npm override selects Multer 2.3+ to replace the vulnerable transitive version pinned by NestJS's Express adapter. A fresh lockfile installation applies the override; retain it until the upstream dependency is patched. The menu image endpoint uses the bounded Multer memory upload interceptor; only validated JPEG/PNG/WebP content reaches Sharp. Dependency versions are recorded in `package-lock.json`.
+The root npm override currently selects Multer 2.3+ and the lockfile fixes installed dependency versions. The 2026-10-07 [production audit](PRODUCTION_READINESS_AUDIT.md#dependency-evidence) found newer Multer, proxy-addr and Sharp advisories; this override is not evidence of a clean security scan. Review patched versions and rerun relevant coverage before deployment. Media endpoints use bounded Multer memory uploads and Sharp validation/normalization; application exposure differs by advisory. No dependency was updated by the audit.
 
 ## Auth and staff dependencies
 

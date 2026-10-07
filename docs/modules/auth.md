@@ -85,3 +85,7 @@ Migration 014 grants orders.amend, orders.cancel and payments.refund to OWNER/MA
 Expense capabilities added by migration 017: OWNER/MANAGER receive expenses.read/create/manage and expense_categories.manage; CASHIER receives expenses.read/create only. Existing reports.read remains privileged. Expense writes use the shared live-session/capability recheck under the restaurant transaction lock; operational roles gain no expense authority implicitly beyond their assigned capabilities.
 
 Daily Owner Reports (018): OWNER/MANAGER receive daily_reports.read, daily_reports.manage and daily_reports.send. Operational roles receive none. Settings, history, generation, regeneration and send/retry remain backend capability-guarded.
+
+## Deployment audit boundary
+
+The [2026-10-07 production audit](../PRODUCTION_READINESS_AUDIT.md) verified production cookie flags and existing authentication coverage. Production still requires trusted HTTPS on shop devices, exact NODE_ENV=production, restricted database credentials and a narrowly defined proxy/IP-throttle boundary; no such deployment was performed. See [deployment planning](../DEPLOYMENT.md) before using LAN or public production URLs.
