@@ -2,7 +2,7 @@
 
 ## Implemented schema
 
-Scaffold infrastructure, Auth/Users, Menu, Orders, Bills and Payments tables are implemented. Other domain entities below remain proposed, **not migrated tables**.
+Infrastructure, Auth/Users, Menu, Orders, Bills/Payments, queued amendments/refunds, operational alerts, Expenses and immutable Daily Reports/delivery tables are implemented through migration 018. Customers, Credit and provider integrations remain proposed, **not migrated tables**.
 
 ### schema_migrations
 
@@ -22,7 +22,7 @@ Use UUID primary keys, timestamptz timestamps, explicit FKs and restrictive dele
 
 | Module            | Proposed entities and integrity                                                                                                                                                     |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Orders extensions | Future immutable amendments/revisions; base Orders schema is implemented below.                                                                                                     |
+| Orders extensions | Later post-preparation correction policies; queued immutable amendments/revisions are already implemented below.                                                                    |
 | Kitchen           | order-owned queue timestamps and audited priority records; derive aggregation from active item revisions without losing order linkage                                               |
 | Customers         | customers (name and indexed normalized mobile; do not assume shared family phone numbers are unique), optional preferences and communication consent                                |
 | Credit            | credit_accounts (unique customer FK, eligibility and optional nonnegative limit), ledger_entries (account/order/payment linkage, signed numeric amount, unique operation reference) |
@@ -31,11 +31,11 @@ Use UUID primary keys, timestamptz timestamps, explicit FKs and restrictive dele
 
 Future financial values are proposed as numeric(14,2) in PostgreSQL and strings in JSON. Menu uses checked numeric instead, to reject excessive scale without silent rounding. Orders arithmetic uses BigInt paise; currency is INR and exclusive configurable tax is rounded HALF_UP once to paise. Credit entries increase debt for purchases and decrease it for repayments/reversals. Posted transactions are append-only, with linked reversals. Do not count repayments as sales.
 
-## Planned transactional boundaries
+## Transactional boundaries
 
-- Confirm Counter order (implemented): validate availability/prices, persist sale/tax snapshots, daily token, status history and request identity atomically. No tender or credit debt is created.
-- Amend order: lock order, verify expected version/status, append item revisions and amendment reason, compute exact delta, record linked payment/refund/credit adjustment atomically as applicable. External payment calls require a separate durable state machine, not a long-held DB transaction.
-- Future refund: lock bill and legitimate amendment entitlement, check remaining refund due and prior compensating entries, insert CASH-only refund with unique operation key.
+- Confirm Counter order (implemented): validate availability/prices, persist sale/tax snapshots, daily token, status history and request identity atomically. Optional Cash/UPI collections commit on the same connection; Pay Later creates no tender, and Credit is unimplemented.
+- Queued amendment (implemented): lock and validate current-day OPEN Bill/QUEUED order, append complete immutable revisions and audited reason, then derive due/refund entitlement. Actual additional collections/CASH refunds are separate explicit ledger operations. No external payment call runs in these transactions.
+- Cash refund (implemented): lock Bill and legitimate amendment entitlement, check remaining refund due, insert append-only CASH refund with actor-scoped request identity.
 - Credit purchase/settlement: lock credit account before checking balance/limit; insert ledger and tender records together.
 - Kitchen transition/priority: lock order or compare version, validate transition, append actor/history, update state once.
 - Provider acceptance: unique provider/order ID plus atomic mapping/order persistence makes retries safe.

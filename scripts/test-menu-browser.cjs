@@ -88,7 +88,8 @@ const { UsersService } = require(
             .replace(/\/devtools\/browser\/.*/, '/json'),
         )
       ).json()
-    )[0];
+    ).find((target) => target.type === 'page');
+    assert.ok(target, 'Chromium must expose an application page target');
     ws = new globalThis.WebSocket(target.webSocketDebuggerUrl);
     await new Promise((r) => ws.addEventListener('open', r, { once: true }));
     let sequence = 0;

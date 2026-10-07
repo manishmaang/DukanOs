@@ -83,3 +83,7 @@ No PDF, automatic regeneration after corrections, inbox/bounce tracking, report 
 Daily browser workflows passed at 390×844, 768×1024, 1024×768 and 1440×900, with all eight standard sizes plus 390×420. Long item/vendor text and the email HTML were inspected on phone/tablet/desktop; source snapshots, settings and version-specific email actions remain usable. Existing Reports/Expenses and full operational responsive browser regressions also passed after correcting the harness logout wait. External traffic remained blocked except the loopback SMTP fixture.
 
 Local migration and worker startup preserved all 29 preexisting source-table fingerprints and three upload files. One real previous-day snapshot was generated and no mail queued, as expected with default OFF/no recipients. This verifies local preservation, not a backup implementation.
+
+## Production audit follow-up
+
+The [2026-10-07 audit](../PRODUCTION_READINESS_AUDIT.md) confirms version immutability and passing isolated worker/delivery regressions. It also identifies a retry limitation: all Nodemailer EENVELOPE errors become RECIPIENT_REJECTED/FAILED, even when the SMTP responseCode is a temporary 450. Classify temporary recipient failures for automatic retry before relying on unattended production email; manual retry remains available. Readiness currently does not detect missing report tables or stale workers. No transport or business behavior was changed in the audit.

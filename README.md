@@ -2,6 +2,10 @@
 
 Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen Display System, Dispatch handover, Bills/Tabs, Cash/UPI payments and Owner Dashboard/Reports V1** implemented.
 
+## Production readiness
+
+Production deployment is not yet approved. Read the [2026-10-07 readiness audit](docs/PRODUCTION_READINESS_AUDIT.md) for blocking findings and verification, and the [deployment plan](docs/DEPLOYMENT.md) for environment variables, local/cloud topology, HTTPS, workers, backups and rollback. No cloud resources or production infrastructure were deployed by this audit.
+
 ## MVP checkpoint
 
 The completed MVP is preserved on GitHub as the annotated tag **`v0.1.0-mvp`**, marked on 2026-09-23 at commit `df2d141b11dd8463359dd3509b9cc9415b6c0a8a`. It includes staff authentication/RBAC, menu management and local images, Counter POS ordering, and Kitchen Order/Production views with operational availability and combined portion/dish titles. Dispatch and payments were outside that checkpoint; current implementation status is described below.
