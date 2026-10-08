@@ -14,8 +14,12 @@ export class RestaurantClock {
   readonly timezone = restaurantTimezone();
   async read(c: PoolClient) {
     return (
-      await c.query<{ queued_at: Date; business_date: string }>(
-        'SELECT t AS queued_at,(t AT TIME ZONE $1)::date::text AS business_date FROM (SELECT clock_timestamp() AS t) stamp',
+      await c.query<{
+        queued_at: Date;
+        business_date: string;
+        local_time: string;
+      }>(
+        "SELECT t AS queued_at,(t AT TIME ZONE $1)::date::text AS business_date,to_char(t AT TIME ZONE $1,'HH24:MI:SS') AS local_time FROM (SELECT clock_timestamp() AS t) stamp",
         [this.timezone],
       )
     ).rows[0]!;

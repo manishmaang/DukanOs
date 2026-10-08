@@ -43,9 +43,9 @@ export interface AmendmentHistory {
   id: string;
   revision: number;
   kind: 'CHANGE' | 'CANCEL';
-  reason: AmendmentReason;
+  reason: AmendmentReason | 'PREVIOUS_BUSINESS_DAY_AUTO_CANCEL';
   note: string;
-  performedBy: string;
+  performedBy: string | null;
   actorName: string;
   createdAt: string;
   beforeTotal: string;

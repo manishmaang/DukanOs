@@ -56,3 +56,7 @@ Migration 014 reads effective items and blocks Takeaway completion for REFUND_DU
 ## Historical session rollover
 
 CLOSED means the ordering session ended, not handover or settlement. Existing READY rounds remain in Dispatch. Takeaway still requires amount_due == 0 AND refund_due == 0 under existing transaction/database checks; rollover never bypasses this. Dine In/legacy behavior is unchanged. Counter can settle rollover-closed Bills before handover. No Dispatch refund workflow is added.
+
+## Previous-day cleanup boundary (019)
+
+Earlier-date READY rounds can now be system-cancelled at/after the daily cleanup cutoff. They leave authoritative Dispatch reads and completion rejects once cancellation wins. Before cleanup, historical rounds can still complete under existing Takeaway settlement rules. No frontend cancellation action or refund authority was added.

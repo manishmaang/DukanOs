@@ -2,7 +2,7 @@
 
 ## Implemented schema
 
-Infrastructure, Auth/Users, Menu, Orders, Bills/Payments, queued amendments/refunds, operational alerts, Expenses and immutable Daily Reports/delivery tables are implemented through migration 018. Customers, Credit and provider integrations remain proposed, **not migrated tables**.
+Infrastructure, Auth/Users, Menu, Orders, Bills/Payments, queued amendments/refunds, operational alerts, Expenses and immutable Daily Reports/delivery tables are implemented through migration 019. Customers, Credit and provider integrations remain proposed, **not migrated tables**.
 
 ### schema_migrations
 
@@ -202,3 +202,11 @@ Indexes support descending business-date/created-time/id listing and category/da
 Adds daily_reports (UUID, UNIQUE date/version, structured schema-versioned snapshot JSONB, generation source/actor/time/reason and actor/request identity); daily_report_settings (singleton enabled/recipients/version and persistent start/next dates); daily_report_settings_audit (immutable before/after actor/time); report_deliveries (specific report FK or TEST, immutable recipient/source/request identity, status/count/due/claim lease/sent/error/provider metadata); immutable report_delivery_attempts and report_delivery_actions.
 
 UPDATE/DELETE guards protect report snapshots, audit rows and SENT delivery history; delivery report/recipient identity cannot be reassigned. Automatic report/recipient uniqueness, actor/request keys and dedicated generation advisory lock 742019324 protect retries/versioning. Reports use one repeatable-read transaction with serialization/unique-conflict retries. Delivery claims use SKIP LOCKED and short transactions; external SMTP runs after commit. Three daily_reports capabilities are granted only to OWNER/MANAGER. Existing domain rows/migrations are untouched.
+
+## Previous-day order cleanup — 019_previous_day_order_cleanup.sql
+
+No existing rows are rewritten and no operational cleanup runs in SQL migration. order_amendments permits null performed_by only for CANCEL/PREVIOUS_BUSINESS_DAY_AUTO_CANCEL, with zero totals and required cleanup_timezone/strict cleanup_time snapshots. One system cancellation per order is unique. Its guard requires earlier order date, captured processing time at/after cutoff, eligible current status and rollover-closed parent. Existing STAFF guards and revision/aggregate/audit immutability remain.
+
+order_status_history permits null actor only for that system reason and QUEUED/PREPARING/READY → CANCELLED. History must match a same-transaction CANCEL amendment; status is still history-driven. Original financial/item columns remain immutable. effective_orders/effective_order_items/bill_balances definitions are unchanged: latest zero revision removes the food value/lines and derives due/refund obligations without touching payments.
+
+kitchen_timers gains nullable resolution_reason. Manual resolution still requires a human; system cancellation requires matching same-transaction system order cancellation and stores null resolver. Existing terminal timer rows remain immutable. Deferred system amendment validation rejects remaining ACTIVE associated timers. Unassociated timers are untouched. No permission, default credential, new ledger or token reuse is introduced.

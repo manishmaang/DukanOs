@@ -97,3 +97,7 @@ Queued amendment totals synchronize saved reminder preferences in the same trans
 Automatic Bill closure pauses an active reminder in the same transaction: next_due_at becomes NULL; pause_reason becomes BUSINESS_DAY_ROLLOVER; normal version/updated_at advance. updated_by remains the last human editor, not a fabricated system user. Other automatic pauses use BALANCE_SETTLED or MANUAL_CLOSE. Active schedules require null pause_reason. Already-paused historical reminders may have unknown/null reason; migration invents none.
 
 Repeated rollover does not rewrite reminders. Later settlement on a closed tab does not restart them. The next successful two-second full-snapshot poll removes cached reminders and audible eligibility, including after reconnect. During backend failure cached alerts may continue until authoritative sync; device time cannot safely infer closure. Kitchen timers/history are unchanged.
+
+## Previous-day cleanup boundary (019)
+
+Previous-day order cleanup cancels attached ACTIVE Kitchen timers with null resolved_by and PREVIOUS_BUSINESS_DAY_AUTO_CANCEL resolution_reason. Standalone timers and prior timer audit are preserved. Authoritative polling removes cancelled timers/audio; cached alarms during an API outage may continue until reconnect. Historical Bill reminders remain paused by existing rollover policy even when financial obligations remain.

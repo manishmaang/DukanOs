@@ -590,3 +590,7 @@ Every frontend completion summary must report **Responsive behavior: Mobile, Tab
 ## 25. Bill and Refund Integrity
 
 A Bill is the commercial tab; each child Order is an independent Kitchen preparation round. Never reopen completed Kitchen tokens to add food. Payments attach to Bills and are append-only. Changing a bill total in a future amendment must preserve original payments and derive new amount_due or refund_due. Customer refunds are **CASH ONLY from Counter**, even when original collection was UPI; no UPI refund or Kitchen/Dispatch refund workflow unless the user explicitly changes this rule. Do not implement arbitrary refunds without legitimate amendment-derived entitlement and transaction/concurrency tests.
+
+## Current authorized preparation checkpoint
+
+For the two-phase cleanup/AWS pilot hardening assignment, read [docs/checkpoints/aws-pilot-preparation.md](docs/checkpoints/aws-pilot-preparation.md) alongside SYSTEM.md. Keep phase commits/verification and remaining deployment conditions current there. AWS resource creation and deployment require a later explicit instruction.

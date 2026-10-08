@@ -277,7 +277,7 @@ export class AmendmentsService {
       ).rows as ConfirmedOrder['items'];
       const rows = (
         await c.query(
-          `SELECT a.id,a.revision,a.kind,a.reason,a.note,a.performed_by AS "performedBy",u.name AS "actorName",a.created_at AS "createdAt",a.before_total::text AS "beforeTotal",a.grand_total::text AS "grandTotal" FROM order_amendments a JOIN users u ON u.id=a.performed_by WHERE a.order_id=$1 ORDER BY a.revision`,
+          `SELECT a.id,a.revision,a.kind,a.reason,a.note,a.performed_by AS "performedBy",coalesce(u.name,'System') AS "actorName",a.created_at AS "createdAt",a.before_total::text AS "beforeTotal",a.grand_total::text AS "grandTotal" FROM order_amendments a LEFT JOIN users u ON u.id=a.performed_by WHERE a.order_id=$1 ORDER BY a.revision`,
           [id],
         )
       ).rows;

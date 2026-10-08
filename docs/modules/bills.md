@@ -87,3 +87,7 @@ Historical bills may remain CLOSED with ₹300 UNPAID or ₹50 REFUND DUE. Exist
 ## Local migration verification (2026-10-02)
 
 Migration 016 and actual HTTP startup closed 23 of 24 existing local Bills; the remaining bill was already manually closed. No active reminder needed pausing in this local dataset (isolated integration/browser fixtures cover that transition). Before/after fingerprints matched all 25 other source tables, all derived financial balances and all 3 menu image files. All 27 orders and 21 collection/refund records were retained byte-for-byte, along with users, menu, revisions and Kitchen/Dispatch histories. Existing Bill fields changed only for eligible closure; the previously closed Bill gained MANUAL metadata. Health returned 200 and unauthenticated Dashboard 401. A later periodic check remained idempotent.
+
+## Previous-day cleanup boundary (019)
+
+Rollover still closes historical sessions at midnight. At/after the configured cleanup time, the same transaction additionally cancels earlier-date unfinished rounds through Orders revisions, even on rollover-closed tabs. Completed rounds and receipts remain. Bill balances may become zero due or refund due; the tab never reopens. See Orders for the exact daily gate.
