@@ -136,3 +136,7 @@ Services: local HTTPS proxy + compiled app/workers, local PostgreSQL, persistent
 ## Next milestone boundary
 
 First address the audit's production hardening/release gates on a new branch, including dependency review, schema-aware readiness, least-privilege credentials, TLS/proxy plan and backup/restore proof. Then explicitly authorize staging deployment. No cloud synchronization, Customers, credit, messaging or new business module is included in this plan.
+
+## Pilot preparation follow-up — Phase A
+
+PREVIOUS_DAY_ORDER_CLEANUP_TIME is OPTIONAL with default 05:00, strict 24-hour HH:MM, validated during application construction. On startup/every 60 seconds, existing rollover maintenance cancels earlier-date unfinished orders only when today's local time reaches this gate. Run migration 019 before starting this release; it does not itself cancel restaurant records. Startup after the cutoff can create real refund obligations, so review historical unfinished work before enabling the release. No automatic refunds occur. See Orders and the [assignment checkpoint](checkpoints/aws-pilot-preparation.md). The original audit above remains evidence of the earlier release; Phase B hardening is still pending.

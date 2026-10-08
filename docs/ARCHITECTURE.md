@@ -134,3 +134,7 @@ Receipt staging follows Menu's Sharp/private-data-directory/metadata/compensatio
 ## Immutable daily communications
 
 DailyReportsModule composes ReportsService.dailySnapshot on one REPEATABLE READ connection and owns immutable report versions, settings, PostgreSQL delivery jobs and a lightweight worker. ReportsService reuses its existing sales/payment/food semantics and ExpensesService totals; live analytical reads remain unchanged. Report UUID binds each delivery to one stored version. EmailDeliveryAdapter contains only SMTP transport; pure renderReport uses the stored public snapshot. No SMTP runs inside a database transaction. HTTP startup starts the nonblocking worker after rollover/listen; CLI contexts remain side-effect free. Claim leases, heartbeats, immutable attempt audit and capped retry timestamps survive restart without Redis/Kafka. See Daily Reports for first-install catch-up scope and uncertain SMTP acceptance limits.
+
+## Previous-day order maintenance
+
+The existing Bills startup/60-second scheduler now orchestrates historical Bill closure plus an internal Orders-owned cancellation function on the same PostgreSQL transaction and restaurant lock. No additional scheduler/process or circular Nest module import is introduced. Daily worker calls reuse this coalesced operation. Immutable zero-valued amendment revisions feed existing financial/operational reads; system identity is explicit instead of a fabricated user. The cleanup gate is validated server configuration and does not redefine restaurant midnight. See decision 022 and Orders.

@@ -82,3 +82,7 @@ Migration 014 was applied with the normal migration runner. Before/after row cou
 New amendment quotes/commits, including cancellation and instruction-only changes, require the parent Bill to belong to the current restaurant business date. BILL_NOT_CURRENT_BUSINESS_DATE rejects stale-day food changes even if the round is still QUEUED. The date is read from the shared PostgreSQL restaurant clock after locking; a quote spanning midnight is revalidated at commit. Successful same-request replay remains safe after midnight. Historical audit reads and legitimate collection/refund/closure are not blocked by this food-only rule. Frontend hides new food controls using backend canChangeFood while preserving pending-request recovery.
 
 Migration 016 closes historical OPEN sessions with BUSINESS_DAY_ROLLOVER, without authorizing amendments/cancellation or modifying food. Current-day OPEN plus QUEUED and all quote/revision checks remain required. Legitimate financial reconciliation on rollover-closed tabs is separate from food changes.
+
+## Previous-day cleanup boundary (019)
+
+Migration 019 adds a narrow system-only cancellation revision for historical QUEUED/PREPARING/READY rounds after cleanup time, including rollover-closed Bills. Staff cancellation rules remain QUEUED/current-day OPEN only. System events retain null actor, stable reason and cutoff/timezone snapshots; history uses System as the display name. No manual API accepts the system reason.

@@ -427,3 +427,19 @@ Store immutable schema-versioned JSONB reports with unique business date/version
 ### Reason and consequences
 
 Corrections update live Reports but cannot change prior communications. Delivery failure does not lose reports or block operational transactions. Explicit resend is auditable; SMTP acceptance uncertainty precludes exactly-once delivery. Future WhatsApp can consume snapshots through another adapter without recalculating historical money. No external queue, marketing system, PDF or customer domain is introduced.
+
+## 022 — Audited system cancellation after a daily cleanup cutoff
+
+Date: 2026-10-08.
+
+### Context and options
+
+Unfinished prior-date Kitchen/Dispatch work must leave active queues without erasing financial history or reopening rollover-closed Bills. Considered deleting/flagging stale work, a separate financial cancellation ledger, and extending existing immutable CANCEL revisions. Considered individual next-day deadlines versus one gate at today's configured time; the owner delegated the choice to simplicity/load.
+
+### Decision and reason
+
+Use strict PREVIOUS_DAY_ORDER_CLEANUP_TIME (default 05:00) in RESTAURANT_TIMEZONE; before today's gate do nothing, afterward cancel all earlier-date QUEUED/PREPARING/READY orders. Keep midnight semantics. Extend the existing rollover transaction/lock and append zero-value revisions, system reason/null actor history and linked timer cancellation. Current-day/terminal orders and all payment records remain intact. No manual cancellation privilege expands.
+
+### Consequences
+
+The daily rule is simple and restart-safe, with older missed work waiting until today's cutoff. Paid cancellations create explicit cash refund obligations, never automatic tender. Live historical sales can change after the midnight Daily Report; stored versions remain immutable and explicit regeneration/resend is required. A single small-restaurant transaction serializes with operational/financial writes; no new infrastructure is needed.

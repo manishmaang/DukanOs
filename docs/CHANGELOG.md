@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Previous-day order cleanup (Phase A)
+
+- Extend startup/periodic rollover with configured restaurant-local cleanup of prior-date QUEUED/PREPARING/READY rounds, preserving midnight and current/terminal work.
+- Add migration 019 for immutable system cancellation revisions/history and attached timer resolution; preserve receipts/refunds and derive correct cash refund obligations.
+- Retain manual cancellation restrictions and immutable Daily Reports; document explicit report regeneration after cleanup.
+
 ## 2026-10-07 — Production readiness audit
 
 - Add blocking readiness findings, measured local performance and a deployment planning guide with environment inventory, worker recovery, security, AWS/local topology, full backup scope and rollback boundaries. No infrastructure, business behavior, dependency or migration changes.

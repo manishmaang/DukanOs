@@ -20,7 +20,10 @@ test(
   async (t) => {
     const original = process.env.DATABASE_URL,
       oldZone = process.env.RESTAURANT_TIMEZONE,
-      oldTax = process.env.ORDER_TAX_RATE;
+      oldTax = process.env.ORDER_TAX_RATE,
+      oldCleanup = process.env.PREVIOUS_DAY_ORDER_CLEANUP_TIME;
+    // These cases isolate midnight Bill closure, before the configured cleanup.
+    process.env.PREVIOUS_DAY_ORDER_CLEANUP_TIME = '23:59';
     process.env.RESTAURANT_TIMEZONE = 'Asia/Kolkata';
     process.env.ORDER_TAX_RATE = '0';
     const admin = new Client({ connectionString: original });
@@ -501,6 +504,9 @@ test(
       await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
       await admin.end();
       process.env.DATABASE_URL = original;
+      if (oldCleanup === undefined)
+        delete process.env.PREVIOUS_DAY_ORDER_CLEANUP_TIME;
+      else process.env.PREVIOUS_DAY_ORDER_CLEANUP_TIME = oldCleanup;
       if (oldZone === undefined) delete process.env.RESTAURANT_TIMEZONE;
       else process.env.RESTAURANT_TIMEZONE = oldZone;
       if (oldTax === undefined) delete process.env.ORDER_TAX_RATE;

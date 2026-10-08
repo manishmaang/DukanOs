@@ -35,3 +35,7 @@ Each positive ledger row retains actor/time and an optional confirmation_order_i
 ## Session closure is not settlement
 
 Migration 016 permits late reconciliation on BUSINESS_DAY_ROLLOVER closures through the same locks, permissions, amount checks, immutable ledger and idempotency. Closure posts no payment/refund and preserves both dues. Later collection/refund does not reopen the tab or reactivate its reminder. Manual close and Takeaway still require both dues zero. Historical receipts appear in event-date Money Received; food remains on the Bill date.
+
+## Previous-day cleanup boundary (019)
+
+System previous-day cancellation appends zero-valued effective order revisions without any payment write. Net paid remains collections minus actual refunds, and excess becomes refund_due. Existing Counter CASH-only refunds remain authorized on rollover-closed Bills, including original UPI/split/partial collections. No automatic refund or new payment method exists.

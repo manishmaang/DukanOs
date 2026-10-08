@@ -121,3 +121,7 @@ Dashboard adds recordedExpenses from the same coherent read snapshot and a separ
 ## Daily Report snapshots
 
 Live report endpoints remain current effective analytics. ReportsService.dailySnapshot composes these same SQL semantics on a caller-owned consistent transaction, adding a dish-level best seller across all portions. DailyReportsModule persists immutable versions and handles history/SMTP independently. Reports → Daily Reports shows stored communications; it does not replace live filters/results. See [Daily Reports](daily-reports.md).
+
+## Previous-day cleanup boundary (019)
+
+System previous-day cleanup uses CANCEL amendments, so existing effective sales/items and status summaries reflect the removed unfinished food. Amendment events include PREVIOUS_BUSINESS_DAY_AUTO_CANCEL at processing time. Existing READY history remains historical preparation evidence; no report formula or date boundary changes.

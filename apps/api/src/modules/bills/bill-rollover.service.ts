@@ -1,9 +1,12 @@
 import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { RestaurantClock } from '../../database/restaurant-clock';
+import { previousDayCleanupTime } from '../orders/cleanup-configuration';
+import { cancelPreviousDayOrders } from '../orders/previous-day-cleanup';
 @Injectable()
 export class BillRolloverService implements OnModuleDestroy {
   private readonly logger = new Logger(BillRolloverService.name);
+  readonly cleanupTime = previousDayCleanupTime();
   private timer?: ReturnType<typeof setInterval>;
   private running?: Promise<number>;
   constructor(
@@ -30,6 +33,12 @@ export class BillRolloverService implements OnModuleDestroy {
         const result = await c.query(
           `UPDATE bills SET status='CLOSED',closed_at=$2,closed_by=NULL,closure_reason='BUSINESS_DAY_ROLLOVER',closure_timezone=$3 WHERE status='OPEN' AND business_date<$1::date`,
           [now.business_date, now.queued_at, this.clock.timezone],
+        );
+        await cancelPreviousDayOrders(
+          c,
+          now,
+          this.clock.timezone,
+          this.cleanupTime,
         );
         return result.rowCount ?? 0;
       })

@@ -96,3 +96,7 @@ Kitchen timer sound is opt-in through Enable Sound / Test sound in the timer str
 ## Queued revisions (014)
 
 Kitchen/Production read effective_order_items, so a queued replacement/reduction/removal updates both modes on normal polling without duplicate original quantity. Original order/token/FIFO time remain. START and amendment commits share the restaurant lock; once START wins, changes fail. Active associated timers block amendments; no timer silently changes food. Kitchen has no amendment/refund capability. See [Amendments](amendments.md).
+
+## Previous-day cleanup boundary (019)
+
+At/after the configured daily cleanup cutoff, earlier-date QUEUED/PREPARING work is system-cancelled. Existing status-filtered authoritative reads remove it from Order/Production, FIFO/NEXT and late indicators. Attached active timers cancel atomically. START/READY rejects after cancellation; current-day work is unchanged. See Orders for timing and audit.
