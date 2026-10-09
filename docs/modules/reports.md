@@ -125,3 +125,7 @@ Live report endpoints remain current effective analytics. ReportsService.dailySn
 ## Previous-day cleanup boundary (019)
 
 System previous-day cleanup uses CANCEL amendments, so existing effective sales/items and status summaries reflect the removed unfinished food. Amendment events include PREVIOUS_BUSINESS_DAY_AUTO_CANCEL at processing time. Existing READY history remains historical preparation evidence; no report formula or date boundary changes.
+
+## Manual platform isolation (020)
+
+Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).

@@ -25,7 +25,10 @@ export interface SalesChannel {
 }
 export interface VariantChannel {
   channelCode: string;
-  price: string;
+  price: string | null;
+  normalAmount?: string | null;
+  reducedAmount?: string | null;
+  servingUnit?: 'g' | 'ml' | null;
   available: boolean;
 }
 export interface MenuVariant {

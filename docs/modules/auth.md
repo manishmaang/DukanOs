@@ -93,3 +93,7 @@ The [2026-10-07 production audit](../PRODUCTION_READINESS_AUDIT.md) verified pro
 ## Production hardening (2026-10-09)
 
 Production must use scripts/start-production.cjs with NODE_ENV=production; invalid modes fail validation. Same-origin Secure/HttpOnly/SameSite=Strict cookies and mutation-header/CSRF protection remain unchanged. The API binds 127.0.0.1, trusts only the first exact loopback proxy hop, and relies on the supplied Nginx profile overwriting forwarded headers. Login's existing persistent IP/account counters remain authoritative; no broad trust-proxy setting is permitted. Tested via real isolated Nginx HTTPS with spoofed forwarding and rate-limit assertions. Owner recovery remains hidden-input and loopback-only; an RDS deployment must rehearse its controlled verified local-tunnel recovery procedure before traffic. See DEPLOYMENT.md.
+
+## Manual platform capabilities (020)
+
+Explicit platform_orders.create/read/cancel grants are added to OWNER/MANAGER/CASHIER. Backend mutation checks revalidate the current session and capability under the restaurant lock. Kitchen and Dispatch retain only their existing respective operational reads/actions; no platform entry/cancellation, financial or Menu administration grant is added to them. Serving configuration remains menu.manage. Multi-role unions and OWNER/MANAGER exclusivity remain unchanged.

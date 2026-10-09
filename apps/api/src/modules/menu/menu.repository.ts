@@ -42,7 +42,7 @@ export async function readCatalog(
   ).rows;
   const settings = (
     await client.query<VariantChannel & { variantId: string }>(
-      `SELECT variant_id AS "variantId",channel_code AS "channelCode",price::text AS price,available FROM variant_channel_settings ORDER BY channel_code`,
+      `SELECT variant_id AS "variantId",channel_code AS "channelCode",price::text AS price,available,to_jsonb(s)->>'normal_amount' AS "normalAmount",to_jsonb(s)->>'reduced_amount' AS "reducedAmount",to_jsonb(s)->>'serving_unit' AS "servingUnit" FROM variant_channel_settings s ORDER BY channel_code`,
     )
   ).rows;
   const channels = (
@@ -65,11 +65,10 @@ export async function readCatalog(
               ...fields,
               channels: settings
                 .filter((s) => s.variantId === variant.id)
-                .map(({ channelCode, price, available }) => ({
-                  channelCode,
-                  price,
-                  available,
-                })),
+                .map(({ variantId: _variantId, ...setting }) => {
+                  void _variantId;
+                  return setting;
+                }),
             };
           }),
       }))

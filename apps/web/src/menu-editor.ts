@@ -5,12 +5,16 @@ import type {
   SalesChannel,
 } from '@dukanos/shared-types';
 
-export const rupees = (price: string) =>
-  price.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+export const rupees = (price: string | null) =>
+  (price ?? '').replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
 export interface DraftPrice {
+  persisted?: boolean;
   channelCode: string;
   price: string;
   available: boolean;
+  normalAmount?: string;
+  reducedAmount?: string;
+  servingUnit?: 'g' | 'ml';
 }
 export interface DraftVariant {
   key: string;
@@ -72,8 +76,12 @@ export function dishDraft(
         const s = v.channels.find((s) => s.channelCode === c.code);
         return {
           channelCode: c.code,
+          persisted: !!s,
           price: s ? rupees(s.price) : '',
           available: s?.available ?? false,
+          normalAmount: s?.normalAmount ?? '',
+          reducedAmount: s?.reducedAmount ?? '',
+          servingUnit: s?.servingUnit ?? 'g',
         };
       }),
     })),
@@ -89,8 +97,21 @@ export function dishPayload(draft: DishDraft): MenuItemInput {
         displayLabel,
         active,
         channels: channels
-          .filter((c) => c.price.trim() !== '')
-          .map((c) => ({ ...c, price: c.price.trim() })),
+          .filter(
+            (c) =>
+              c.price.trim() !== '' ||
+              c.available ||
+              c.persisted ||
+              !!c.normalAmount,
+          )
+          .map((c) => ({
+            channelCode: c.channelCode,
+            available: c.available,
+            price: c.price.trim() || null,
+            normalAmount: c.normalAmount?.trim() || null,
+            reducedAmount: c.reducedAmount?.trim() || null,
+            servingUnit: c.normalAmount?.trim() ? (c.servingUnit ?? 'g') : null,
+          })),
       }),
     ),
   };
@@ -132,7 +153,7 @@ export function validateDish(
         errors.push(
           `${v.name || 'Portion'}: enter a valid ${label} price with at most two decimal places.`,
         );
-      if (!price && (saved || c.available))
+      if (!price && c.channelCode === 'COUNTER' && (saved || c.available))
         errors.push(
           `${v.name || 'Portion'}: keep a ${label} price, or switch off availability for an unpriced portion.`,
         );

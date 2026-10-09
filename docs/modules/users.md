@@ -96,3 +96,7 @@ Migration 014 grants orders.amend, orders.cancel and payments.refund to OWNER/MA
 Migration 017 grants cashier expense entry/read and privileged expense void/category management through the existing role-permission map. It does not change role exclusivity, staff administration or Reports permission. Multi-role staff retain the normal permission union.
 
 Daily Owner Reports (018): OWNER/MANAGER receive daily_reports.read, daily_reports.manage and daily_reports.send. Operational roles receive none. Settings, history, generation, regeneration and send/retry remain backend capability-guarded.
+
+## Manual platform capabilities (020)
+
+Explicit platform_orders.create/read/cancel grants are added to OWNER/MANAGER/CASHIER. Backend mutation checks revalidate the current session and capability under the restaurant lock. Kitchen and Dispatch retain only their existing respective operational reads/actions; no platform entry/cancellation, financial or Menu administration grant is added to them. Serving configuration remains menu.manage. Multi-role unions and OWNER/MANAGER exclusivity remain unchanged.

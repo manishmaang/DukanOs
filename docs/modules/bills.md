@@ -91,3 +91,7 @@ Migration 016 and actual HTTP startup closed 23 of 24 existing local Bills; the 
 ## Previous-day cleanup boundary (019)
 
 Rollover still closes historical sessions at midnight. At/after the configured cleanup time, the same transaction additionally cancels earlier-date unfinished rounds through Orders revisions, even on rollover-closed tabs. Completed rounds and receipts remain. Bill balances may become zero due or refund due; the tab never reopens. See Orders for the exact daily gate.
+
+## Manual platform isolation (020)
+
+Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).

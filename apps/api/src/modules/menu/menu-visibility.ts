@@ -18,7 +18,8 @@ export function menuVisibility(
     const reasons = [...blocked];
     const setting = v.channels.find((s) => s.channelCode === channel?.code);
     if (!v.active) reasons.push('This portion is inactive.');
-    if (!setting) reasons.push(`No ${channelName} price configured.`);
+    if (!setting || setting.price === null)
+      reasons.push(`No ${channelName} price configured.`);
     else if (!setting.available)
       reasons.push(`${channelName} availability is switched off.`);
     return { id: v.id, visible: reasons.length === 0, reasons };

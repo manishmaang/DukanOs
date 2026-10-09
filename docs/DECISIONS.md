@@ -457,3 +457,17 @@ Date: 2026-10-09.
 **Reason:** this fixes demonstrated blockers using existing deployment primitives and keeps financial transactions independent of external services. Established PostgreSQL/tar/GnuPG tooling produces an encrypted coordinated DB+media+configuration+release backup while writes are stopped; an isolated restore compares recorded financial and file inventories.
 
 **Consequences:** target-host DNS/TLS/security groups, key custody, off-instance retention, alarms, recovery/reboot drills and an acceptable backup maintenance window/RPO remain operator setup requirements. Daily paused backups can lose a shift; they do not replace tested RDS PITR/file recovery for tighter objectives. Cloud-only operation needs WAN; no local/cloud dual writer is introduced. No AWS resource or cost-incurring operation is authorized by this preparation decision.
+
+## 024 — Operational-only manual platform orders
+
+Date: 2026-10-09.
+
+**Context:** manually transcribed Zomato/Swiggy food must share Kitchen and Dispatch while external platforms retain financial authority and advertised serving sizes vary.
+
+**Options considered:** fake zero-valued Bills, separate parallel Kitchen orders, or bill-less Orders with explicit source-conditioned integrity. Price-derived preparation versus configurable reviewed serving snapshots.
+
+**Decision:** share Orders/lifecycle/tokens with required financial values only for Counter and prohibited financial values for platforms. Keep dedicated platform DTOs/capabilities and immutable source/reference/name/serving snapshots. Reuse Menu channel availability independently of optional price; store Normal/Reduced g/ml per variant/platform. Never select Reduced merely because of a discount. Use an append-only operational cancellation record with history/timer validation, sharing the existing maintenance worker/lock.
+
+**Reason:** avoids fictitious financial history and duplicate queues while keeping preparation precise and auditable in one modular monolith.
+
+**Consequences:** financial reports continue following Bills; platform history is operational only. References remain permanently unique, so correcting a cancelled mistaken reference requires a later audited correction design. No platform reconciliation/API integration or measured Counter profiles are implemented. Runtime grants and schema readiness must ship with migration 020; no live migration/deployment was authorized.

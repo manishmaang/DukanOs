@@ -12,11 +12,17 @@ export function aggregateProduction(orders: KitchenOrder[]): ProductionGroup[] {
         line.itemName,
         line.kitchenName,
         line.variantName,
+        order.source ?? 'COUNTER',
+        line.serving?.mode ?? null,
+        line.serving?.amount ?? null,
+        line.serving?.unit ?? null,
       ]);
       let group = groups.get(key);
       if (!group) {
         group = {
           key,
+          source: order.source ?? 'COUNTER',
+          serving: line.serving ?? null,
           itemName: line.itemName,
           kitchenName: line.kitchenName,
           variantName: line.variantName,

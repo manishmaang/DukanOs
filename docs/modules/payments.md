@@ -39,3 +39,7 @@ Migration 016 permits late reconciliation on BUSINESS_DAY_ROLLOVER closures thro
 ## Previous-day cleanup boundary (019)
 
 System previous-day cancellation appends zero-valued effective order revisions without any payment write. Net paid remains collections minus actual refunds, and excess becomes refund_due. Existing Counter CASH-only refunds remain authorized on rollover-closed Bills, including original UPI/split/partial collections. No automatic refund or new payment method exists.
+
+## Manual platform isolation (020)
+
+Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).

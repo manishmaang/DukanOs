@@ -24,6 +24,9 @@ export type PermissionCode =
   | 'kitchen.timers.read'
   | 'kitchen.timers.manage'
   | 'orders.amend'
+  | 'platform_orders.create'
+  | 'platform_orders.read'
+  | 'platform_orders.cancel'
   | 'orders.create'
   | 'orders.read'
   | 'bills.read'
@@ -82,3 +85,5 @@ export type * from './reports';
 export type * from './expenses';
 
 export type * from './daily-reports';
+
+export * from './platform-orders';

@@ -52,7 +52,7 @@ export class AmendmentsService {
   ): Promise<AmendmentQuote> {
     const o = (
       await c.query(
-        'SELECT o.*,e.revision,e.grand_total AS effective_total FROM orders o JOIN effective_orders e ON e.id=o.id WHERE o.id=$1 FOR UPDATE OF o',
+        "SELECT o.*,e.revision,e.grand_total AS effective_total FROM orders o JOIN effective_orders e ON e.id=o.id WHERE o.id=$1 AND o.source='COUNTER' FOR UPDATE OF o",
         [id],
       )
     ).rows[0];

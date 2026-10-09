@@ -2,7 +2,7 @@
 
 ## Implemented schema
 
-Infrastructure, Auth/Users, Menu, Orders, Bills/Payments, queued amendments/refunds, operational alerts, Expenses and immutable Daily Reports/delivery tables are implemented through migration 019. Customers, Credit and provider integrations remain proposed, **not migrated tables**.
+Infrastructure, Auth/Users, Menu, Orders, Bills/Payments, queued amendments/refunds, operational alerts, Expenses and immutable Daily Reports/delivery tables are implemented through migration 020. Customers, Credit and provider integrations remain proposed, **not migrated tables**.
 
 ### schema_migrations
 
@@ -218,3 +218,15 @@ No additional Phase B business migration is needed (latest remains 019). scripts
 Production startup rejects superuser/create-role/create-database/replication/bypass-RLS identities, ownership/schema-create access and unsafe table/ledger privileges. Application sessions have a 9-second server statement limit and 15-second idle transaction timeout; Reports retains its 8-second local limit. Role provisioning is an explicit deployment operation, never automatic API startup. Refresh reviewed grants after future migrations. Release readiness verifies migration files/checksums against the complete ledger and required tables/views/functions/enabled triggers.
 
 Full backups record migration hashes, table counts, effective food/collection/refund/expense totals, staff role assignments, database grant metadata and referenced media hashes. Isolated restores compare these without writing financial corrections. Owners/ACLs are deliberately not imported blindly; re-provision reviewed roles with fresh credentials before controlled use. See DEPLOYMENT.md.
+
+## Manual platform orders — 020_manual_platform_orders.sql
+
+Forward-only migration, with no existing row rewrite or cleanup execution. orders allows COUNTER/ZOMATO/SWIGGY; bill_id and monetary/tax columns become nullable under a complete source-conditioned CHECK. Counter requires the original financial/Bill fields and no external metadata; platforms require bill/financial/tax NULL, normalized external_reference and discount_classification. timezone remains required for both. Unique partial (source,external_reference) protects permanent references and a platform recent-order index supports tracking. Existing daily date/token and actor/request uniqueness remain.
+
+order_items price/subtotal may be NULL only for platform lines, enforced by an insert trigger; serving_mode/amount/unit are required and checked against active available platform Menu configuration at insertion. Exact quantity snapshots use checked numeric, <=100000 and scale<=2. Counter lines retain mandatory prices and no serving profile in V1. Original item immutability/sealing remain. effective_order_items appends the profile columns; financial revisions project NULL profiles. Platform cancelled items remain as historical snapshots and are excluded by active status filters.
+
+variant_channel_settings.price becomes nullable only outside Counter; existing available flag remains authoritative. normal_amount/reduced_amount/serving_unit are all absent or a valid Zomato/Swiggy profile pair using g/ml with reduced < normal. Existing child-version/audit workflow applies. No serving or operational menu data is seeded.
+
+platform_order_cancellations: order_id PK/FK, nullable actor_id FK, occurred_at, nonblank bounded reason, optional system cleanup timezone/time. Guards allow only unfinished non-Counter orders, enforce historical cutoff for system cancellation, prohibit mutation/deletion, and require matching same-transaction history. Deferred validation rejects incomplete history or active attached timers. History/timer guards accept this operational cancellation without a financial amendment. Counter amendment guards explicitly reject other sources. Existing Takeaway guard remains unchanged.
+
+Migration grants platform_orders.create/read/cancel to OWNER/MANAGER/CASHIER. Runtime grants add INSERT on platform_order_cancellations; no extra ownership, DDL, trigger, update or delete privilege. Readiness includes migration 020 and all declared objects. Deploy matching release/schema/grants only after an authorized backup/maintenance window.

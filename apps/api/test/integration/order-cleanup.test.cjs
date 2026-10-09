@@ -49,7 +49,7 @@ test(
       for (const f of fs
         .readdirSync('database/migrations')
         .sort()
-        .filter((f) => f.endsWith('.sql') && !f.startsWith('019_')))
+        .filter((f) => f.endsWith('.sql') && f < '019'))
         await sql.query(fs.readFileSync('database/migrations/' + f, 'utf8'));
       const module = await Test.createTestingModule({
         imports: [AppModule],
@@ -213,7 +213,9 @@ test(
       instant = '2025-10-09T06:00:00Z';
       const current = await create();
       const originalItems = (
-        await sql.query('SELECT * FROM order_items ORDER BY id')
+        await sql.query(
+          "SELECT to_jsonb(i)-ARRAY['serving_mode','serving_amount','serving_unit'] AS row FROM order_items i ORDER BY id",
+        )
       ).rows;
       const originalPayments = (
         await sql.query('SELECT * FROM payments ORDER BY id')
@@ -255,6 +257,12 @@ test(
             ),
           );
           assert.deepEqual(await capture(), before);
+          await sql.query(
+            fs.readFileSync(
+              'database/migrations/020_manual_platform_orders.sql',
+              'utf8',
+            ),
+          );
         },
       );
       await t.test(
@@ -386,7 +394,11 @@ test(
         'original item snapshots and complete payment/refund rows remain byte-for-byte unchanged',
         async () => {
           assert.deepEqual(
-            (await sql.query('SELECT * FROM order_items ORDER BY id')).rows,
+            (
+              await sql.query(
+                "SELECT to_jsonb(i)-ARRAY['serving_mode','serving_amount','serving_unit'] AS row FROM order_items i ORDER BY id",
+              )
+            ).rows,
             originalItems,
           );
           assert.deepEqual(

@@ -1,6 +1,7 @@
 import { BadRequestException, type PipeTransform } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
@@ -66,7 +67,11 @@ export class ItemFields {
 }
 export class ItemChannelDto {
   @IsString() @Matches(/^[A-Z][A-Z0-9_]{1,31}$/) channelCode!: string;
-  @IsString() @MaxLength(32) price!: string;
+  @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(32) price!:
+    string | null;
+  @IsOptional() @IsString() @MaxLength(16) normalAmount?: string | null;
+  @IsOptional() @IsString() @MaxLength(16) reducedAmount?: string | null;
+  @IsOptional() @IsIn(['g', 'ml']) servingUnit?: 'g' | 'ml' | null;
   @IsBoolean() available!: boolean;
 }
 export class ItemVariantDto extends InitialVariantDto {

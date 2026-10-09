@@ -28,6 +28,32 @@ export function CartSurface({
       modal.close();
     };
   }, [open]);
+  useEffect(() => {
+    const container = dialog.current!;
+    const update = () => {
+      const cart = container.querySelector<HTMLElement>('.order-cart');
+      if (!cart) return;
+      if (innerWidth < 900) {
+        cart.style.removeProperty('--cart-available-height');
+        return;
+      }
+      const top = Math.max(16, cart.getBoundingClientRect().top);
+      cart.style.setProperty(
+        '--cart-available-height',
+        `${Math.max(260, innerHeight - top - 16)}px`,
+      );
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(container.closest('.layout') ?? document.body);
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update);
+    };
+  }, []);
   function close() {
     dialog.current?.close();
     setOpen(false);

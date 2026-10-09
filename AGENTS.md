@@ -594,3 +594,7 @@ A Bill is the commercial tab; each child Order is an independent Kitchen prepara
 ## Current authorized preparation checkpoint
 
 For the two-phase cleanup/AWS pilot hardening assignment, read [docs/checkpoints/aws-pilot-preparation.md](docs/checkpoints/aws-pilot-preparation.md) alongside SYSTEM.md. Keep phase commits/verification and remaining deployment conditions current there. AWS resource creation and deployment require a later explicit instruction.
+
+## Current authorized feature checkpoint
+
+For Manual Zomato/Swiggy Orders V1, read [docs/checkpoints/manual-platform-orders.md](docs/checkpoints/manual-platform-orders.md). This explicit milestone supersedes the prior preparation checkpoint’s stop instruction, but authorizes no AWS deployment or live database migration. Keep verification and remaining work current there.

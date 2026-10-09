@@ -1,5 +1,6 @@
 /** Handover projection: sale names and limited bill settlement context only. */
 export interface DispatchLine {
+  serving?: import('./platform-orders').ServingSnapshot | null;
   id: string;
   menuItemId: string;
   itemName: string;
@@ -8,15 +9,16 @@ export interface DispatchLine {
   instruction: string;
 }
 export interface DispatchOrder {
-  billId: string;
+  billId: string | null;
   serviceType: 'DINE_IN' | 'TAKEAWAY' | null;
-  amountDue: string;
-  refundDue: string;
-  paymentStatus: import('./bills').PaymentStatus;
+  amountDue: string | null;
+  refundDue: string | null;
+  paymentStatus: import('./bills').PaymentStatus | null;
   orderId: string;
   businessDate: string;
   tokenNumber: number;
   source: string;
+  externalReference: string | null;
   readyAt: string;
   items: DispatchLine[];
 }

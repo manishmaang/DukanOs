@@ -134,7 +134,7 @@ test(
           assert.deepEqual(
             (
               await sql.query(
-                "SELECT to_jsonb(o)-'bill_id' AS row FROM orders o",
+                "SELECT to_jsonb(o)-ARRAY['bill_id','external_reference','discount_classification'] AS row FROM orders o",
               )
             ).rows,
             before,

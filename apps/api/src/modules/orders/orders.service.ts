@@ -270,7 +270,7 @@ export class OrdersService {
   ): Promise<ConfirmedOrder> {
     const row = (
       await client.query(
-        `SELECT bill_id AS "billId",id,source,status,business_date::text AS "businessDate",token_number AS "tokenNumber",queued_at AS "queuedAt",confirmed_by AS "confirmedBy",subtotal::text,discount_total::text AS "discountTotal",tax_total::text AS "taxTotal",rounding_adjustment::text AS "roundingAdjustment",grand_total::text AS "grandTotal",jsonb_build_object('timezone',timezone,'taxLabel',tax_label,'taxRate',tax_rate::text,'taxMode',tax_mode,'rounding',tax_rounding) AS tax FROM orders WHERE id=$1`,
+        `SELECT bill_id AS "billId",id,source,status,business_date::text AS "businessDate",token_number AS "tokenNumber",queued_at AS "queuedAt",confirmed_by AS "confirmedBy",subtotal::text,discount_total::text AS "discountTotal",tax_total::text AS "taxTotal",rounding_adjustment::text AS "roundingAdjustment",grand_total::text AS "grandTotal",jsonb_build_object('timezone',timezone,'taxLabel',tax_label,'taxRate',tax_rate::text,'taxMode',tax_mode,'rounding',tax_rounding) AS tax FROM orders WHERE id=$1 AND source='COUNTER'`,
         [id],
       )
     ).rows[0];
@@ -366,7 +366,7 @@ export class OrdersService {
         });
       const rows = (
         await c.query<{ id: string }>(
-          `SELECT id FROM orders WHERE ($1::text IS NULL OR status=$1) AND ($2::date IS NULL OR business_date=$2) AND ($3::uuid IS NULL OR (queued_at,id)>(SELECT queued_at,id FROM orders WHERE id=$3)) ORDER BY queued_at,id LIMIT 101`,
+          `SELECT id FROM orders WHERE source='COUNTER' AND ($1::text IS NULL OR status=$1) AND ($2::date IS NULL OR business_date=$2) AND ($3::uuid IS NULL OR (queued_at,id)>(SELECT queued_at,id FROM orders WHERE id=$3)) ORDER BY queued_at,id LIMIT 101`,
           [
             query.status ?? null,
             query.businessDate ?? null,

@@ -1,3 +1,4 @@
+import { ServingLabel, SourceLabel } from './ServingLabel';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DispatchOrder, DispatchState } from '@dukanos/shared-types';
 import { api, errorMessage } from './api';
@@ -24,6 +25,7 @@ function Items({ order }: { order: DispatchOrder }) {
               <p>
                 {line.variantName} <strong>×{line.quantity}</strong>
               </p>
+              <ServingLabel serving={line.serving} />
               {line.instruction && (
                 <p className="dispatch-note">Note: {line.instruction}</p>
               )}
@@ -170,17 +172,22 @@ export function Dispatch({
                   order.businessDate !== state.businessDate) && (
                   <time>{order.businessDate}</time>
                 )}
-                {order.source !== 'COUNTER' && <p>{order.source}</p>}
-                <p>
-                  {order.serviceType?.replace('_', ' ') ??
-                    'Legacy · service unknown'}{' '}
-                  ·{' '}
-                  {order.paymentStatus === 'PAID'
-                    ? 'PAID'
-                    : order.paymentStatus === 'REFUND_DUE'
-                      ? `REFUND ₹${order.refundDue} AT COUNTER`
-                      : `DUE ₹${order.amountDue}`}
-                </p>
+                <SourceLabel
+                  source={order.source}
+                  reference={order.externalReference}
+                />
+                {order.source === 'COUNTER' && (
+                  <p>
+                    {order.serviceType?.replace('_', ' ') ??
+                      'Legacy · service unknown'}{' '}
+                    ·{' '}
+                    {order.paymentStatus === 'PAID'
+                      ? 'PAID'
+                      : order.paymentStatus === 'REFUND_DUE'
+                        ? `REFUND ₹${order.refundDue} AT COUNTER`
+                        : `DUE ₹${order.amountDue}`}
+                  </p>
+                )}
                 {canCollect &&
                   order.serviceType === 'TAKEAWAY' &&
                   order.paymentStatus !== 'PAID' && (
