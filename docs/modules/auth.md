@@ -89,3 +89,7 @@ Daily Owner Reports (018): OWNER/MANAGER receive daily_reports.read, daily_repor
 ## Deployment audit boundary
 
 The [2026-10-07 production audit](../PRODUCTION_READINESS_AUDIT.md) verified production cookie flags and existing authentication coverage. Production still requires trusted HTTPS on shop devices, exact NODE_ENV=production, restricted database credentials and a narrowly defined proxy/IP-throttle boundary; no such deployment was performed. See [deployment planning](../DEPLOYMENT.md) before using LAN or public production URLs.
+
+## Production hardening (2026-10-09)
+
+Production must use scripts/start-production.cjs with NODE_ENV=production; invalid modes fail validation. Same-origin Secure/HttpOnly/SameSite=Strict cookies and mutation-header/CSRF protection remain unchanged. The API binds 127.0.0.1, trusts only the first exact loopback proxy hop, and relies on the supplied Nginx profile overwriting forwarded headers. Login's existing persistent IP/account counters remain authoritative; no broad trust-proxy setting is permitted. Tested via real isolated Nginx HTTPS with spoofed forwarding and rate-limit assertions. Owner recovery remains hidden-input and loopback-only; an RDS deployment must rehearse its controlled verified local-tunnel recovery procedure before traffic. See DEPLOYMENT.md.

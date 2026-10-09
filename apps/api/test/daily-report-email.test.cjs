@@ -78,3 +78,59 @@ test('version-specific email is structured, escaped, zero-safe and preserves pai
   assert.ok(!b.html.includes('<img'));
   assert.ok(b.text.includes('REVISED DAILY REPORT'));
 });
+
+test('local SMTP 451 recipient failure retries; 550 recipient rejection is permanent', async () => {
+  const net = require('node:net');
+  const {
+    EmailDeliveryAdapter,
+  } = require('../dist/modules/daily-reports/email-adapter');
+  let response = 451;
+  const server = net.createServer((socket) => {
+    socket.setEncoding('utf8');
+    socket.write('220 local fixture\r\n');
+    let pending = '';
+    socket.on('data', (chunk) => {
+      pending += chunk;
+      let i;
+      while ((i = pending.indexOf('\r\n')) >= 0) {
+        const line = pending.slice(0, i);
+        pending = pending.slice(i + 2);
+        if (line.startsWith('EHLO')) socket.write('250 local fixture\r\n');
+        else if (line.startsWith('RCPT TO'))
+          socket.write(`${response} recipient fixture rejection\r\n`);
+        else if (line === 'QUIT') socket.end('221 bye\r\n');
+        else socket.write('250 ok\r\n');
+      }
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const adapter = new EmailDeliveryAdapter();
+    adapter.config = {
+      delay: 5,
+      smtp: {
+        host: '127.0.0.1',
+        port: server.address().port,
+        secure: false,
+        from: 'fixture@example.invalid',
+        name: 'Fixture',
+      },
+    };
+    for (const [smtpCode, expected] of [
+      [451, 'SMTP_UNAVAILABLE'],
+      [550, 'RECIPIENT_REJECTED'],
+    ]) {
+      response = smtpCode;
+      await assert.rejects(
+        adapter.send(
+          'recipient@example.invalid',
+          { subject: 'fixture', text: 'fixture', html: 'fixture' },
+          'fixture',
+        ),
+        (e) => deliveryError(e) === expected && e.responseCode === smtpCode,
+      );
+    }
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

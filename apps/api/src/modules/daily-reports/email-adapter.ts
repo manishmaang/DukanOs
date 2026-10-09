@@ -88,7 +88,14 @@ export class EmailDeliveryAdapter {
 export function deliveryError(error: unknown) {
   const code = (error as { code?: string })?.code;
   if (code === 'EAUTH') return 'SMTP_AUTH_FAILED';
-  if (code === 'EENVELOPE') return 'RECIPIENT_REJECTED';
+  if (code === 'EENVELOPE') {
+    const responseCode = (error as { responseCode?: number }).responseCode;
+    return responseCode !== undefined &&
+      responseCode >= 400 &&
+      responseCode < 500
+      ? 'SMTP_UNAVAILABLE'
+      : 'RECIPIENT_REJECTED';
+  }
   if (code === 'NOT_CONFIGURED') return 'NOT_CONFIGURED';
   return 'SMTP_UNAVAILABLE';
 }

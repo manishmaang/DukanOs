@@ -1,0 +1,81 @@
+# Render __HOSTNAME__, __TLS_CERT_PATH__, __TLS_KEY_PATH__ using actual values.
+# Include inside http {}. Only Nginx may reach 127.0.0.1:3000.
+# No ALB/CloudFront or additional proxy hop in this profile.
+limit_req_zone $binary_remote_addr zone=dukanos_login_rate:1m rate=6r/m;
+limit_conn_zone $server_name zone=dukanos_expensive_work:1m;
+server {
+    listen 80;
+    server_name __HOSTNAME__;
+    return 308 https://__HOSTNAME__$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name __HOSTNAME__;
+    ssl_certificate __TLS_CERT_PATH__;
+    ssl_certificate_key __TLS_KEY_PATH__;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    server_tokens off;
+    access_log off; # Never log query strings, cookies or bodies.
+    error_log /var/log/nginx/dukanos-error.log crit;
+    client_max_body_size 6m;
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+    send_timeout 60s;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    # Overwrite attacker headers; do NOT use $proxy_add_x_forwarded_for.
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header Forwarded "";
+    proxy_connect_timeout 3s;
+    proxy_send_timeout 30s;
+    proxy_read_timeout 60s;
+    proxy_next_upstream off; # Do not replay mutations after uncertain outcomes.
+    location = /api/auth/login {
+        limit_req zone=dukanos_login_rate burst=10 nodelay;
+        limit_req_status 429;
+        limit_conn dukanos_expensive_work 4;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_cache off;
+        gzip off;
+    }
+    location ~ ^/api/(menu/images|expenses/receipts)$ {
+        limit_conn dukanos_expensive_work 2;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_cache off;
+        gzip off;
+    }
+    location /api {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_cache off;
+        proxy_buffering off;
+        gzip off;
+        # Methods, query strings, Cookie, Set-Cookie, X-DukanOS-Request,
+        # X-Request-Id and error status/body pass through unchanged.
+    }
+    location /assets/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options nosniff always;
+        gzip on;
+        gzip_types text/css application/javascript;
+    }
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control no-cache;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" always;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header Referrer-Policy no-referrer always;
+        # Hash routes: no SPA error rewrite, especially for /api errors.
+    }
+}

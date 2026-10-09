@@ -1,0 +1,11 @@
+[Unit]
+Description=Coordinated encrypted DukanOS full backup
+After=network-online.target
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/dukanos/current
+ExecStart=/bin/sh /opt/dukanos/current/deploy/backup-maintenance.sh
+ExecStopPost=/usr/bin/systemctl start dukanos.service
+TimeoutStartSec=30min
+UMask=0077

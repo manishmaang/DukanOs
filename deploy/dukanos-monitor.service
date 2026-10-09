@@ -1,0 +1,13 @@
+[Unit]
+Description=DukanOS pilot health and recovery-point checks
+After=dukanos.service
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/dukanos/backup.env
+EnvironmentFile=/etc/dukanos/runtime.env
+WorkingDirectory=/opt/dukanos/current
+ExecStart=/usr/bin/node scripts/monitor.mjs
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true

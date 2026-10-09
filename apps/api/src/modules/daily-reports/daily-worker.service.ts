@@ -6,6 +6,7 @@ import { BillRolloverService } from '../bills/bill-rollover.service';
 import { DailyReportsService } from './daily-reports.service';
 import { EmailDeliveryAdapter, deliveryError } from './email-adapter';
 import { renderReport } from './report-email';
+import { diagnostic } from '../../diagnostics';
 @Injectable()
 export class DailyWorkerService implements OnModuleDestroy {
   private readonly logger = new Logger(DailyWorkerService.name);
@@ -34,9 +35,19 @@ export class DailyWorkerService implements OnModuleDestroy {
   }
   run() {
     if (this.running) return this.running;
-    this.running = this.cycle().finally(() => {
-      this.running = undefined;
-    });
+    this.running = this.cycle()
+      .then(
+        () => {
+          diagnostic('daily_worker_ok');
+        },
+        (error) => {
+          diagnostic('daily_worker_failed');
+          throw error;
+        },
+      )
+      .finally(() => {
+        this.running = undefined;
+      });
     return this.running;
   }
   private async cycle() {
