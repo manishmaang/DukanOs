@@ -21,6 +21,7 @@ export function lowestPrice(item: Dish) {
   );
 }
 export function MenuPreview({
+  onDraftStateChange,
   canManageAvailability = false,
   userId,
   canCreateOrders = false,
@@ -33,6 +34,7 @@ export function MenuPreview({
   canCancel = false,
   canRefund = false,
 }: {
+  onDraftStateChange?: (dirty: boolean) => void;
   canManageAvailability?: boolean;
   userId: string;
   canCreateOrders?: boolean;
@@ -58,6 +60,11 @@ export function MenuPreview({
   }, [canCreateOrders, route.search]);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [orderLocked, setOrderLocked] = useState(false);
+  useEffect(
+    () =>
+      onDraftStateChange?.(lines.length > 0 || orderLocked || !!selectedBill),
+    [lines.length, orderLocked, selectedBill, onDraftStateChange],
+  );
   const [menu, setMenu] = useState<OperationalMenu>();
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');

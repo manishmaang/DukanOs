@@ -91,3 +91,7 @@ The [2026-10-07 audit](../PRODUCTION_READINESS_AUDIT.md) confirms version immuta
 ## Previous-day cleanup boundary (019)
 
 The default report delay remains five minutes after midnight, before default 05:00 cleanup. A report already generated/sent can contain food later cancelled automatically. Its stored version and email never change. Review live reports after cleanup, explicitly regenerate with a reason to create v2+, and explicitly send the revision if required. Startup after the cutoff runs cleanup before catch-up generation.
+
+## Manual platform isolation (020)
+
+Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).

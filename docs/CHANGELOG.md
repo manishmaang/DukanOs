@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-09 — Manual platform orders V1
+
+### Added
+
+- Operational-only manual Zomato/Swiggy entry, external reference deduplication, serving-size review/snapshots and searchable lifecycle history.
+- Menu-managed Normal/Reduced g/ml profiles independent of optional platform prices.
+- Source/serving-aware shared Kitchen Production and Dispatch handover, audited platform cancellation and previous-day cleanup without financial effects.
+- Migration 020 source/financial invariants, platform cancellation integrity and explicit staff capabilities.
+
+### Verified
+
+- Full check/build passed; 232 PostgreSQL integration tests and all eleven browser suites passed. Production dependency audit: zero vulnerabilities. See the manual-platform checkpoint for coverage and limitations.
+- Adjusted shared cart height for the source selector and corrected historical-settlement browser fixtures to use already-served food.
+
+### Preserved
+
+- Counter Bills, authoritative prices/taxes, collections/refunds, financial Reports/Daily snapshots, FIFO and production deployment guards. No external platform API or AWS deployment.
+
 ## 2026-10-09
 
 ### Added

@@ -100,3 +100,7 @@ Kitchen/Production read effective_order_items, so a queued replacement/reduction
 ## Previous-day cleanup boundary (019)
 
 At/after the configured daily cleanup cutoff, earlier-date QUEUED/PREPARING work is system-cancelled. Existing status-filtered authoritative reads remove it from Order/Production, FIFO/NEXT and late indicators. Attached active timers cancel atomically. START/READY rejects after cancellation; current-day work is unchanged. See Orders for timing and audit.
+
+## Manual platform preparation (020)
+
+The same FIFO now contains Counter, Zomato and Swiggy. Every Order card shows a text source badge; platform cards include external reference and each line’s exact NORMAL/REDUCED g/ml snapshot. Production additionally groups by source, mode, amount and unit, keeping different preparation specifications separate while retaining original source-line/token associations. It shows source/serving labels, ordered portion counts and useful instruction breakdowns; no token numbers are added to Production. Existing START/READY, timers, late age and polling remain. Platform cancellation/cleanup removes active work and resolves linked timers without finances. See Platform Orders.

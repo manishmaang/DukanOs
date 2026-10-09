@@ -396,8 +396,9 @@ function DishEditor({
           <div>
             <h3>Portions & prices</h3>
             <p>
-              Prices in ₹ INR. Leave a new price blank if that portion is not
-              offered on a channel.
+              Counter prices are in ₹ INR. Platform prices are optional and are
+              not used for manual platform orders; configure availability and
+              serving sizes.
             </p>
           </div>
           <button
@@ -499,7 +500,9 @@ function DishEditor({
                             aria-label={`${v.name || `Portion ${index + 1}`} available on ${channel.name}`}
                             checked={c.available}
                             disabled={
-                              !c.price.trim() || (!enabled && !c.available)
+                              (c.channelCode === 'COUNTER' &&
+                                !c.price.trim()) ||
+                              (!enabled && !c.available)
                             }
                             onChange={(e) =>
                               portion(v.key, {
@@ -513,6 +516,62 @@ function DishEditor({
                           />
                           Available
                         </label>
+                        {c.channelCode !== 'COUNTER' && (
+                          <details className="serving-editor">
+                            <summary>Serving sizes</summary>
+                            <p>
+                              Exact advertised serving, per portion. Required
+                              for manual platform orders. No price inference.
+                            </p>
+                            {(['normalAmount', 'reducedAmount'] as const).map(
+                              (field) => (
+                                <label key={field}>
+                                  {field === 'normalAmount'
+                                    ? 'Normal'
+                                    : 'Reduced (optional)'}
+                                  <input
+                                    aria-label={`${v.name} ${channel.name} ${field === 'normalAmount' ? 'Normal' : 'Reduced'} size`}
+                                    inputMode="decimal"
+                                    maxLength={9}
+                                    value={c[field] ?? ''}
+                                    onChange={(e) =>
+                                      portion(v.key, {
+                                        channels: v.channels.map((p) =>
+                                          p.channelCode === c.channelCode
+                                            ? { ...p, [field]: e.target.value }
+                                            : p,
+                                        ),
+                                      })
+                                    }
+                                  />
+                                </label>
+                              ),
+                            )}
+                            <label>
+                              Unit
+                              <select
+                                aria-label={`${v.name} ${channel.name} serving unit`}
+                                value={c.servingUnit ?? 'g'}
+                                onChange={(e) =>
+                                  portion(v.key, {
+                                    channels: v.channels.map((p) =>
+                                      p.channelCode === c.channelCode
+                                        ? {
+                                            ...p,
+                                            servingUnit: e.target.value as
+                                              'g' | 'ml',
+                                          }
+                                        : p,
+                                    ),
+                                  })
+                                }
+                              >
+                                <option value="g">g</option>
+                                <option value="ml">ml</option>
+                              </select>
+                            </label>
+                          </details>
+                        )}
                       </td>
                     );
                   })}
@@ -544,7 +603,9 @@ function DishEditor({
             {catalog.channels.map((c) => {
               const priced = draft.variants.filter((v) =>
                 v.channels.some(
-                  (s) => s.channelCode === c.code && s.price.trim(),
+                  (s) =>
+                    s.channelCode === c.code &&
+                    (s.price.trim() || c.code !== 'COUNTER'),
                 ),
               );
               const count = priced.filter((v) =>
@@ -573,7 +634,8 @@ function DishEditor({
                             ? {
                                 ...s,
                                 available: checked
-                                  ? !!s.price.trim() &&
+                                  ? (!!s.price.trim() ||
+                                      s.channelCode !== 'COUNTER') &&
                                     v.active &&
                                     draft.active &&
                                     !!category?.active &&

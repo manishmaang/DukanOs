@@ -27,7 +27,7 @@ export async function grantRuntime(client, schema, role) {
       .map((n) => `${s}.${identifier(n)}`)
       .join(',');
   await client.query(
-    `GRANT INSERT ON ${tables('users user_roles auth_sessions login_attempts user_audit menu_categories menu_items item_variants variant_channel_settings menu_audit menu_images order_daily_tokens orders order_items order_status_history bill_daily_numbers bills payments bill_reminders kitchen_timers order_amendments order_item_revisions expense_categories expense_category_audit expense_receipts expenses daily_reports daily_report_settings_audit report_deliveries report_delivery_attempts report_delivery_actions')} TO ${r}`,
+    `GRANT INSERT ON ${tables('platform_order_cancellations users user_roles auth_sessions login_attempts user_audit menu_categories menu_items item_variants variant_channel_settings menu_audit menu_images order_daily_tokens orders order_items order_status_history bill_daily_numbers bills payments bill_reminders kitchen_timers order_amendments order_item_revisions expense_categories expense_category_audit expense_receipts expenses daily_reports daily_report_settings_audit report_deliveries report_delivery_attempts report_delivery_actions')} TO ${r}`,
   );
   await client.query(
     `GRANT UPDATE ON ${tables('users auth_sessions login_attempts menu_categories menu_items item_variants variant_channel_settings order_daily_tokens orders bill_daily_numbers bills bill_reminders kitchen_timers expense_categories expenses daily_report_settings report_deliveries')} TO ${r}`,

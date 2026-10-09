@@ -4,7 +4,8 @@ import { OperationalAudioProvider } from './OperationalAudio';
 import { useVisualViewport } from './useVisualViewport';
 import { Dispatch } from './Dispatch';
 import { Kitchen } from './Kitchen';
-import { MenuAdmin, MenuPreview } from './Menu';
+import { MenuAdmin } from './Menu';
+import { Pos as MenuPreview } from './Pos';
 import { ChangePassword, StaffPasswordResets } from './PasswordManagement';
 import {
   StrictMode,
@@ -271,6 +272,15 @@ function App() {
                     ) : link.path === '/pos' &&
                       user.permissions.includes('menu.read') ? (
                       <MenuPreview
+                        canCreatePlatform={user.permissions.includes(
+                          'platform_orders.create',
+                        )}
+                        canReadPlatform={user.permissions.includes(
+                          'platform_orders.read',
+                        )}
+                        canCancelPlatform={user.permissions.includes(
+                          'platform_orders.cancel',
+                        )}
                         canAmend={user.permissions.includes('orders.amend')}
                         canCancel={user.permissions.includes('orders.cancel')}
                         canRefund={user.permissions.includes('payments.refund')}

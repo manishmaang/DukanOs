@@ -74,11 +74,12 @@ export function prepareDish(
       if (codes.has(s.channelCode))
         duplicate('A sales channel was repeated for this portion.');
       codes.add(s.channelCode);
-      const price = money(s.price);
+      const price =
+        s.price === null && s.channelCode !== 'COUNTER' ? null : money(s.price);
       const before = previous?.channels.find(
         (c) => c.channelCode === s.channelCode,
       );
-      const changedPrice = !before || money(before.price) !== price;
+      const changedPrice = !before || before.price !== price;
       const enabling = s.available && !before?.available;
       // Unchanged saved flags/prices survive deactivation. New prices or enabling
       // require active final references, just like the existing granular endpoints.
@@ -90,7 +91,52 @@ export function prepareDish(
           'MENU_REFERENCE_INACTIVE',
           `Enable the category, dish, portion and ${channel.name} before changing its price or enabling sales.`,
         );
-      return { channelCode: s.channelCode, price, available: s.available };
+      const normalAmount =
+        s.normalAmount === undefined
+          ? (before?.normalAmount ?? null)
+          : s.normalAmount;
+      const reducedAmount =
+        s.reducedAmount === undefined
+          ? (before?.reducedAmount ?? null)
+          : s.reducedAmount;
+      const servingUnit =
+        s.servingUnit === undefined
+          ? (before?.servingUnit ?? null)
+          : s.servingUnit;
+      if (
+        s.channelCode === 'COUNTER' &&
+        (normalAmount || reducedAmount || servingUnit)
+      )
+        menuError(
+          'INVALID_SERVING_PROFILE',
+          'Measured serving profiles are configured for Zomato/Swiggy in V1. Counter preparation remains unchanged.',
+        );
+      const validAmount = (v: string) =>
+        /^(0|[1-9]\d{0,5})(\.\d{1,2})?$/.test(v) &&
+        Number(v) > 0 &&
+        Number(v) <= 100000;
+      if (
+        (normalAmount === null &&
+          (reducedAmount !== null || servingUnit !== null)) ||
+        (normalAmount !== null &&
+          (!validAmount(normalAmount) ||
+            !servingUnit ||
+            (reducedAmount !== null &&
+              (!validAmount(reducedAmount) ||
+                Number(reducedAmount) >= Number(normalAmount)))))
+      )
+        menuError(
+          'INVALID_SERVING_PROFILE',
+          'Configure a positive Normal size, g/ml unit, and optional smaller Reduced size (at most two decimal places).',
+        );
+      return {
+        channelCode: s.channelCode,
+        price,
+        available: s.available,
+        normalAmount,
+        reducedAmount,
+        servingUnit,
+      };
     });
     if (previous?.channels.some((c) => !codes.has(c.channelCode)))
       menuError(

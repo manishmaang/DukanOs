@@ -355,9 +355,27 @@ export class MenuService {
         variantId = await this.insertVariant(client, id, variant);
       }
       for (const setting of variant.channels) {
+        const previous = old?.variants
+          .find((v) => v.id === variantId)
+          ?.channels.find((s) => s.channelCode === setting.channelCode);
+        if (!setting.normalAmount && !previous?.normalAmount) {
+          await client.query(
+            'INSERT INTO variant_channel_settings(variant_id,channel_code,price,available) VALUES($1,$2,$3,$4) ON CONFLICT(variant_id,channel_code) DO UPDATE SET price=EXCLUDED.price,available=EXCLUDED.available',
+            [variantId, setting.channelCode, setting.price, setting.available],
+          );
+          continue;
+        }
         await client.query(
-          'INSERT INTO variant_channel_settings(variant_id,channel_code,price,available) VALUES ($1,$2,$3,$4) ON CONFLICT(variant_id,channel_code) DO UPDATE SET price=EXCLUDED.price,available=EXCLUDED.available',
-          [variantId, setting.channelCode, setting.price, setting.available],
+          'INSERT INTO variant_channel_settings(variant_id,channel_code,price,available,normal_amount,reduced_amount,serving_unit) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(variant_id,channel_code) DO UPDATE SET price=EXCLUDED.price,available=EXCLUDED.available,normal_amount=EXCLUDED.normal_amount,reduced_amount=EXCLUDED.reduced_amount,serving_unit=EXCLUDED.serving_unit',
+          [
+            variantId,
+            setting.channelCode,
+            setting.price,
+            setting.available,
+            setting.normalAmount,
+            setting.reducedAmount,
+            setting.servingUnit,
+          ],
         );
       }
     }
@@ -588,7 +606,7 @@ export class MenuService {
                       c.channelCode === code &&
                       (includeUnavailable || c.available),
                   );
-                  return price
+                  return price && price.price !== null
                     ? [
                         {
                           id: v.id,

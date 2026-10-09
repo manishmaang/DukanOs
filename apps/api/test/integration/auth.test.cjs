@@ -183,6 +183,9 @@ test(
             'payments.collect',
             'payments.read',
             'payments.refund',
+            'platform_orders.cancel',
+            'platform_orders.create',
+            'platform_orders.read',
           ]);
           ({ cookie: staffCookie } = await login('worker'));
           for (const path of ['pos', 'kitchen', 'refund'])

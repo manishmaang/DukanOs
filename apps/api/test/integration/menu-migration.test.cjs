@@ -80,7 +80,7 @@ test('menu ordering and image migrations preserve an existing populated catalog 
       for (const table of tables)
         values[table] = (
           await sql.query(
-            `SELECT to_jsonb(t)-'sort_order'-'image_key' AS value FROM ${table} t ORDER BY to_jsonb(t)::text`,
+            `SELECT to_jsonb(t)-ARRAY['sort_order','image_key','normal_amount','reduced_amount','serving_unit'] AS value FROM ${table} t ORDER BY to_jsonb(t)::text`,
           )
         ).rows
           .map((r) => r.value)

@@ -1,5 +1,6 @@
 /** Kitchen-only projections deliberately omit financial data. */
 export interface KitchenLine {
+  serving?: import('./platform-orders').ServingSnapshot | null;
   id: string;
   menuItemId: string;
   variantId: string;
@@ -10,6 +11,8 @@ export interface KitchenLine {
   instruction: string;
 }
 export interface KitchenOrder {
+  source?: import('./platform-orders').OrderSource;
+  externalReference?: string | null;
   orderId: string;
   businessDate: string;
   tokenNumber: number;
@@ -28,6 +31,8 @@ export interface ProductionSource {
   queuedAt: string;
 }
 export interface ProductionGroup {
+  source?: import('./platform-orders').OrderSource;
+  serving?: import('./platform-orders').ServingSnapshot | null;
   key: string;
   itemName: string;
   kitchenName: string;

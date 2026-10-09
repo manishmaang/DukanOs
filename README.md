@@ -296,3 +296,11 @@ Follow [DEPLOYMENT.md](docs/DEPLOYMENT.md) and the [audit follow-up](docs/PRODUC
 Explicit role provisioning/grants, backup/isolated-restore scripts and systemd/Nginx/monitoring templates are in scripts/ and deploy/. Read the runbook before executing them: full backups pause writes, restore is isolated, and role setup targets a dedicated database only. Production startup refuses migration/hash/object drift, unsafe DB credentials or missing assets/media. Liveness is `/api/health`; readiness is `/api/health/ready`.
 
 The integration suite additionally needs PostgreSQL database/role creation privileges **on a disposable test server**, PostgreSQL 16 client tools, tar, GnuPG and Git for the recovery rehearsal. Set `NGINX_BINARY` to a local Nginx executable to include real isolated HTTPS proxy regression; without it only that test is explicitly skipped. Tests never send real SMTP. Existing menu images, users and financial data are not fixtures.
+
+## Manual Zomato / Swiggy orders
+
+After an authorized upgrade through migration 020, OWNER/MANAGER opens Menu, selects a dish/portion, expands the platform’s Serving sizes, enters the actual Normal amount, optional smaller Reduced amount and g/ml, enables that platform and saves the dish. A platform price is optional and is never used as a sale value.
+
+In POS, select Zomato or Swiggy, enter the external reference and observed discount classification, select food/quantities/notes and the explicit advertised serving, review, then Submit to Kitchen. Normal is the default even for discounted orders. The resulting token follows shared Kitchen/Dispatch. Track platform orders provides search/status/history and authorized local cancellation. No Bill/payment/refund/invoice is created. A cancelled reference cannot be reused or edited in V1; see [full behavior and limits](docs/modules/platform-orders.md).
+
+`CHROME_BINARY=/path/to/chrome npm run test:platform-browser` runs isolated responsive platform workflows; use a headless launcher when needed. Existing check/integration/browser suites remain required. No live migration or AWS deployment is implied by running tests.

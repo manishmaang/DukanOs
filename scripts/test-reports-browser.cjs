@@ -696,6 +696,27 @@ const root = require('node:path').resolve(__dirname, '..');
       });
       await pay(returnBill, '170', 'UPI');
       await replace(returnBill, 'Noodles');
+      // Historical settlement fixtures represent food already served. Unfinished
+      // historical food is correctly cancelled by the 05:00 maintenance worker.
+      const queue = (await c.http('/kitchen/orders')).body.queued;
+      for (const order of queue) {
+        const started = await c.http(
+          `/kitchen/orders/${order.orderId}/start`,
+          'POST',
+        );
+        assert.equal(started.status, 200);
+      }
+      for (const order of [old, returnBill]) {
+        assert.equal(
+          (await c.http(`/kitchen/orders/${order.id}/ready`, 'POST')).status,
+          200,
+        );
+        assert.equal(
+          (await c.http(`/dispatch/orders/${order.id}/complete`, 'POST'))
+            .status,
+          200,
+        );
+      }
       await ownerCall(`/bills/${old.billId}/reminder`, { intervalMinutes: 5 });
       fixtureInstant = new Date().toISOString();
       await go('/pos', '.pos-card');

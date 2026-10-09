@@ -942,7 +942,7 @@ small {
   display: flex;
   flex-direction: column;
   padding: 0;
-  max-height: calc(100dvh - 230px);
+  max-height: var(--cart-available-height, calc(100dvh - 230px));
   overflow: hidden;
   min-width: 0;
 }
@@ -1680,7 +1680,7 @@ header > div button {
   .order-cart {
     position: sticky;
     top: 12px;
-    max-height: calc(100dvh - 24px);
+    max-height: var(--cart-available-height, calc(100dvh - 24px));
   }
   .pos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2872,4 +2872,100 @@ header > div button {
   align-items: center;
   min-height: 48px;
   gap: 12px;
+}
+
+.pos-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.pos-sources button {
+  min-height: 48px;
+  flex: 1;
+}
+.pos-sources [aria-pressed='true'] {
+  background: #084c3b;
+  color: white;
+}
+.order-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+  overflow-wrap: anywhere;
+}
+.order-source strong {
+  border: 1px solid currentColor;
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.4rem;
+}
+.serving-label {
+  margin: 0.35rem 0;
+  overflow-wrap: anywhere;
+}
+.serving-editor {
+  min-width: 0;
+}
+.serving-editor summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.serving-editor input,
+.serving-editor select {
+  width: 100%;
+  min-width: 0;
+}
+.platform-cart {
+  padding: 1rem;
+  overflow: auto;
+  max-height: 80dvh;
+}
+.platform-cart label,
+.platform-dish-dialog label,
+.platform-tracking label {
+  display: block;
+  margin-block: 0.6rem;
+}
+.platform-cart input,
+.platform-cart textarea,
+.platform-cart select,
+.platform-dish-dialog input,
+.platform-dish-dialog textarea,
+.platform-dish-dialog select,
+.platform-tracking input,
+.platform-tracking textarea {
+  width: 100%;
+  min-width: 0;
+}
+.platform-cart article,
+.platform-tracking article {
+  padding-block: 0.7rem;
+  border-bottom: 1px solid #c1d3c9;
+  overflow-wrap: anywhere;
+}
+.platform-dish-dialog {
+  width: min(600px, calc(100vw - 24px));
+  max-height: var(--visual-viewport-height, 90dvh);
+  overflow: auto;
+  box-sizing: border-box;
+}
+.platform-dish-dialog section {
+  margin-block: 1rem;
+}
+.platform-track-card {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  text-align: left;
+  margin-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
+@media (max-height: 500px) {
+  .platform-cart {
+    max-height: none;
+  }
 }

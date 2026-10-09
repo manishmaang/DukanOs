@@ -1,3 +1,4 @@
+import { ServingLabel, SourceLabel } from './ServingLabel';
 import { KitchenTimers } from './KitchenTimers';
 import { KitchenAvailability } from './KitchenAvailability';
 import { instructionBreakdown, isLate } from './kitchen-presentation';
@@ -34,6 +35,7 @@ function OrderItems({ order }: { order: KitchenOrder }) {
               <p>
                 {line.variantName} <strong>×{line.quantity}</strong>
               </p>
+              <ServingLabel serving={line.serving} />
               {line.instruction && (
                 <p className="kds-instruction">{line.instruction}</p>
               )}
@@ -59,6 +61,8 @@ function Production({
       <div className="kds-production-grid">
         {groups.map((g) => (
           <article className="kds-card kds-production" key={g.key}>
+            <SourceLabel source={g.source ?? 'COUNTER'} />
+            <ServingLabel serving={g.serving} />
             <div className="kds-production-total">
               <h3>{`${g.variantName} ${g.itemName}`.toUpperCase()}</h3>
               <strong>×{g.totalQuantity}</strong>
@@ -293,6 +297,10 @@ export function Kitchen({
                           key={order.orderId}
                           data-order-id={order.orderId}
                         >
+                          <SourceLabel
+                            source={order.source ?? 'COUNTER'}
+                            reference={order.externalReference}
+                          />
                           <div className="kds-token-row">
                             <h3 className="kds-token">#{order.tokenNumber}</h3>
                             {next && (
