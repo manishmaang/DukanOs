@@ -7,6 +7,7 @@ const { AppModule } = require('../dist/app.module');
 const { DatabaseService } = require('../dist/database/database.service');
 const { configureApp } = require('../dist/configure-app');
 const { readConfig } = require('../dist/config');
+const { ReleaseReadiness } = require('../dist/health/release-readiness');
 test('configuration rejects missing database URL and invalid ports', () => {
   assert.throws(() => readConfig({}), /DATABASE_URL/);
   assert.throws(() => readConfig({ PORT: '0' }), /PORT/);
@@ -23,6 +24,8 @@ test('HTTP health separates liveness from database readiness and sanitizes failu
   let fails = false;
   const module = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(DatabaseService)
+    .useValue({})
+    .overrideProvider(ReleaseReadiness)
     .useValue({
       check: async () => {
         if (fails) throw new Error('secret database credentials');
@@ -43,7 +46,7 @@ test('HTTP health separates liveness from database readiness and sanitizes failu
       .get('/api/health/ready')
       .expect(503);
     assert.deepEqual(ready.body, {
-      code: 'DATABASE_UNAVAILABLE',
+      code: 'SERVICE_NOT_READY',
       message: 'Service is unavailable',
     });
     await request(app.getHttpServer()).get('/api/health').expect(200);

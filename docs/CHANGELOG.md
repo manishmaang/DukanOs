@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-09
+
+### Added
+
+- Production startup/readiness gates for release migration hashes/schema objects, frontend assets, media writes and restricted runtime DB credentials.
+- Explicit migration/runtime provisioning, systemd/Nginx profiles, sanitized request/worker diagnostics, local monitoring and bounded database/HTTP/shutdown timeouts.
+- Coordinated encrypted full-backup tooling and isolated restore verification for database, financial inventory, staff roles, media, protected configuration and compatible release.
+
+### Fixed
+
+- Temporary SMTP recipient rejections now retry; permanent rejection and immutable report/delivery history are preserved.
+- Updated compatible production/development dependencies; audited lockfile has no reported vulnerabilities at verification time.
+
+### Documentation
+
+- AWS pilot setup/recovery runbook distinguishes local verified safeguards from undeployed infrastructure and required pre-traffic checks. No deployment was performed.
+
 ## 2026-10-08 — Previous-day order cleanup (Phase A)
 
 - Extend startup/periodic rollover with configured restaurant-local cleanup of prior-date QUEUED/PREPARING/READY rounds, preserving midnight and current/terminal work.

@@ -138,3 +138,11 @@ DailyReportsModule composes ReportsService.dailySnapshot on one REPEATABLE READ 
 ## Previous-day order maintenance
 
 The existing Bills startup/60-second scheduler now orchestrates historical Bill closure plus an internal Orders-owned cancellation function on the same PostgreSQL transaction and restaurant lock. No additional scheduler/process or circular Nest module import is introduced. Daily worker calls reuse this coalesced operation. Immutable zero-valued amendment revisions feed existing financial/operational reads; system identity is explicit instead of a fabricated user. The cleanup gate is validated server configuration and does not redefine restaurant midnight. See decision 022 and Orders.
+
+## Production pilot boundary
+
+One same-origin Nginx HTTPS proxy on the API host, one compiled NestJS process and private PostgreSQL. The explicit production entry point rejects missing/non-production NODE_ENV; production binds IPv4 loopback and uses a schema-owning maintenance identity separately from a runtime identity with enumerated DML privileges. Runtime may not own/alter tables, disable triggers or edit migrations. Remote DB connections require hostname-verified TLS.
+
+ReleaseReadiness gates startup before maintenance/listening, validates ledger checksums and required objects, and checks production assets and persistent media writes. Readiness coalesces the full check for 30 seconds with connectivity checked on every call. It does not run migrations or repair schema. Database-side statement/idle timeouts supplement the bounded pool/client timeouts. Structured sanitized events identify server-side requests and worker progress without including raw request/error data.
+
+Systemd, Nginx, monitoring and quiesced encrypted full-backup templates are in deploy/ and scripts/. PostgreSQL plus media/configuration/release form one recovery set. Isolated restore never starts workers or imports configuration into a running app. These tools do not deploy AWS, supply automatic local/cloud failover, or establish a second writable restaurant. See DEPLOYMENT.md for tested vs deployment-time controls.

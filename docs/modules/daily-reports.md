@@ -86,7 +86,7 @@ Local migration and worker startup preserved all 29 preexisting source-table fin
 
 ## Production audit follow-up
 
-The [2026-10-07 audit](../PRODUCTION_READINESS_AUDIT.md) confirms version immutability and passing isolated worker/delivery regressions. It also identifies a retry limitation: all Nodemailer EENVELOPE errors become RECIPIENT_REJECTED/FAILED, even when the SMTP responseCode is a temporary 450. Classify temporary recipient failures for automatic retry before relying on unattended production email; manual retry remains available. Readiness currently does not detect missing report tables or stale workers. No transport or business behavior was changed in the audit.
+The [2026-10-07 audit](../PRODUCTION_READINESS_AUDIT.md) confirms version immutability and passing isolated worker/delivery regressions. That audit identified temporary EENVELOPE classification and readiness/worker-monitoring gaps. The 2026-10-09 hardening follow-up fixes SMTP 4xx recipient classification to SMTP_UNAVAILABLE (retryable) while permanent recipient rejection remains FAILED. Loopback SMTP tests exercise 451 and 550 responses. Existing capped backoff, leases, delivery history and immutable versions are unchanged. Release readiness now checks report schema objects; structured worker events and the local monitor expose stalled/error cycles. Actual SMTP delivery, alert recipients and host monitoring still require deployment-time configuration.
 
 ## Previous-day cleanup boundary (019)
 

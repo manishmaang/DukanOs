@@ -7,6 +7,8 @@ export class DatabaseService implements OnApplicationShutdown {
     connectionString: readConfig().databaseUrl,
     connectionTimeoutMillis: 2000,
     query_timeout: 10000,
+    statement_timeout: 9000,
+    idle_in_transaction_session_timeout: 15000,
     max: 5,
   });
   constructor() {
@@ -22,16 +24,19 @@ export class DatabaseService implements OnApplicationShutdown {
   }
   async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
+    let discard = false;
     try {
       await client.query('BEGIN');
       const result = await work(client);
       await client.query('COMMIT');
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {
+        discard = true;
+      });
       throw error;
     } finally {
-      client.release();
+      client.release(discard);
     }
   }
   async check(): Promise<void> {

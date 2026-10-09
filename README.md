@@ -4,7 +4,7 @@ Single-location restaurant POS and kitchen system, with **staff authentication, 
 
 ## Production readiness
 
-Production deployment is not yet approved. Read the [2026-10-07 readiness audit](docs/PRODUCTION_READINESS_AUDIT.md) for blocking findings and verification, and the [deployment plan](docs/DEPLOYMENT.md) for environment variables, local/cloud topology, HTTPS, workers, backups and rollback. No cloud resources or production infrastructure were deployed by this audit.
+Production deployment is not yet approved. Read the [2026-10-07 readiness audit](docs/PRODUCTION_READINESS_AUDIT.md) for historical findings and their hardening follow-up, and the [deployment procedure](docs/DEPLOYMENT.md) for environment variables, local/cloud topology, HTTPS, workers, backups and rollback. No cloud resources or production infrastructure were deployed by this audit.
 
 ## MVP checkpoint
 
@@ -63,7 +63,7 @@ curl --fail http://localhost:3000/api/health
 curl --fail http://localhost:3000/api/health/ready
 ```
 
-Liveness does not require DB availability. Readiness checks connectivity only. SQL migrations run atomically under an advisory lock and must not be edited after application. See [database documentation](docs/DATABASE.md).
+Liveness does not require DB availability. Readiness checks connectivity and cached release/schema/media prerequisites; production startup also requires built frontend assets and restricted runtime credentials. SQL migrations run atomically under an advisory lock and must not be edited after application. See [database documentation](docs/DATABASE.md).
 
 ## Structure and next work
 
@@ -288,3 +288,11 @@ Historical corrections change live Reports, never stored v1. Regenerate with a r
 ## Previous-day order cleanup
 
 Configure PREVIOUS_DAY_ORDER_CLEANUP_TIME in the actual environment (default 05:00; strict HH:MM in RESTAURANT_TIMEZONE). After today's cutoff, startup/periodic maintenance cancels earlier-date QUEUED/PREPARING/READY orders, preserving completed work and all receipts. Apply migration 019 before startup. Paid cancellations create refund due for explicit Counter cash refunds. Daily Reports already generated stay fixed; explicitly regenerate/send a revised version after review. See [Orders](docs/modules/orders.md) and the [pilot preparation checkpoint](docs/checkpoints/aws-pilot-preparation.md).
+
+## Supervised AWS pilot preparation
+
+Follow [DEPLOYMENT.md](docs/DEPLOYMENT.md) and the [audit follow-up](docs/PRODUCTION_READINESS_AUDIT.md). No AWS deployment is included. Production uses `node --env-file=/etc/dukanos/runtime.env scripts/start-production.cjs` (or `npm run start:production` with environment already supplied), compiled assets, a restricted database role, persistent media and host-local HTTPS proxy. Normal local development still uses `npm run dev`. Never copy real secrets into .env.example.
+
+Explicit role provisioning/grants, backup/isolated-restore scripts and systemd/Nginx/monitoring templates are in scripts/ and deploy/. Read the runbook before executing them: full backups pause writes, restore is isolated, and role setup targets a dedicated database only. Production startup refuses migration/hash/object drift, unsafe DB credentials or missing assets/media. Liveness is `/api/health`; readiness is `/api/health/ready`.
+
+The integration suite additionally needs PostgreSQL database/role creation privileges **on a disposable test server**, PostgreSQL 16 client tools, tar, GnuPG and Git for the recovery rehearsal. Set `NGINX_BINARY` to a local Nginx executable to include real isolated HTTPS proxy regression; without it only that test is explicitly skipped. Tests never send real SMTP. Existing menu images, users and financial data are not fixtures.

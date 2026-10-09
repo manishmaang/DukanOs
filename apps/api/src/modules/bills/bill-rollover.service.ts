@@ -3,6 +3,7 @@ import { DatabaseService } from '../../database/database.service';
 import { RestaurantClock } from '../../database/restaurant-clock';
 import { previousDayCleanupTime } from '../orders/cleanup-configuration';
 import { cancelPreviousDayOrders } from '../orders/previous-day-cleanup';
+import { diagnostic } from '../../diagnostics';
 @Injectable()
 export class BillRolloverService implements OnModuleDestroy {
   private readonly logger = new Logger(BillRolloverService.name);
@@ -42,6 +43,16 @@ export class BillRolloverService implements OnModuleDestroy {
         );
         return result.rowCount ?? 0;
       })
+      .then(
+        (count) => {
+          diagnostic('rollover_ok');
+          return count;
+        },
+        (error) => {
+          diagnostic('rollover_failed');
+          throw error;
+        },
+      )
       .finally(() => {
         this.running = undefined;
       });

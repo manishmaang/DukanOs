@@ -443,3 +443,17 @@ Use strict PREVIOUS_DAY_ORDER_CLEANUP_TIME (default 05:00) in RESTAURANT_TIMEZON
 ### Consequences
 
 The daily rule is simple and restart-safe, with older missed work waiting until today's cutoff. Paid cancellations create explicit cash refund obligations, never automatic tender. Live historical sales can change after the midnight Daily Report; stored versions remain immutable and explicit regeneration/resend is required. A single small-restaurant transaction serializes with operational/financial writes; no new infrastructure is needed.
+
+## 023 — Single-host pilot security and coordinated recovery
+
+Date: 2026-10-09.
+
+**Context:** the owner authorized essential AWS preparation after the readiness audit, without deployment. Real restaurant data requires checked release prerequisites, restricted credentials, HTTPS and a complete recovery set.
+
+**Options considered:** API-only connectivity health, broad DB privileges, managed orchestration or multiple replicas, DB-only dumps, and separate CDN/static hosting.
+
+**Decision:** keep the modular monolith on one EC2 process behind host-local Nginx, with explicit production startup validation and narrowly trusted loopback forwarding. Prefer private RDS PostgreSQL when affordable; retain same-host PostgreSQL as a supervised cost trade-off. Separate schema-owning maintenance credentials from explicit runtime DML grants. Gate startup using immutable migration checksums/required objects, assets and media probes.
+
+**Reason:** this fixes demonstrated blockers using existing deployment primitives and keeps financial transactions independent of external services. Established PostgreSQL/tar/GnuPG tooling produces an encrypted coordinated DB+media+configuration+release backup while writes are stopped; an isolated restore compares recorded financial and file inventories.
+
+**Consequences:** target-host DNS/TLS/security groups, key custody, off-instance retention, alarms, recovery/reboot drills and an acceptable backup maintenance window/RPO remain operator setup requirements. Daily paused backups can lose a shift; they do not replace tested RDS PITR/file recovery for tighter objectives. Cloud-only operation needs WAN; no local/cloud dual writer is introduced. No AWS resource or cost-incurring operation is authorized by this preparation decision.

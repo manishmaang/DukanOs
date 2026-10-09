@@ -36,7 +36,8 @@
     "test:reports-browser": "npm run build && node --env-file=.env scripts/test-reports-browser.cjs",
     "expenses:cleanup": "npm run build -w @dukanos/api && node --env-file=.env scripts/cleanup-expense-media.cjs",
     "test:expenses-browser": "npm run build && node --env-file=.env scripts/test-expenses-browser.cjs",
-    "test:daily-reports-browser": "npm run build && node --env-file=.env scripts/test-daily-reports-browser.cjs"
+    "test:daily-reports-browser": "npm run build && node --env-file=.env scripts/test-daily-reports-browser.cjs",
+    "start:production": "node scripts/start-production.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -50,6 +51,7 @@
     "pg": "^8.16.0"
   },
   "overrides": {
-    "multer": "^2.3.0"
+    "multer": "^2.4.0",
+    "proxy-addr": "^2.0.8"
   }
 }

@@ -1,0 +1,31 @@
+[Unit]
+Description=DukanOS restaurant API and workers
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=dukanos
+Group=dukanos
+WorkingDirectory=/opt/dukanos/current
+EnvironmentFile=/etc/dukanos/runtime.env
+ExecStart=/usr/bin/node /opt/dukanos/current/scripts/start-production.cjs
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=100
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/dukanos
+RestrictSUIDSGID=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dukanos
+
+[Install]
+WantedBy=multi-user.target

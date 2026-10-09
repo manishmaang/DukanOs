@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily coordinated DukanOS backup (verify restaurant closing window)
+[Timer]
+# UTC 23:45 = Asia/Kolkata 05:15; change explicitly for the restaurant timezone.
+OnCalendar=*-*-* 23:45:00 UTC
+Persistent=false
+[Install]
+WantedBy=timers.target
