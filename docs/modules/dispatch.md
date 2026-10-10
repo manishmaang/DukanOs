@@ -63,4 +63,4 @@ Earlier-date READY rounds can now be system-cancelled at/after the daily cleanup
 
 ## Manual platform handover (020)
 
-READY Zomato/Swiggy tokens share the existing ready-time/id queue and Handed Over command. Cards show source, external reference and immutable serving details. Their billId/amountDue/refundDue/paymentStatus are NULL and no Counter financial controls appear. They complete without settlement; Counter Takeaway retains both due/refund gates. Actor/time comes from the same history record. Concurrent cancellation/cleanup/handover serialize on the existing restaurant lock; COMPLETED remains terminal.
+READY Zomato/Swiggy tokens share the existing ready-time/id queue and Handed Over command. Cards show source, external reference and immutable Normal/Less instructions (and measured amounts for legacy records). Their billId/amountDue/refundDue/paymentStatus are NULL and no Counter financial controls appear. They complete without settlement; Counter Takeaway retains both due/refund gates. Actor/time comes from the same history record. Concurrent cancellation/cleanup/handover serialize on the existing restaurant lock; COMPLETED remains terminal.

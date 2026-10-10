@@ -2,7 +2,7 @@
 
 ## Implemented schema
 
-Infrastructure, Auth/Users, Menu, Orders, Bills/Payments, queued amendments/refunds, operational alerts, Expenses and immutable Daily Reports/delivery tables are implemented through migration 020. Customers, Credit and provider integrations remain proposed, **not migrated tables**.
+Infrastructure, Auth/Users, Menu, Orders, Bills/Payments, queued amendments/refunds, operational alerts, Expenses and immutable Daily Reports/delivery tables are implemented through migration 021. Customers, Credit and provider integrations remain proposed, **not migrated tables**.
 
 ### schema_migrations
 
@@ -219,7 +219,9 @@ Production startup rejects superuser/create-role/create-database/replication/byp
 
 Full backups record migration hashes, table counts, effective food/collection/refund/expense totals, staff role assignments, database grant metadata and referenced media hashes. Isolated restores compare these without writing financial corrections. Owners/ACLs are deliberately not imported blindly; re-provision reviewed roles with fresh credentials before controlled use. See DEPLOYMENT.md.
 
-## Manual platform orders — 020_manual_platform_orders.sql
+## Original manual platform model — 020_manual_platform_orders.sql
+
+The following describes the original migration; 021 below supersedes measured-profile requirements for new orders.
 
 Forward-only migration, with no existing row rewrite or cleanup execution. orders allows COUNTER/ZOMATO/SWIGGY; bill_id and monetary/tax columns become nullable under a complete source-conditioned CHECK. Counter requires the original financial/Bill fields and no external metadata; platforms require bill/financial/tax NULL, normalized external_reference and discount_classification. timezone remains required for both. Unique partial (source,external_reference) protects permanent references and a platform recent-order index supports tracking. Existing daily date/token and actor/request uniqueness remain.
 
@@ -230,3 +232,11 @@ variant_channel_settings.price becomes nullable only outside Counter; existing a
 platform_order_cancellations: order_id PK/FK, nullable actor_id FK, occurred_at, nonblank bounded reason, optional system cleanup timezone/time. Guards allow only unfinished non-Counter orders, enforce historical cutoff for system cancellation, prohibit mutation/deletion, and require matching same-transaction history. Deferred validation rejects incomplete history or active attached timers. History/timer guards accept this operational cancellation without a financial amendment. Counter amendment guards explicitly reject other sources. Existing Takeaway guard remains unchanged.
 
 Migration grants platform_orders.create/read/cancel to OWNER/MANAGER/CASHIER. Runtime grants add INSERT on platform_order_cancellations; no extra ownership, DDL, trigger, update or delete privilege. Readiness includes migration 020 and all declared objects. Deploy matching release/schema/grants only after an authorized backup/maintenance window.
+
+## Qualitative platform preparation — 021_platform_preparation_mode.sql
+
+Adds orders.preparation_mode text, nullable only for Counter and existing measured platform history. Source-conditioned financial CHECK retains every Counter requirement and every platform financial NULL requirement. New platform rows require NORMAL or REDUCED with null discount_classification; an insert trigger prohibits creating legacy-form rows. Existing order immutability protects the new field. No old migration or data is rewritten.
+
+The line insert guard requires new platform lines to have null price/subtotal and null serving_mode/amount/unit, with active and available platform references. Their sole stored preparation truth is the parent order. Kitchen/Dispatch/platform DTOs derive serving.mode from that field and expose amount/unit null. Original measured lines remain under the unchanged serving_snapshot constraint and retain every amount/unit/mode. Sealed aggregates cannot append lines. Existing Menu measurement columns remain optional compatibility data and are omitted by the editor; omitted aggregate values are retained.
+
+No new tables, grants, financial views, token allocation, cancellation or lifecycle changes. Existing reference and request uniqueness remain intact. Verification applies 001–021 to disposable schemas and compares every existing row across 021 (excluding only the newly added null field). The restaurant database was not migrated.

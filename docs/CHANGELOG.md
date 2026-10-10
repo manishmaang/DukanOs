@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-10 — Shared platform POS and qualitative preparation
+
+### Changed
+
+- Counter, Zomato and Swiggy reuse the compact dish selector, photos, steppers, notes and persistent footer; platform selection has no prices or payment flow.
+- Platform review now asks for the external reference and one Normal/Less quantity instruction. Removed measured-size Menu controls and new-order discount input.
+- Forward migration 021 stores one immutable order preparation mode; preserves existing measured lines, discount history, Menu values and committed-request replay. Kitchen/Production/Dispatch retain source separation, measured legacy identity and existing lifecycle rules.
+- Added migration-preservation, qualitative-mode, retry and responsive regressions. Corrected old migration fixture expectations for the new nullable field. Final verification on October 11 passed full check/build (36 unit tests), 234 PostgreSQL tests, all 11 browser suites and a zero-vulnerability production dependency audit. Details are in the platform refinement checkpoint.
+
 ## 2026-10-09 — Manual platform orders V1
 
 ### Added

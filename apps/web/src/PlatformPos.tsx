@@ -5,13 +5,14 @@ import type {
   PlatformOrderInput,
   PlatformOrderList,
   PlatformSource,
-  ServingSnapshot,
+  ServingMode,
 } from '@dukanos/shared-types';
 import { api, ApiFailure, errorMessage } from './api';
 import { CartSurface } from './CartSurface';
+import { DishSelection, type PortionSelection } from './DishSelection';
+import { confirmationId } from './order-cart';
 import { MenuPhoto } from './MenuPhoto';
 import { ServingLabel, SourceLabel } from './ServingLabel';
-type Dish = PlatformMenu['categories'][number]['items'][number];
 type Line = PlatformOrderInput['lines'][number] & {
   key: string;
   itemName: string;
@@ -37,16 +38,9 @@ export function PlatformPos({
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [reference, setReference] = useState('');
-  const [discount, setDiscount] =
-    useState<PlatformOrderInput['discountClassification']>('UNKNOWN');
+  const [preparationMode, setPreparationMode] = useState<ServingMode>('NORMAL');
   const [lines, setLines] = useState<Line[]>([]);
-  const [dish, setDish] = useState<Dish>();
-  const [selected, setSelected] = useState<
-    Record<
-      string,
-      { quantity: number; instruction: string; serving: ServingSnapshot | null }
-    >
-  >({});
+  const [dishId, setDishId] = useState<string>();
   const [open, setOpen] = useState(false);
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -66,13 +60,11 @@ export function PlatformPos({
   const trackingSequence = useRef(0);
   const [detail, setDetail] = useState<PlatformOrder>();
   const [cancelReason, setCancelReason] = useState('');
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dish = menu?.categories
+    .flatMap((c) => c.items)
+    .find((i) => i.id === dishId);
   const dirty = !!pending || !!lines.length || !!reference;
   useEffect(() => onDraftStateChange(dirty), [dirty, onDraftStateChange]);
-  useEffect(() => {
-    if (dish) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [dish]);
   const refresh = useCallback(async () => {
     try {
       setMenu(
@@ -125,48 +117,25 @@ export function PlatformPos({
     }, 3000);
     return () => clearInterval(timer);
   }, [tracking, canRead, refreshOrders]);
-  function choose(item: Dish) {
-    setDish(item);
-    setSelected(
-      Object.fromEntries(
-        item.variants.map((v) => [
-          v.id,
-          { quantity: 0, instruction: '', serving: v.normal },
-        ]),
-      ),
-    );
-  }
-  function add() {
+  function add(selected: PortionSelection[]) {
     if (!dish) return;
-    const additions = dish.variants.flatMap((v) => {
-      const s = selected[v.id];
-      return s && s.quantity > 0 && s.serving
-        ? [
-            {
-              key: crypto.randomUUID(),
-              variantId: v.id,
-              quantity: s.quantity,
-              instruction: s.instruction.trim(),
-              serving: s.serving,
-              itemName: dish.name,
-              variantName: v.name,
-            },
-          ]
-        : [];
-    });
-    if (lines.length + additions.length > 100) {
-      setNotice('An order supports at most 100 lines.');
-      return;
-    }
-    setLines([...lines, ...additions]);
-    setDish(undefined);
-    setNotice(
-      'Added to platform order. Review each serving before submission.',
-    );
+    if (lines.length + selected.length > 100)
+      throw new Error('An order supports at most 100 lines.');
+    setLines([
+      ...lines,
+      ...selected.map((s) => ({
+        ...s,
+        key: confirmationId(),
+        itemName: dish.name,
+      })),
+    ]);
+    setNotice('Added to platform order.');
+    setReview(false);
   }
   function clear() {
     setLines([]);
     setReference('');
+    setPreparationMode('NORMAL');
     setReview(false);
     setConfirmed(undefined);
     setNotice('');
@@ -176,15 +145,14 @@ export function PlatformPos({
     let body = pending;
     if (!body) {
       body = {
-        requestId: crypto.randomUUID(),
+        requestId: confirmationId(),
         source,
         externalReference: reference,
-        discountClassification: discount,
-        lines: lines.map(({ variantId, quantity, instruction, serving }) => ({
+        preparationMode,
+        lines: lines.map(({ variantId, quantity, instruction }) => ({
           variantId,
           quantity,
           instruction,
-          serving,
         })),
       };
       try {
@@ -211,7 +179,11 @@ export function PlatformPos({
       setOpen(true);
     } catch (e) {
       setNotice(errorMessage(e));
-      if (e instanceof ApiFailure && e.status < 500) {
+      if (
+        e instanceof ApiFailure &&
+        [400, 409, 413, 415].includes(e.status) &&
+        e.code !== 'IDEMPOTENCY_CONFLICT'
+      ) {
         sessionStorage.removeItem(storage);
         setPending(undefined);
         setReview(false);
@@ -259,38 +231,43 @@ export function PlatformPos({
         </>
       ) : (
         <>
-          <label>
-            External platform order ID
-            <input
-              maxLength={80}
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              disabled={review}
-            />
-          </label>
-          <label>
-            Discount observed
-            <select
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value as typeof discount)}
-              disabled={review}
-            >
-              <option value="NONE">No discount</option>
-              <option value="APPLIED">Discount applied</option>
-              <option value="UNKNOWN">Unknown / not confirmed</option>
-            </select>
-          </label>
-          <p>
-            Match the actual platform offering. A discount never selects a
-            smaller serving automatically.
-          </p>
+          {review && (
+            <>
+              <label>
+                External platform order ID
+                <input
+                  aria-label="External platform order ID"
+                  maxLength={80}
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <fieldset className="preparation-choice" disabled={busy}>
+                <legend>Kitchen quantity — all items</legend>
+                {(['NORMAL', 'REDUCED'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={preparationMode === mode}
+                    onClick={() => setPreparationMode(mode)}
+                  >
+                    {mode === 'NORMAL' ? 'NORMAL QUANTITY' : 'LESS QUANTITY'}
+                  </button>
+                ))}
+              </fieldset>
+              <p>
+                Choose the quantity promised on the platform. A discount alone
+                does not mean less food.
+              </p>
+            </>
+          )}
           <div className="platform-cart-lines">
             {lines.map((line, index) => (
               <article key={line.key}>
                 <h3>
                   {line.variantName} {line.itemName} ×{line.quantity}
                 </h3>
-                <ServingLabel serving={line.serving} />
                 {review ? (
                   <p>{line.instruction}</p>
                 ) : (
@@ -345,11 +322,17 @@ export function PlatformPos({
           {review ? (
             <>
               <p>
-                Confirm the platform reference, discount classification and
-                exact serving for every line. DukanOS will allocate a token; no
-                bill or payment is created.
+                Confirm the platform reference and quantity instruction for all
+                items. DukanOS will allocate a token; no bill or payment is
+                created.
               </p>
-              <button disabled={busy} onClick={() => void submit()}>
+              <button
+                disabled={
+                  busy ||
+                  !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(reference.trim())
+                }
+                onClick={() => void submit()}
+              >
                 Submit to Kitchen
               </button>
               <button onClick={() => setReview(false)}>Back to edit</button>
@@ -357,7 +340,7 @@ export function PlatformPos({
           ) : (
             <>
               <button
-                disabled={!lines.length || !reference.trim() || !menu}
+                disabled={!lines.length || !menu}
                 onClick={() => {
                   setNotice('');
                   setReview(true);
@@ -415,7 +398,9 @@ export function PlatformPos({
                 Token #{detail.tokenNumber} · {detail.status}
               </h2>
               <p>
-                {detail.businessDate} · {detail.discountClassification}
+                {detail.businessDate}
+                {detail.discountClassification &&
+                  ` · Historical discount: ${detail.discountClassification}`}
               </p>
               {detail.items.map((i) => (
                 <div key={i.id}>
@@ -507,8 +492,8 @@ export function PlatformPos({
           <section className="pos-menu">
             <h1>POS · {source}</h1>
             <p>
-              Operational entry only. Select exact servings shown on the
-              platform.
+              Select dishes and portions, then choose Normal or Less Quantity at
+              review.
             </p>
             <label>
               Search dishes
@@ -550,7 +535,10 @@ export function PlatformPos({
                           className="pos-card pos-dish-card"
                           key={i.id}
                           disabled={!!pending || !!confirmed}
-                          onClick={() => choose(i)}
+                          onClick={() => {
+                            setDishId(i.id);
+                            setReview(false);
+                          }}
                         >
                           <MenuPhoto src={i.image?.url} name={i.name} />
                           <span className="pos-card-info">
@@ -568,7 +556,7 @@ export function PlatformPos({
             {menu && !menu.categories.length && (
               <p>
                 No platform portions configured. Ask a Menu administrator to
-                enable availability and configure serving sizes.
+                enable platform availability.
               </p>
             )}
           </section>
@@ -581,112 +569,21 @@ export function PlatformPos({
           </CartSurface>
         </div>
       )}
-      <dialog
-        ref={dialog}
-        className="platform-dish-dialog"
-        onCancel={() => setDish(undefined)}
-      >
-        <button onClick={() => setDish(undefined)}>Close</button>
-        {dish && (
-          <>
-            <h2>{dish.name}</h2>
-            {dish.variants.map((v) => {
-              const s = selected[v.id];
-              return (
-                <section key={v.id}>
-                  <h3>{v.name}</h3>
-                  {!v.available ? (
-                    <p>Unavailable on {source}</p>
-                  ) : !v.normal ? (
-                    <p>
-                      Serving size not configured. Ask a Menu administrator.
-                    </p>
-                  ) : (
-                    <>
-                      <label>
-                        Serving offered
-                        <select
-                          aria-label={`${v.name} serving`}
-                          value={s?.serving?.mode ?? 'NORMAL'}
-                          onChange={(e) =>
-                            setSelected({
-                              ...selected,
-                              [v.id]: {
-                                ...s!,
-                                serving:
-                                  e.target.value === 'NORMAL'
-                                    ? v.normal
-                                    : v.reduced,
-                              },
-                            })
-                          }
-                        >
-                          <option value="NORMAL">
-                            NORMAL — {v.normal.amount} {v.normal.unit} each
-                          </option>
-                          {v.reduced && (
-                            <option value="REDUCED">
-                              REDUCED — {v.reduced.amount} {v.reduced.unit} each
-                            </option>
-                          )}
-                        </select>
-                      </label>
-                      {s?.serving?.mode === 'REDUCED' && (
-                        <p>
-                          Use only when this matches the actual platform
-                          offering.
-                        </p>
-                      )}
-                      <label>
-                        Quantity
-                        <input
-                          aria-label={`${v.name} quantity`}
-                          type="number"
-                          min={0}
-                          max={99}
-                          value={s?.quantity ?? 0}
-                          onChange={(e) => {
-                            const n = Number(e.target.value);
-                            if (Number.isInteger(n) && n >= 0 && n <= 99)
-                              setSelected({
-                                ...selected,
-                                [v.id]: { ...s!, quantity: n },
-                              });
-                          }}
-                        />
-                      </label>
-                      <label>
-                        Kitchen instruction
-                        <textarea
-                          aria-label={`${v.name} instruction`}
-                          maxLength={500}
-                          value={s?.instruction ?? ''}
-                          onChange={(e) =>
-                            setSelected({
-                              ...selected,
-                              [v.id]: { ...s!, instruction: e.target.value },
-                            })
-                          }
-                        />
-                      </label>
-                    </>
-                  )}
-                </section>
-              );
-            })}
-            <button
-              disabled={
-                !Object.values(selected).some(
-                  (s) => s.quantity > 0 && s.serving,
-                )
-              }
-              onClick={add}
-            >
-              Add to Order
-            </button>
-          </>
-        )}
-      </dialog>
+      {dish && (
+        <DishSelection
+          key={dish.id}
+          channel={source}
+          dish={dish}
+          canCreateOrders
+          canManageAvailability={false}
+          locked={!!pending || !!confirmed}
+          busy={busy}
+          actionError=""
+          onAvailability={() => {}}
+          onAdd={add}
+          onDismiss={() => setDishId(undefined)}
+        />
+      )}
     </>
   );
 }

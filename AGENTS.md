@@ -597,4 +597,4 @@ For the two-phase cleanup/AWS pilot hardening assignment, read [docs/checkpoints
 
 ## Current authorized feature checkpoint
 
-For Manual Zomato/Swiggy Orders V1, read [docs/checkpoints/manual-platform-orders.md](docs/checkpoints/manual-platform-orders.md). This explicit milestone supersedes the prior preparation checkpoint’s stop instruction, but authorizes no AWS deployment or live database migration. Keep verification and remaining work current there.
+For the shared Counter/Zomato/Swiggy selector and order-wide Normal/Less refinement, read [docs/checkpoints/platform-pos-refinement.md](docs/checkpoints/platform-pos-refinement.md). Migration 021 preserves migration-020 measured history; new orders never require grams/ml. Keep platform orders operational-only. The previous completed baseline is [Manual Platform Orders V1](docs/checkpoints/manual-platform-orders.md). This task authorizes no restaurant database migration or AWS deployment. Keep verification and remaining work current in the new checkpoint; follow the updated-main branch workflow before the next explicitly requested milestone.

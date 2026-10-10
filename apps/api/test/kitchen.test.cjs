@@ -76,3 +76,67 @@ test('Kitchen threshold has one validated default and configurable source', () =
       kitchenConfiguration({ KITCHEN_LATE_THRESHOLD_MINUTES: value }),
     );
 });
+
+test('production separates qualitative modes, sources and historical measurements while retaining associations', () => {
+  const specs = [
+    ['COUNTER', null],
+    ['ZOMATO', { mode: 'NORMAL', amount: null, unit: null }],
+    ['ZOMATO', { mode: 'REDUCED', amount: null, unit: null }],
+    ['SWIGGY', { mode: 'NORMAL', amount: null, unit: null }],
+    ['SWIGGY', { mode: 'REDUCED', amount: null, unit: null }],
+    ['ZOMATO', { mode: 'NORMAL', amount: '300.00', unit: 'g' }],
+    ['ZOMATO', { mode: 'NORMAL', amount: '350.00', unit: 'g' }],
+  ];
+  const orders = specs.map(([source, serving], n) => ({
+    source,
+    orderId: `o${n}`,
+    tokenNumber: n + 1,
+    businessDate: '2026-10-10',
+    queuedAt: '2026-10-10T10:00:00Z',
+    items: [
+      {
+        id: `l${n}`,
+        menuItemId: 'm',
+        variantId: 'v',
+        itemName: 'Noodles',
+        kitchenName: 'Noodles',
+        variantName: 'Full',
+        quantity: 2,
+        instruction: 'No onion',
+        serving,
+      },
+    ],
+  }));
+  const groups = aggregateProduction([
+    ...orders,
+    {
+      ...orders[1],
+      orderId: 'extra',
+      tokenNumber: 8,
+      items: [
+        {
+          ...orders[1].items[0],
+          id: 'extra-line',
+          quantity: 1,
+          instruction: '',
+        },
+      ],
+    },
+  ]);
+  assert.equal(groups.length, 7);
+  assert.equal(groups[1].totalQuantity, 3);
+  assert.deepEqual(
+    groups[1].sources.map((s) => [
+      s.orderId,
+      s.lineId,
+      s.tokenNumber,
+      s.quantity,
+    ]),
+    [
+      ['o1', 'l1', 2, 2],
+      ['extra', 'extra-line', 8, 1],
+    ],
+  );
+  assert.equal(groups[5].serving.amount, '300.00');
+  assert.equal(groups[6].serving.amount, '350.00');
+});

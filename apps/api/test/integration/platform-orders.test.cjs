@@ -1,7 +1,7 @@
 require('reflect-metadata');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const fs = require('node:fs');
 const { Client } = require('pg');
 const { Test } = require('@nestjs/testing');
@@ -196,21 +196,141 @@ test(
         }).expect(201)
       ).body;
       const variantId = item.variants[0].id;
-      const input = (source = 'ZOMATO', reference = randomUUID()) => ({
+      const legacyRequest = {
         requestId: randomUUID(),
-        source,
-        externalReference: reference,
-        discountClassification: 'UNKNOWN',
+        source: 'ZOMATO',
+        externalReference: 'LEGACY-020',
+        discountClassification: 'APPLIED',
         lines: [
           {
             variantId,
             quantity: 2,
             instruction: 'Extra spicy',
-            serving: {
-              mode: 'NORMAL',
-              amount: source === 'ZOMATO' ? '300' : '350',
-              unit: source === 'ZOMATO' ? 'g' : 'ml',
-            },
+            serving: { mode: 'NORMAL', amount: '300.00', unit: 'g' },
+          },
+          {
+            variantId,
+            quantity: 1,
+            instruction: 'No onion',
+            serving: { mode: 'REDUCED', amount: '250.00', unit: 'g' },
+          },
+        ],
+      };
+      const legacyId = randomUUID();
+      await t.test(
+        '021 preserves every existing row including mixed measured snapshots and their request fingerprint',
+        async () => {
+          const { requestId, ...normalized } = legacyRequest;
+          const fingerprint = createHash('sha256')
+            .update(JSON.stringify(normalized))
+            .digest('hex');
+          const cashierId = (
+            await sql.query("SELECT id FROM users WHERE username='cashier'")
+          ).rows[0].id;
+          await sql.query('BEGIN');
+          const timing = (
+            await sql.query(
+              "SELECT clock_timestamp() AS t,(clock_timestamp() AT TIME ZONE 'Asia/Kolkata')::date::text AS d",
+            )
+          ).rows[0];
+          const token = (
+            await sql.query(
+              'INSERT INTO order_daily_tokens VALUES($1,1) ON CONFLICT(business_date) DO UPDATE SET last_token=order_daily_tokens.last_token+1 RETURNING last_token',
+              [timing.d],
+            )
+          ).rows[0].last_token;
+          await sql.query(
+            "INSERT INTO orders(id,source,status,business_date,token_number,confirmed_by,request_id,request_hash,queued_at,timezone,discount_total,rounding_adjustment,external_reference,discount_classification) VALUES($1,'ZOMATO','QUEUED',$2,$3,$4,$5,$6,$7,'Asia/Kolkata',NULL,NULL,'LEGACY-020','APPLIED')",
+            [
+              legacyId,
+              timing.d,
+              token,
+              cashierId,
+              requestId,
+              fingerprint,
+              timing.t,
+            ],
+          );
+          for (const [index, l] of legacyRequest.lines.entries())
+            await sql.query(
+              "INSERT INTO order_items(id,order_id,position,menu_item_id,variant_id,item_name_snapshot,kitchen_name_snapshot,variant_name_snapshot,quantity,instruction,serving_mode,serving_amount,serving_unit) VALUES($1,$2,$3,$4,$5,'Manchurian','Manchurian','Half',$6,$7,$8,$9,$10)",
+              [
+                randomUUID(),
+                legacyId,
+                index + 1,
+                item.id,
+                variantId,
+                l.quantity,
+                l.instruction,
+                l.serving.mode,
+                l.serving.amount,
+                l.serving.unit,
+              ],
+            );
+          await sql.query(
+            "INSERT INTO order_status_history VALUES($1,$2,'DRAFT','QUEUED',$3,$4,'Manual platform order submitted')",
+            [randomUUID(), legacyId, cashierId, timing.t],
+          );
+          await sql.query('COMMIT');
+          const tables = (
+            await sql.query(
+              'SELECT tablename FROM pg_tables WHERE schemaname=current_schema() ORDER BY tablename',
+            )
+          ).rows;
+          const capture = async () => {
+            const rows = {};
+            for (const { tablename } of tables)
+              rows[tablename] = (
+                await sql.query(
+                  `SELECT to_jsonb(t)-'preparation_mode' AS row FROM "${tablename}" t ORDER BY (to_jsonb(t)-'preparation_mode')::text`,
+                )
+              ).rows;
+            return rows;
+          };
+          const before = await capture();
+          await sql.query(
+            fs.readFileSync(
+              'database/migrations/021_platform_preparation_mode.sql',
+              'utf8',
+            ),
+          );
+          assert.deepEqual(await capture(), before);
+          const replay = (
+            await call(
+              'cashier',
+              'post',
+              '/platform-orders',
+              legacyRequest,
+            ).expect(201)
+          ).body;
+          assert.equal(replay.id, legacyId);
+          assert.equal(replay.preparationMode, null);
+          assert.equal(replay.discountClassification, 'APPLIED');
+          assert.deepEqual(
+            replay.items.map((l) => l.serving),
+            legacyRequest.lines.map((l) => l.serving),
+          );
+          await call('cashier', 'post', '/platform-orders', {
+            ...legacyRequest,
+            requestId: randomUUID(),
+            externalReference: 'OLD-DRAFT',
+          }).expect(400);
+          await call('cashier', 'post', '/platform-orders', {
+            ...legacyRequest,
+            preparationMode: 'NORMAL',
+          }).expect(400);
+        },
+      );
+      const input = (source = 'ZOMATO', reference = randomUUID()) => ({
+        requestId: randomUUID(),
+        source,
+        externalReference: reference,
+        preparationMode: 'NORMAL',
+        lines: [
+          {
+            variantId,
+            quantity: 2,
+            instruction: 'Extra spicy',
           },
         ],
       });
@@ -237,7 +357,7 @@ test(
         ).rows[0];
       const before = await finances();
       await t.test(
-        'Zomato normal and Swiggy volume are bill-less and unpriced',
+        'Zomato and Swiggy Normal are bill-less, unpriced and unmeasured',
         async () => {
           zomato = (
             await call(
@@ -256,8 +376,8 @@ test(
             ).expect(201)
           ).body;
           assert.equal(zomato.externalReference, 'Z-123');
-          assert.equal(swiggy.items[0].serving.unit, 'ml');
-          assert.equal(zomato.items[0].serving.amount, '300.00');
+          assert.equal(swiggy.items[0].serving.unit, null);
+          assert.equal(zomato.items[0].serving.amount, null);
           assert.ok(!('grandTotal' in zomato));
           assert.deepEqual(await finances(), before);
         },
@@ -279,27 +399,50 @@ test(
           }).expect(409);
           await call('cashier', 'post', '/platform-orders', {
             ...payload,
-            discountClassification: 'APPLIED',
+            preparationMode: 'REDUCED',
           }).expect(409);
         },
       );
       await t.test(
-        'mixed explicitly selected profiles with discount and no-discount',
+        'both sources support explicit Less and default Normal with no profile configuration',
         async () => {
-          for (const discountClassification of ['NONE', 'APPLIED']) {
-            const p = input();
-            p.discountClassification = discountClassification;
-            p.lines.push({
-              ...p.lines[0],
-              instruction: 'No onion',
-              serving: { mode: 'REDUCED', amount: '250', unit: 'g' },
-            });
-            const o = (
-              await call('cashier', 'post', '/platform-orders', p).expect(201)
-            ).body;
-            assert.equal(o.items.length, 2);
-            assert.equal(o.items[1].serving.mode, 'REDUCED');
+          await sql.query(
+            "UPDATE variant_channel_settings SET normal_amount=NULL,reduced_amount=NULL,serving_unit=NULL WHERE channel_code<>'COUNTER'",
+          );
+          for (const source of ['ZOMATO', 'SWIGGY']) {
+            for (const mode of ['NORMAL', 'REDUCED', undefined]) {
+              const p = input(source);
+              if (mode) p.preparationMode = mode;
+              else delete p.preparationMode;
+              p.lines.push({ ...p.lines[0], instruction: 'No onion' });
+              const o = (
+                await call('cashier', 'post', '/platform-orders', p).expect(201)
+              ).body;
+              assert.equal(o.preparationMode, mode ?? 'NORMAL');
+              assert.equal(o.discountClassification, null);
+              assert.deepEqual(
+                o.items.map((i) => i.serving),
+                [
+                  { mode: mode ?? 'NORMAL', amount: null, unit: null },
+                  { mode: mode ?? 'NORMAL', amount: null, unit: null },
+                ],
+              );
+              assert.deepEqual(
+                o.items.map((i) => i.instruction),
+                ['Extra spicy', 'No onion'],
+              );
+            }
           }
+          const replay = (
+            await call(
+              'cashier',
+              'post',
+              '/platform-orders',
+              legacyRequest,
+            ).expect(201)
+          ).body;
+          assert.equal(replay.id, legacyId);
+          assert.equal(replay.items[0].serving.amount, '300.00');
         },
       );
       await t.test(
@@ -318,7 +461,7 @@ test(
               ...extra,
             }).expect(400);
           const p = input();
-          delete p.lines[0].serving;
+          p.preparationMode = null;
           await call('cashier', 'post', '/platform-orders', p).expect(400);
           await call('cashier', 'get', '/orders/' + zomato.id).expect(404);
           await call(
@@ -337,6 +480,23 @@ test(
       await t.test('shared FIFO and production separation', async () => {
         const k = (await call('kitchen', 'get', '/kitchen/orders').expect(200))
           .body;
+        assert.equal(k.queued[0].orderId, legacyId);
+        assert.equal(
+          k.production.queued.filter(
+            (g) => g.source === 'ZOMATO' && g.serving.mode === 'NORMAL',
+          ).length,
+          2,
+        );
+        assert.equal(
+          k.production.queued.filter(
+            (g) => g.source === 'ZOMATO' && g.serving.mode === 'REDUCED',
+          ).length,
+          2,
+        );
+        await call('cashier', 'post', `/platform-orders/${legacyId}/cancel`, {
+          reason: 'Historical test finished',
+        }).expect(201);
+        k.queued.shift();
         assert.equal(k.queued[0].source, 'COUNTER');
         assert.ok(
           k.production.queued.some(
@@ -345,7 +505,7 @@ test(
         );
         assert.ok(
           k.production.queued.some(
-            (g) => g.source === 'SWIGGY' && g.serving.unit === 'ml',
+            (g) => g.source === 'SWIGGY' && g.serving.unit === null,
           ),
         );
         await call(
@@ -448,6 +608,12 @@ test(
       await t.test(
         'serving validation rejects zero, negative, precision, equal/reversed sizes and unknown units',
         async () => {
+          await save((b) =>
+            Object.assign(
+              b.variants[0].channels.find((c) => c.channelCode === 'ZOMATO'),
+              { normalAmount: '300', reducedAmount: '250', servingUnit: 'g' },
+            ),
+          );
           for (const bad of [
             { normalAmount: '0' },
             { normalAmount: '-1' },
@@ -470,12 +636,12 @@ test(
             await call('cashier', 'post', '/platform-orders', p).expect(400);
           }
           const p = input();
-          p.lines[0].serving.amount = '299';
-          await call('cashier', 'post', '/platform-orders', p).expect(409);
+          p.preparationMode = 'LESS';
+          await call('cashier', 'post', '/platform-orders', p).expect(400);
         },
       );
       await t.test(
-        'missing configuration and sold-out/deactivated selections fail without token allocation',
+        'sold-out/deactivated selections fail without token allocation',
         async () => {
           const count = (await sql.query('SELECT count(*) FROM orders')).rows[0]
             .count;
@@ -510,13 +676,6 @@ test(
               { normalAmount: null, reducedAmount: null, servingUnit: null },
             ),
           );
-          const missing = await call(
-            'cashier',
-            'post',
-            '/platform-orders',
-            input(),
-          ).expect(409);
-          assert.equal(missing.body.code, 'SERVING_PROFILE_REQUIRED');
           await save((b) =>
             Object.assign(
               b.variants[0].channels.find((c) => c.channelCode === 'ZOMATO'),
@@ -530,7 +689,7 @@ test(
         },
       );
       await t.test(
-        'menu edits retain historical names and exact profile snapshots and reject stale review',
+        'menu edits preserve qualitative and historical measured snapshots',
         async () => {
           await save((b) => {
             b.name = 'Renamed Manchurian';
@@ -547,14 +706,17 @@ test(
             ).expect(200)
           ).body;
           assert.equal(o.items[0].itemName, 'Manchurian');
-          assert.equal(o.items[0].serving.amount, '300.00');
-          const stale = await call(
-            'cashier',
-            'post',
-            '/platform-orders',
-            input(),
-          ).expect(409);
-          assert.equal(stale.body.code, 'SERVING_PROFILE_CHANGED');
+          assert.deepEqual(o.items[0].serving, {
+            mode: 'NORMAL',
+            amount: null,
+            unit: null,
+          });
+          const legacy = (
+            await call('cashier', 'get', '/platform-orders/' + legacyId).expect(
+              200,
+            )
+          ).body;
+          assert.equal(legacy.items[0].serving.amount, '300.00');
           await save((b) => {
             b.name = 'Manchurian';
             b.variants[0].name = 'Half';
@@ -603,6 +765,9 @@ test(
             { grand_total: 0 },
             { external_reference: '' },
             { source: 'COUNTER' },
+            { preparation_mode: null },
+            { preparation_mode: 'LESS' },
+            { discount_classification: 'UNKNOWN' },
           ]) {
             await assert.rejects(
               sql.query(
@@ -620,6 +785,13 @@ test(
               (e) => e.code === '23514',
             );
           }
+          await assert.rejects(
+            sql.query(
+              "UPDATE orders SET preparation_mode='REDUCED' WHERE id=$1",
+              [zomato.id],
+            ),
+            (e) => e.code === '23514',
+          );
           await assert.rejects(
             sql.query("UPDATE orders SET source='SWIGGY' WHERE id=$1", [
               zomato.id,
@@ -640,6 +812,53 @@ test(
             ),
             (e) => e.code === '23514',
           );
+        },
+      );
+      await t.test(
+        'database rejects a second per-line preparation truth and money on new platform lines',
+        async () => {
+          for (const patch of [
+            {
+              serving_mode: 'NORMAL',
+              serving_amount: '300',
+              serving_unit: 'g',
+            },
+            { unit_price_snapshot: '1', line_subtotal: '2' },
+          ]) {
+            await sql.query('BEGIN');
+            try {
+              const id = randomUUID();
+              await sql.query(
+                `INSERT INTO orders SELECT (jsonb_populate_record(NULL::orders,to_jsonb(o)||$2::jsonb)).* FROM orders o WHERE id=$1`,
+                [
+                  zomato.id,
+                  JSON.stringify({
+                    id,
+                    status: 'QUEUED',
+                    request_id: randomUUID(),
+                    external_reference: randomUUID().toUpperCase(),
+                    token_number: 999998,
+                  }),
+                ],
+              );
+              await assert.rejects(
+                sql.query(
+                  `INSERT INTO order_items SELECT (jsonb_populate_record(NULL::order_items,to_jsonb(i)||$2::jsonb)).* FROM order_items i WHERE order_id=$1 LIMIT 1`,
+                  [
+                    zomato.id,
+                    JSON.stringify({
+                      id: randomUUID(),
+                      order_id: id,
+                      ...patch,
+                    }),
+                  ],
+                ),
+                (e) => e.code === '23514',
+              );
+            } finally {
+              await sql.query('ROLLBACK');
+            }
+          }
         },
       );
       await t.test(
@@ -792,9 +1011,41 @@ test(
               201,
             )
           ).body;
-          await call('cashier', 'post', `/platform-orders/${o.id}/cancel`, {
-            reason: 'Cancelled',
-          }).expect(201);
+          assert.deepEqual(
+            await app.get(ReportsService).dailySnapshot(sql, date),
+            beforeReport,
+          );
+          await call('kitchen', 'post', `/kitchen/orders/${o.id}/start`).expect(
+            200,
+          );
+          await call('kitchen', 'post', `/kitchen/orders/${o.id}/ready`).expect(
+            200,
+          );
+          await call(
+            'dispatch',
+            'post',
+            `/dispatch/orders/${o.id}/complete`,
+          ).expect(200);
+          assert.deepEqual(
+            await app.get(ReportsService).dailySnapshot(sql, date),
+            beforeReport,
+          );
+          const another = (
+            await call(
+              'cashier',
+              'post',
+              '/platform-orders',
+              input('SWIGGY'),
+            ).expect(201)
+          ).body;
+          await call(
+            'cashier',
+            'post',
+            `/platform-orders/${another.id}/cancel`,
+            {
+              reason: 'Cancelled',
+            },
+          ).expect(201);
           assert.deepEqual(
             await app.get(ReportsService).dailySnapshot(sql, date),
             beforeReport,

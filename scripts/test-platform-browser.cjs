@@ -95,13 +95,6 @@ const root = require('node:path').resolve(__dirname, '..');
             channelCode,
             price: channelCode === 'COUNTER' ? '100' : null,
             available: true,
-            ...(channelCode === 'COUNTER'
-              ? {}
-              : {
-                  normalAmount: '300',
-                  reducedAmount: '250',
-                  servingUnit: 'g',
-                }),
           })),
         })),
       });
@@ -256,12 +249,14 @@ const root = require('node:path').resolve(__dirname, '..');
     const cashier = await device('cashier'),
       cook = await device('cook'),
       dispatcher = await device('dispatcher');
-    const widths = [
-      [390, 844],
-      [768, 1024],
-      [1024, 768],
-      [1440, 900],
-    ];
+    const widths = process.env.PLATFORM_BOUNDARIES_ONLY
+      ? []
+      : [
+          [390, 844],
+          [768, 1024],
+          [1024, 768],
+          [1440, 900],
+        ];
     async function layout(c, width, height) {
       await c.send('Emulation.setDeviceMetricsOverride', {
         width,
@@ -293,7 +288,7 @@ const root = require('node:path').resolve(__dirname, '..');
     async function fillLabel(c, label, value) {
       await c.fill(`[aria-label="${label}"]`, value);
     }
-    // Exercise the actual single-save serving editor at every device class.
+    // Shared selector is compared against Counter at every primary device size.
     for (const [width, height] of widths) {
       await layout(editor, width, height);
       await editor.read("location.hash='/menu'");
@@ -304,38 +299,38 @@ const root = require('node:path').resolve(__dirname, '..');
       await editor.wait(
         "document.querySelector('[name=itemName]')?.value==='Soya Chaap Gravy'",
       );
-      await editor.read(
-        "document.querySelectorAll('.serving-editor').forEach(d=>d.open=true)",
+      assert.equal(
+        await editor.read(
+          "document.querySelectorAll('.serving-editor').length",
+        ),
+        0,
       );
-      await fillLabel(editor, 'Half Zomato Normal size', String(width));
-      await fillLabel(editor, 'Half Zomato Reduced size', '200');
+      await fillLabel(editor, 'Half Swiggy price', '');
       await tap(editor, 'Save Changes');
       await editor.wait(
         "document.querySelector('.dish-save')?.textContent.includes('All changes saved')",
       );
-      const saved = await editor.http('/platform-orders/menu?source=ZOMATO');
-      const item = saved.body.categories
-        .flatMap((c) => c.items)
-        .find((i) => i.name === 'Soya Chaap Gravy');
-      assert.equal(
-        item.variants.find((v) => v.name === 'Half').normal.amount,
-        width.toFixed(2),
-      );
-      assert.ok(
-        await editor.read('document.documentElement.scrollWidth<=innerWidth+1'),
-      );
+      await editor.read("location.hash='/pos'");
+      await editor.wait("!!document.querySelector('.pos-card')");
       await editor.read(
-        "document.querySelectorAll('.serving-editor').forEach(d=>d.open=true); document.querySelector('.serving-editor').scrollIntoView({block:'center'})",
+        "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).click()",
+      );
+      await editor.wait("document.querySelector('.pos-portions')?.open");
+      assert.ok(
+        (
+          await editor.read("document.querySelector('.pos-portions').innerText")
+        ).includes('₹100'),
       );
       fs.writeFileSync(
-        `/tmp/dukanos-platform-menu-${width}.png`,
+        `/tmp/dukanos-platform-counter-modal-${width}.png`,
         Buffer.from(
           (await editor.send('Page.captureScreenshot')).data,
           'base64',
         ),
       );
-      await editor.read("location.hash='/pos'");
-      await editor.wait("!!document.querySelector('.pos-sources')");
+      await editor.read(
+        'document.querySelector(\'[aria-label="Close dish selection"]\').click()',
+      );
     }
     let count = 0;
     for (const [width, height] of widths) {
@@ -350,30 +345,36 @@ const root = require('node:path').resolve(__dirname, '..');
       await cashier.read(
         "[...document.querySelectorAll('.pos-dish-card')].find(b=>b.textContent.includes('Manchurian')).click()",
       );
-      await cashier.wait(
-        "document.querySelector('.platform-dish-dialog')?.open",
+      await cashier.wait("document.querySelector('.pos-portions')?.open");
+      assert.doesNotMatch(
+        await cashier.read("document.querySelector('.pos-portions').innerText"),
+        /₹|Serving size|QUANTITY|each/,
       );
-      assert.equal(
+      for (const variant of ['Half', 'Half', 'Full'])
         await cashier.read(
-          'document.querySelector(\'[aria-label="Half serving"]\').value',
-        ),
-        'NORMAL',
-      );
-      await fillLabel(cashier, 'Half quantity', '2');
-      await fillLabel(cashier, 'Half instruction', 'Extra spicy');
+          `document.querySelector('[aria-label="Increase ${variant} quantity"]').click()`,
+        );
       await cashier.read(
-        `(()=>{const s=document.querySelector('[aria-label="Half serving"]');s.value='REDUCED';s.dispatchEvent(new Event('change',{bubbles:true}))})()`,
+        'document.querySelector(\'[aria-label="Add instruction for Manchurian / Half"]\').click()',
       );
-      await tap(cashier, 'Add to Order');
+      await fillLabel(
+        cashier,
+        'Instruction for Manchurian / Half',
+        'Extra spicy',
+      );
+      await tap(cashier, 'Done');
+      fs.writeFileSync(
+        `/tmp/dukanos-platform-modal-${width}.png`,
+        Buffer.from(
+          (await cashier.send('Page.captureScreenshot')).data,
+          'base64',
+        ),
+      );
+      await tap(cashier, 'Add 3 items');
       if (width < 900)
         await cashier.read(
           "document.querySelector('.mobile-order-trigger').click()",
         );
-      await cashier.wait("!!document.querySelector('.platform-cart input')");
-      await cashier.fill('.platform-cart input', 'Z-' + width);
-      await cashier.read(
-        "(()=>{const s=document.querySelector('.platform-cart select');s.value='APPLIED';s.dispatchEvent(new Event('change',{bubbles:true}))})()",
-      );
       assert.equal(
         await cashier.read(
           "[...document.querySelectorAll('.pos-sources button')].find(b=>b.textContent==='Counter').disabled",
@@ -381,13 +382,17 @@ const root = require('node:path').resolve(__dirname, '..');
         true,
       );
       await tap(cashier, 'Review platform order');
-      assert.ok(
-        (
-          await cashier.read(
-            "document.querySelector('.platform-cart').innerText",
-          )
-        ).includes('250 g each'),
+      await cashier.wait(
+        '!!document.querySelector(\'[aria-label="External platform order ID"]\')',
       );
+      await fillLabel(cashier, 'External platform order ID', 'Z-' + width);
+      assert.equal(
+        await cashier.read(
+          "document.querySelector('.preparation-choice [aria-pressed=true]').textContent",
+        ),
+        'NORMAL QUANTITY',
+      );
+      await tap(cashier, 'LESS QUANTITY');
       assert.ok(
         !(
           await cashier.read(
@@ -402,7 +407,32 @@ const root = require('node:path').resolve(__dirname, '..');
           'base64',
         ),
       );
+      if (width === 390)
+        await cashier.read(
+          `(()=>{const original=window.fetch;window.fetch=async(...args)=>{const response=await original(...args);if(String(args[0]).endsWith('/platform-orders')&&args[1]?.method==='POST'){window.fetch=original;throw new TypeError('Simulated lost response after commit');}return response;};})()`,
+        );
       await tap(cashier, 'Submit to Kitchen');
+      if (width === 390) {
+        await cashier.wait(
+          "[...document.querySelectorAll('.platform-cart button')].some(b=>b.textContent==='Retry submission' && !b.disabled)",
+        );
+        const committed = await cashier.http(
+          '/platform-orders?search=Z-' + width,
+        );
+        assert.equal(committed.body.orders.length, 1);
+        await cashier.read('location.reload()');
+        await cashier.wait("!!document.querySelector('.pos-sources')");
+        await tap(cashier, 'Zomato');
+        await cashier.read(
+          "document.querySelector('.mobile-order-trigger').click()",
+        );
+        await cashier.wait(
+          "[...document.querySelectorAll('.platform-cart button')].some(b=>b.textContent==='Retry submission' && !b.disabled)",
+        );
+        await cashier.read(
+          "(()=>{const b=[...document.querySelectorAll('.platform-cart button')].find(b=>b.textContent==='Retry submission');b.click();b.click();})()",
+        );
+      }
       await cashier.wait(
         "document.querySelector('.platform-cart')?.innerText.includes('TOKEN #')",
       );
@@ -410,7 +440,16 @@ const root = require('node:path').resolve(__dirname, '..');
       assert.equal(lookup.status, 200);
       const order = lookup.body.orders[0];
       assert.equal(order.status, 'QUEUED');
+      assert.equal(lookup.body.orders.length, 1);
       assert.equal(order.items[0].quantity, 2);
+      assert.equal(order.items[1].quantity, 1);
+      assert.equal(order.items[1].instruction, '');
+      assert.equal(order.preparationMode, 'REDUCED');
+      assert.ok(
+        order.items.every(
+          (i) => i.serving.amount === null && i.serving.unit === null,
+        ),
+      );
       await cook.read("location.hash='/kitchen'");
       await cook.wait(
         `!!document.querySelector('[data-order-id="${order.id}"]')`,
@@ -420,7 +459,7 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       assert.ok(
         card.includes('ZOMATO') &&
-          card.includes('250 g each') &&
+          card.includes('LESS QUANTITY') &&
           card.includes('Extra spicy'),
       );
       await tap(cook, 'Production View');
@@ -430,7 +469,7 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       assert.ok(
         production.includes('HALF MANCHURIAN') &&
-          production.includes('REDUCED'),
+          production.includes('LESS QUANTITY'),
       );
       assert.ok(!production.includes('#'));
       fs.writeFileSync(
@@ -451,7 +490,7 @@ const root = require('node:path').resolve(__dirname, '..');
         `document.querySelector('[data-order-id="${order.id}"]').innerText`,
       );
       assert.ok(
-        dispatch.includes('Z-' + width) && dispatch.includes('250 g each'),
+        dispatch.includes('Z-' + width) && dispatch.includes('LESS QUANTITY'),
       );
       assert.ok(!dispatch.includes('DUE'));
       fs.writeFileSync(
@@ -489,10 +528,8 @@ const root = require('node:path').resolve(__dirname, '..');
         requestId: randomUUID(),
         source: 'SWIGGY',
         externalReference: 'CANCEL-' + width,
-        discountClassification: 'NONE',
-        lines: [
-          { variantId: variant.id, quantity: 1, serving: variant.normal },
-        ],
+        preparationMode: 'NORMAL',
+        lines: [{ variantId: variant.id, quantity: 1 }],
       });
       await tap(cashier, 'Refresh orders');
       await cashier.wait(
@@ -518,8 +555,44 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       await tap(cashier, 'Back to entry');
       await tap(cashier, 'Counter');
+      await tap(cashier, 'Swiggy');
+      await cashier.wait("!!document.querySelector('.pos-dish-card')");
+      await cashier.read("document.querySelector('.pos-dish-card').click()");
+      await cashier.wait("document.querySelector('.pos-portions')?.open");
+      await cashier.read(
+        'document.querySelector(\'[aria-label="Increase Half quantity"]\').click()',
+      );
+      await tap(cashier, 'Add 1 item');
+      if (width < 900)
+        await cashier.read(
+          "document.querySelector('.mobile-order-trigger').click()",
+        );
+      await tap(cashier, 'Review platform order');
+      await fillLabel(cashier, 'External platform order ID', 'S-' + width);
+      const mode = width < 1000 ? 'NORMAL' : 'REDUCED';
+      assert.equal(
+        await cashier.read(
+          "document.querySelector('.preparation-choice [aria-pressed=true]').textContent",
+        ),
+        'NORMAL QUANTITY',
+      );
+      if (mode === 'REDUCED') await tap(cashier, 'LESS QUANTITY');
+      await tap(cashier, 'Submit to Kitchen');
+      await cashier.wait(
+        "document.querySelector('.platform-cart')?.innerText.includes('TOKEN #')",
+      );
+      const swiggy = (await cashier.http('/platform-orders?search=S-' + width))
+        .body.orders[0];
+      assert.equal(swiggy.preparationMode, mode);
+      await ownerCall(`/platform-orders/${swiggy.id}/cancel`, {
+        reason: 'Browser fixture complete',
+      });
+      await tap(cashier, 'New Order');
+      await tap(cashier, 'Counter');
       count++;
     }
+    await cashier.read("location.hash='/pos'");
+    await cashier.wait("!!document.querySelector('.pos-sources')");
     for (const [w, h] of [
       [360, 800],
       [430, 932],
@@ -533,21 +606,57 @@ const root = require('node:path').resolve(__dirname, '..');
         "document.querySelectorAll('.pos-dish-card').length===2",
       );
       await cashier.read("document.querySelector('.pos-dish-card').click()");
-      await cashier.wait(
-        "document.querySelector('.platform-dish-dialog')?.open",
+      await cashier.wait("document.querySelector('.pos-portions')?.open");
+      await cashier.read(
+        'document.querySelector(\'[aria-label="Increase Half quantity"]\').click()',
       );
+      await cashier.read(
+        'document.querySelector(\'.portion-row [aria-label^="Add instruction"]\').click()',
+      );
+      await cashier.fill('.pos-portions textarea', 'No onion and extra spicy');
+      await tap(cashier, 'Done');
+      const footer = await cashier.read(
+        "(()=>{const e=document.querySelector('.portion-add'),r=e.getBoundingClientRect();return {enabled:!e.disabled,visible:r.top>=0&&r.bottom<=innerHeight,height:r.height,top:r.top,bottom:r.bottom};})()",
+      );
+      if (!(footer.enabled && footer.visible && footer.height >= 44))
+        fs.writeFileSync(
+          '/tmp/dukanos-platform-footer-failure.png',
+          Buffer.from(
+            (await cashier.send('Page.captureScreenshot')).data,
+            'base64',
+          ),
+        );
+      assert.ok(
+        footer.enabled && footer.visible && footer.height >= 44,
+        JSON.stringify({ w, h, ...footer }),
+      );
+      if (h === 420)
+        fs.writeFileSync(
+          '/tmp/dukanos-platform-short-modal.png',
+          Buffer.from(
+            (await cashier.send('Page.captureScreenshot')).data,
+            'base64',
+          ),
+        );
       assert.ok(
         await cashier.read(
           'document.documentElement.scrollWidth<=innerWidth+1',
         ),
       );
-      await tap(cashier, 'Close');
+      await cashier.read(
+        'document.querySelector(\'[aria-label="Close dish selection"]\').click()',
+      );
       await tap(cashier, 'Counter');
     }
+    assert.deepEqual(
+      cashier.payloads,
+      [],
+      'Platform workflow never calls Counter confirmation',
+    );
     assert.deepEqual(external, []);
     assert.deepEqual(failures, []);
     console.log(
-      `Platform browser PASS: ${count} complete responsive Menu configuration/cashier/Kitchen/Production/Dispatch/tracking/cancellation touch workflows; 5 additional boundaries; external traffic blocked.`,
+      `Platform browser PASS: ${count} complete responsive Menu without measurements/shared selector/cashier/Kitchen/Production/Dispatch/tracking/cancellation touch workflows, Swiggy Normal/Less entry, committed response loss/reload/double retry; 5 additional boundaries; external traffic blocked.`,
     );
   } finally {
     for (const c of clients) c.socket.close();
@@ -562,6 +671,6 @@ const root = require('node:path').resolve(__dirname, '..');
     fs.rmSync(profile, { recursive: true, force: true });
   }
 })().catch((e) => {
-  console.error(e.message);
+  console.error(e.stack);
   process.exitCode = 1;
 });

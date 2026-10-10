@@ -121,3 +121,5 @@ Concurrent maintenance, START/READY, handover, collections, refunds and amendmen
 ## Manual platform Orders (020)
 
 The “every order belongs to a Bill” rule above describes Counter after 012. Migration 020 introduces explicit bill-less ZOMATO/SWIGGY operations with NULL finances, required unique platform reference and immutable serving snapshots. Their dedicated /platform-orders APIs use source-aware creation/cancellation and share tokens/FIFO/history/Kitchen/Dispatch. Financial order read/amendment endpoints remain Counter-only. Unfinished platform orders can be manually or automatically cancelled without financial revisions. See [Platform Orders](platform-orders.md) for exact contracts, permissions, cutoff, retry and correction limitations.
+
+Migration 021 refines new platform orders to one immutable preparation_mode (NORMAL/REDUCED) without measured serving configuration. Financial isolation, lifecycle and cleanup are unchanged. Existing measured snapshots and committed request fingerprints remain replayable; see Platform Orders for compatibility semantics.

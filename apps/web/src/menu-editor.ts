@@ -12,9 +12,6 @@ export interface DraftPrice {
   channelCode: string;
   price: string;
   available: boolean;
-  normalAmount?: string;
-  reducedAmount?: string;
-  servingUnit?: 'g' | 'ml';
 }
 export interface DraftVariant {
   key: string;
@@ -79,9 +76,6 @@ export function dishDraft(
           persisted: !!s,
           price: s ? rupees(s.price) : '',
           available: s?.available ?? false,
-          normalAmount: s?.normalAmount ?? '',
-          reducedAmount: s?.reducedAmount ?? '',
-          servingUnit: s?.servingUnit ?? 'g',
         };
       }),
     })),
@@ -97,20 +91,11 @@ export function dishPayload(draft: DishDraft): MenuItemInput {
         displayLabel,
         active,
         channels: channels
-          .filter(
-            (c) =>
-              c.price.trim() !== '' ||
-              c.available ||
-              c.persisted ||
-              !!c.normalAmount,
-          )
+          .filter((c) => c.price.trim() !== '' || c.available || c.persisted)
           .map((c) => ({
             channelCode: c.channelCode,
             available: c.available,
             price: c.price.trim() || null,
-            normalAmount: c.normalAmount?.trim() || null,
-            reducedAmount: c.reducedAmount?.trim() || null,
-            servingUnit: c.normalAmount?.trim() ? (c.servingUnit ?? 'g') : null,
           })),
       }),
     ),

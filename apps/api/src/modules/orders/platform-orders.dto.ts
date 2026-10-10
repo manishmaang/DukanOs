@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsDefined,
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
@@ -28,7 +27,11 @@ export class PlatformLineDto {
   @IsString()
   @MaxLength(500)
   instruction?: string;
-  @IsDefined() @ValidateNested() @Type(() => ServingDto) serving!: ServingDto;
+  // Accepted only to replay a committed migration-020 request, never for creation.
+  @ValidateIf((_o, v) => v !== undefined)
+  @ValidateNested()
+  @Type(() => ServingDto)
+  serving?: ServingDto;
 }
 export class PlatformOrderDto {
   @IsUUID('4') requestId!: string;
@@ -37,8 +40,12 @@ export class PlatformOrderDto {
   @Matches(/^\s*[A-Za-z0-9][A-Za-z0-9_-]{0,79}\s*$/)
   @MaxLength(100)
   externalReference!: string;
-  @IsIn(['NONE', 'APPLIED', 'UNKNOWN']) discountClassification!:
-    'NONE' | 'APPLIED' | 'UNKNOWN';
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsIn(['NORMAL', 'REDUCED'])
+  preparationMode?: ServingMode;
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsIn(['NONE', 'APPLIED', 'UNKNOWN'])
+  discountClassification?: 'NONE' | 'APPLIED' | 'UNKNOWN';
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(100)
