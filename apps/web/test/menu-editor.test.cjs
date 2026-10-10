@@ -83,3 +83,34 @@ test('draft validation gives dish/portion/channel-specific errors and preserves 
     0,
   );
 });
+
+test('platform availability saves without price or measurements and omits retained legacy measurement fields', () => {
+  const item = {
+    id: 'item',
+    name: 'Noodles',
+    categoryId: 'category',
+    active: true,
+    variants: [
+      {
+        id: 'v',
+        name: 'Full',
+        active: true,
+        channels: [
+          {
+            channelCode: 'SWIGGY',
+            price: null,
+            available: true,
+            normalAmount: '300',
+            reducedAmount: '250',
+            servingUnit: 'g',
+          },
+        ],
+      },
+    ],
+  };
+  const draft = dishDraft(channels, item);
+  assert.deepEqual(validateDish(draft, catalog, item), []);
+  assert.deepEqual(dishPayload(draft).variants[0].channels, [
+    { channelCode: 'SWIGGY', available: true, price: null },
+  ]);
+});

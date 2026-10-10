@@ -257,12 +257,13 @@ test(
             ),
           );
           assert.deepEqual(await capture(), before);
-          await sql.query(
-            fs.readFileSync(
-              'database/migrations/020_manual_platform_orders.sql',
-              'utf8',
-            ),
-          );
+          for (const f of fs
+            .readdirSync('database/migrations')
+            .filter((f) => f.endsWith('.sql') && f >= '020')
+            .sort())
+            await sql.query(
+              fs.readFileSync('database/migrations/' + f, 'utf8'),
+            );
         },
       );
       await t.test(

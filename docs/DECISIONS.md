@@ -471,3 +471,17 @@ Date: 2026-10-09.
 **Reason:** avoids fictitious financial history and duplicate queues while keeping preparation precise and auditable in one modular monolith.
 
 **Consequences:** financial reports continue following Bills; platform history is operational only. References remain permanently unique, so correcting a cancelled mistaken reference requires a later audited correction design. No platform reconciliation/API integration or measured Counter profiles are implemented. Runtime grants and schema readiness must ship with migration 020; no live migration/deployment was authorized.
+
+## 025 — Qualitative order-wide platform preparation and shared dish selection
+
+**Date:** 2026-10-10
+
+**Context:** staff know Normal/Less portion sizes; mandatory measurements and a separate oversized platform modal obstruct manual entry. Migration-020 measured orders and uncertain submissions must remain recoverable.
+
+**Options considered:** invent default measurements; rewrite historical lines into a uniform mode; persist identical modes redundantly on every new line; or store one immutable order mode while retaining legacy per-line history.
+
+**Decision:** add orders.preparation_mode through forward migration 021. New platform orders default to NORMAL and require explicit REDUCED (displayed LESS QUANTITY) at review. New line serving fields stay null; operational reads derive their mode from the order. Legacy order mode remains null and measured item snapshots/discount classification are untouched. Old request bodies are replay-only against their original fingerprints. New orders cannot use them. Remove measurement/discount controls from new UI; preserve omitted legacy Menu configuration.
+
+**Reason:** one authoritative mode, no guessed food quantities, no history rewrite and no conflation with external discounts. Share Counter's existing DishSelection component and responsive CSS; keep Counter and platform submission/payment flows separate.
+
+**Consequences:** Production retains source/mode/amount/unit identity so new qualitative, legacy measured and different-source work stay separate. Original financial constraints, FIFO, token/reference/request uniqueness, cancellation, timers and Dispatch payment gates remain. Mixed modes on new orders are deferred. Matching code/schema rollout requires a separately authorized upgrade; no live migration or AWS deployment occurs here.

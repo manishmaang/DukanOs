@@ -397,8 +397,8 @@ function DishEditor({
             <h3>Portions & prices</h3>
             <p>
               Counter prices are in ₹ INR. Platform prices are optional and are
-              not used for manual platform orders; configure availability and
-              serving sizes.
+              not used for manual platform orders; configure platform
+              availability.
             </p>
           </div>
           <button
@@ -516,62 +516,6 @@ function DishEditor({
                           />
                           Available
                         </label>
-                        {c.channelCode !== 'COUNTER' && (
-                          <details className="serving-editor">
-                            <summary>Serving sizes</summary>
-                            <p>
-                              Exact advertised serving, per portion. Required
-                              for manual platform orders. No price inference.
-                            </p>
-                            {(['normalAmount', 'reducedAmount'] as const).map(
-                              (field) => (
-                                <label key={field}>
-                                  {field === 'normalAmount'
-                                    ? 'Normal'
-                                    : 'Reduced (optional)'}
-                                  <input
-                                    aria-label={`${v.name} ${channel.name} ${field === 'normalAmount' ? 'Normal' : 'Reduced'} size`}
-                                    inputMode="decimal"
-                                    maxLength={9}
-                                    value={c[field] ?? ''}
-                                    onChange={(e) =>
-                                      portion(v.key, {
-                                        channels: v.channels.map((p) =>
-                                          p.channelCode === c.channelCode
-                                            ? { ...p, [field]: e.target.value }
-                                            : p,
-                                        ),
-                                      })
-                                    }
-                                  />
-                                </label>
-                              ),
-                            )}
-                            <label>
-                              Unit
-                              <select
-                                aria-label={`${v.name} ${channel.name} serving unit`}
-                                value={c.servingUnit ?? 'g'}
-                                onChange={(e) =>
-                                  portion(v.key, {
-                                    channels: v.channels.map((p) =>
-                                      p.channelCode === c.channelCode
-                                        ? {
-                                            ...p,
-                                            servingUnit: e.target.value as
-                                              'g' | 'ml',
-                                          }
-                                        : p,
-                                    ),
-                                  })
-                                }
-                              >
-                                <option value="g">g</option>
-                                <option value="ml">ml</option>
-                              </select>
-                            </label>
-                          </details>
-                        )}
                       </td>
                     );
                   })}

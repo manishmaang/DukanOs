@@ -11,7 +11,6 @@ import type {
   PlatformOrder,
   PlatformOrderList,
   PlatformSource,
-  ServingSnapshot,
 } from '@dukanos/shared-types';
 import { DatabaseService } from '../../database/database.service';
 import { RestaurantClock } from '../../database/restaurant-clock';
@@ -62,24 +61,11 @@ export class PlatformOrdersService {
                 .flatMap((v) => {
                   const s = v.channels.find((s) => s.channelCode === source);
                   if (!s) return [];
-                  const profile = (
-                    mode: 'NORMAL' | 'REDUCED',
-                    value: string | null | undefined,
-                  ): ServingSnapshot | null =>
-                    value && s.servingUnit
-                      ? {
-                          mode,
-                          amount: amount(paise(value)),
-                          unit: s.servingUnit,
-                        }
-                      : null;
                   return [
                     {
                       id: v.id,
                       name: v.name,
                       available: s.available,
-                      normal: profile('NORMAL', s.normalAmount),
-                      reduced: profile('REDUCED', s.reducedAmount),
                     },
                   ];
                 }),
@@ -93,15 +79,37 @@ export class PlatformOrdersService {
     input: PlatformOrderDto,
     actor: AuthRequest,
   ): Promise<PlatformOrder> {
+    const legacy =
+      input.discountClassification !== undefined ||
+      input.lines.some((l) => l.serving !== undefined);
+    if (
+      legacy &&
+      (input.preparationMode !== undefined ||
+        !input.discountClassification ||
+        input.lines.some((l) => !l.serving))
+    )
+      throw new BadRequestException({
+        code: 'INVALID_INPUT',
+        message: 'Use one preparation mode for the whole order.',
+      });
     const normalized = {
       source: input.source,
       externalReference: input.externalReference.trim().toUpperCase(),
-      discountClassification: input.discountClassification,
+      ...(legacy
+        ? { discountClassification: input.discountClassification }
+        : { preparationMode: input.preparationMode ?? 'NORMAL' }),
       lines: input.lines.map((l) => ({
         variantId: l.variantId.toLowerCase(),
         quantity: l.quantity,
         instruction: (l.instruction ?? '').trim(),
-        serving: { ...l.serving, amount: amount(paise(l.serving.amount)) },
+        ...(legacy
+          ? {
+              serving: {
+                ...l.serving!,
+                amount: amount(paise(l.serving!.amount)),
+              },
+            }
+          : {}),
       })),
     };
     const hash = createHash('sha256')
@@ -123,6 +131,12 @@ export class PlatformOrdersService {
           });
         return this.read(c, existing.id);
       }
+      if (legacy)
+        throw new BadRequestException({
+          code: 'PLATFORM_REVIEW_REQUIRED',
+          message:
+            'This older draft was not submitted. Re-enter it and choose Normal or Less Quantity at review.',
+        });
       const duplicate = (
         await c.query(
           'SELECT id,token_number FROM orders WHERE source=$1 AND external_reference=$2',
@@ -147,24 +161,8 @@ export class PlatformOrdersService {
             code: 'ITEM_NOT_AVAILABLE',
             message: `Line ${index + 1}: ${item?.name ?? 'selected portion'} is unavailable on ${input.source}.`,
           });
-        const serving =
-          line.serving.mode === 'NORMAL' ? variant.normal : variant.reduced;
-        if (!serving)
-          throw new ConflictException({
-            code: 'SERVING_PROFILE_REQUIRED',
-            message: `${item.name} / ${variant.name}: configure the selected serving in Menu first.`,
-          });
-        if (
-          serving.amount !== line.serving.amount ||
-          serving.unit !== line.serving.unit
-        )
-          throw new ConflictException({
-            code: 'SERVING_PROFILE_CHANGED',
-            message: `${item.name} / ${variant.name}: the serving size changed. Review the current menu before submitting.`,
-          });
         return {
           ...line,
-          serving,
           item,
           variant,
           kitchenName:
@@ -181,7 +179,7 @@ export class PlatformOrdersService {
       ).rows[0].last_token;
       const id = randomUUID();
       await c.query(
-        `INSERT INTO orders(id,source,status,business_date,token_number,confirmed_by,request_id,request_hash,queued_at,timezone,discount_total,rounding_adjustment,external_reference,discount_classification) VALUES($1,$2,'QUEUED',$3,$4,$5,$6,$7,$8,$9,NULL,NULL,$10,$11)`,
+        `INSERT INTO orders(id,source,status,business_date,token_number,confirmed_by,request_id,request_hash,queued_at,timezone,discount_total,rounding_adjustment,external_reference,preparation_mode) VALUES($1,$2,'QUEUED',$3,$4,$5,$6,$7,$8,$9,NULL,NULL,$10,$11)`,
         [
           id,
           input.source,
@@ -193,12 +191,12 @@ export class PlatformOrdersService {
           now.queued_at,
           this.clock.timezone,
           normalized.externalReference,
-          input.discountClassification,
+          input.preparationMode ?? 'NORMAL',
         ],
       );
       for (const [index, line] of lines.entries())
         await c.query(
-          `INSERT INTO order_items(id,order_id,position,menu_item_id,variant_id,item_name_snapshot,kitchen_name_snapshot,variant_name_snapshot,quantity,instruction,serving_mode,serving_amount,serving_unit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          `INSERT INTO order_items(id,order_id,position,menu_item_id,variant_id,item_name_snapshot,kitchen_name_snapshot,variant_name_snapshot,quantity,instruction) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [
             randomUUID(),
             id,
@@ -210,9 +208,6 @@ export class PlatformOrdersService {
             line.variant.name,
             line.quantity,
             line.instruction,
-            line.serving.mode,
-            line.serving.amount,
-            line.serving.unit,
           ],
         );
       await c.query(
@@ -233,7 +228,7 @@ export class PlatformOrdersService {
   private async read(c: PoolClient, id: string): Promise<PlatformOrder> {
     const o = (
       await c.query(
-        `SELECT id,source,external_reference AS "externalReference",discount_classification AS "discountClassification",business_date::text AS "businessDate",token_number AS "tokenNumber",status,queued_at AS "queuedAt",confirmed_by AS "confirmedBy" FROM orders WHERE id=$1 AND source IN ('ZOMATO','SWIGGY')`,
+        `SELECT id,source,external_reference AS "externalReference",discount_classification AS "discountClassification",preparation_mode AS "preparationMode",business_date::text AS "businessDate",token_number AS "tokenNumber",status,queued_at AS "queuedAt",confirmed_by AS "confirmedBy" FROM orders WHERE id=$1 AND source IN ('ZOMATO','SWIGGY')`,
         [id],
       )
     ).rows[0];
@@ -244,8 +239,8 @@ export class PlatformOrdersService {
       });
     const items = (
       await c.query(
-        `SELECT id,menu_item_id AS "menuItemId",variant_id AS "variantId",item_name_snapshot AS "itemName",variant_name_snapshot AS "variantName",quantity,instruction,jsonb_build_object('mode',serving_mode,'amount',serving_amount::text,'unit',serving_unit) AS serving FROM order_items WHERE order_id=$1 ORDER BY position`,
-        [id],
+        `SELECT id,menu_item_id AS "menuItemId",variant_id AS "variantId",item_name_snapshot AS "itemName",variant_name_snapshot AS "variantName",quantity,instruction,jsonb_build_object('mode',coalesce($2::text,serving_mode),'amount',serving_amount::text,'unit',serving_unit) AS serving FROM order_items WHERE order_id=$1 ORDER BY position`,
+        [id, o.preparationMode],
       )
     ).rows;
     const history = (

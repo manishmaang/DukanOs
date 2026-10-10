@@ -6,8 +6,15 @@ export function ServingLabel({
 }) {
   return serving ? (
     <p className="serving-label">
-      <strong>{serving.mode}</strong> · {serving.amount.replace(/\.00$/, '')}{' '}
-      {serving.unit} each
+      <strong>
+        {serving.mode === 'NORMAL' ? 'NORMAL QUANTITY' : 'LESS QUANTITY'}
+      </strong>
+      {serving.amount !== null && (
+        <>
+          {' '}
+          · {serving.amount.replace(/\.00$/, '')} {serving.unit} each
+        </>
+      )}
     </p>
   ) : null;
 }

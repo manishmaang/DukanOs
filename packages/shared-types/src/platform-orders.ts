@@ -3,11 +3,9 @@ import type { OrderStatus } from './orders';
 export type PlatformSource = 'ZOMATO' | 'SWIGGY';
 export type OrderSource = 'COUNTER' | PlatformSource;
 export type ServingMode = 'NORMAL' | 'REDUCED';
-export interface ServingSnapshot {
-  mode: ServingMode;
-  amount: string;
-  unit: 'g' | 'ml';
-}
+export type ServingSnapshot = { mode: ServingMode } & (
+  { amount: string; unit: 'g' | 'ml' } | { amount: null; unit: null }
+);
 export interface PlatformMenu {
   source: PlatformSource;
   categories: {
@@ -21,8 +19,6 @@ export interface PlatformMenu {
         id: string;
         name: string;
         available: boolean;
-        normal: ServingSnapshot | null;
-        reduced: ServingSnapshot | null;
       }[];
     }[];
   }[];
@@ -31,19 +27,19 @@ export interface PlatformOrderInput {
   requestId: string;
   source: PlatformSource;
   externalReference: string;
-  discountClassification: 'NONE' | 'APPLIED' | 'UNKNOWN';
+  preparationMode?: ServingMode;
   lines: {
     variantId: string;
     quantity: number;
     instruction?: string;
-    serving: ServingSnapshot;
   }[];
 }
 export interface PlatformOrder {
   id: string;
   source: PlatformSource;
   externalReference: string;
-  discountClassification: PlatformOrderInput['discountClassification'];
+  preparationMode: ServingMode | null;
+  discountClassification: 'NONE' | 'APPLIED' | 'UNKNOWN' | null;
   businessDate: string;
   tokenNumber: number;
   status: OrderStatus;

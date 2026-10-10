@@ -95,3 +95,5 @@ The default report delay remains five minutes after midnight, before default 05:
 ## Manual platform isolation (020)
 
 Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).
+
+Migration 021's qualitative platform preparation adds no Bill, payment or tax record and does not modify stored Daily Reports. Daily snapshot regression coverage checks equality across platform creation, handover and cancellation; no regeneration is triggered by a preparation-mode change.

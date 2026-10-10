@@ -1,6 +1,10 @@
 import { InstructionEditor } from './InstructionEditor';
 import { useEffect, useRef, useState } from 'react';
-import type { OperationalMenu } from '@dukanos/shared-types';
+import type {
+  OperationalMenu,
+  PlatformMenu,
+  PlatformSource,
+} from '@dukanos/shared-types';
 import { MenuPhoto } from './MenuPhoto';
 import { rupees } from './menu-editor';
 import {
@@ -10,27 +14,39 @@ import {
   type CartLine,
 } from './order-cart';
 type Dish = OperationalMenu['categories'][number]['items'][number];
-export function DishSelection({
-  dish,
-  canCreateOrders,
-  canManageAvailability,
-  locked,
-  busy,
-  actionError,
-  onAvailability,
-  onAdd,
-  onDismiss,
-}: {
-  dish: Dish;
+export interface PortionSelection {
+  variantId: string;
+  variantName: string;
+  quantity: number;
+  instruction: string;
+}
+type SelectionProps = {
   canCreateOrders: boolean;
   canManageAvailability: boolean;
   locked: boolean;
   busy: boolean;
   actionError: string;
   onAvailability: (available: boolean, variantId?: string) => void;
-  onAdd: (lines: CartLine[]) => void;
   onDismiss: () => void;
-}) {
+} & (
+  | { channel?: 'COUNTER'; dish: Dish; onAdd: (lines: CartLine[]) => void }
+  | {
+      channel: PlatformSource;
+      dish: PlatformMenu['categories'][number]['items'][number];
+      onAdd: (lines: PortionSelection[]) => void;
+    }
+);
+export function DishSelection(props: SelectionProps) {
+  const {
+    dish,
+    canCreateOrders,
+    canManageAvailability,
+    locked,
+    busy,
+    actionError,
+    onAvailability,
+    onDismiss,
+  } = props;
   const dialog = useRef<HTMLDialogElement>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -56,11 +72,32 @@ export function DishSelection({
       );
     }
   }, [dish.variants, quantities]);
-  const selected = selectionLines(dish, quantities, notes);
+  const selected: PortionSelection[] = dish.variants.flatMap((v) => {
+    const quantity = quantities[v.id] ?? 0;
+    return v.available && quantity > 0
+      ? [
+          {
+            variantId: v.id,
+            variantName: v.name,
+            quantity,
+            instruction: (notes[v.id] ?? '').trim(),
+          },
+        ]
+      : [];
+  });
   const count = selected.reduce((n, l) => n + l.quantity, 0);
-  const total = cartAmount(
-    selected.reduce((n, l) => n + cartPaise(l.price) * BigInt(l.quantity), 0n),
-  );
+  const counterLines =
+    !props.channel || props.channel === 'COUNTER'
+      ? selectionLines(props.dish as Dish, quantities, notes)
+      : null;
+  const total = counterLines
+    ? cartAmount(
+        counterLines.reduce(
+          (n, l) => n + cartPaise(l.price) * BigInt(l.quantity),
+          0n,
+        ),
+      )
+    : null;
   function changeQuantity(id: string, change: number) {
     setQuantities((current) => ({
       ...current,
@@ -89,7 +126,7 @@ export function DishSelection({
       <div className="portion-content">
         <div className="portion-aside">
           <MenuPhoto src={dish.image?.url} name={dish.name} />
-          <p className="menu-muted">Counter portions</p>
+          <p className="menu-muted">{props.channel ?? 'Counter'} portions</p>
           {canManageAvailability && (
             <button
               className="pos-item-availability secondary-control"
@@ -123,7 +160,7 @@ export function DishSelection({
                   <div className="portion-row-main">
                     <div className="portion-name">
                       <strong>{v.name}</strong>
-                      <span>₹{rupees(v.price)}</span>
+                      {'price' in v && <span>₹{rupees(v.price)}</span>}
                     </div>
                     {canCreateOrders && (
                       <div
@@ -188,7 +225,8 @@ export function DishSelection({
         <div className="portion-footer">
           <div aria-live="polite">
             <strong>
-              {count} {count === 1 ? 'item' : 'items'} · ₹{rupees(total)}
+              {count} {count === 1 ? 'item' : 'items'}
+              {total !== null && ` · ₹${rupees(total)}`}
             </strong>
             <div className="portion-summary">
               {selected.length
@@ -203,7 +241,9 @@ export function DishSelection({
             disabled={locked || busy || count === 0}
             onClick={() => {
               try {
-                onAdd(selected);
+                if (props.channel === 'ZOMATO' || props.channel === 'SWIGGY')
+                  props.onAdd(selected);
+                else props.onAdd(counterLines!);
                 onDismiss();
               } catch (e) {
                 setError(
@@ -212,7 +252,8 @@ export function DishSelection({
               }
             }}
           >
-            Add {count} {count === 1 ? 'item' : 'items'} · ₹{rupees(total)}
+            Add {count} {count === 1 ? 'item' : 'items'}
+            {total !== null && ` · ₹${rupees(total)}`}
           </button>
         </div>
       )}

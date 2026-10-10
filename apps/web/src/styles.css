@@ -1934,7 +1934,7 @@ header > div button {
     font-size: 1.25rem;
   }
 }
-/* With a keyboard/short viewport, scroll the whole form rather than clipping fixed regions. */
+/* Short cart forms scroll naturally; dish selection keeps its bounded body and footer. */
 .keyboard-open .pos-portions,
 .keyboard-open .kds-availability {
   position: fixed;
@@ -1955,13 +1955,6 @@ header > div button {
     display: block;
   }
   .cart-dialog .cart-items {
-    overflow: visible;
-  }
-  .pos-portions[open] {
-    overflow-y: auto;
-    display: block;
-  }
-  .portion-content {
     overflow: visible;
   }
 }
@@ -2904,27 +2897,12 @@ header > div button {
   margin: 0.35rem 0;
   overflow-wrap: anywhere;
 }
-.serving-editor {
-  min-width: 0;
-}
-.serving-editor summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-.serving-editor input,
-.serving-editor select {
-  width: 100%;
-  min-width: 0;
-}
 .platform-cart {
   padding: 1rem;
   overflow: auto;
   max-height: 80dvh;
 }
 .platform-cart label,
-.platform-dish-dialog label,
 .platform-tracking label {
   display: block;
   margin-block: 0.6rem;
@@ -2932,9 +2910,6 @@ header > div button {
 .platform-cart input,
 .platform-cart textarea,
 .platform-cart select,
-.platform-dish-dialog input,
-.platform-dish-dialog textarea,
-.platform-dish-dialog select,
 .platform-tracking input,
 .platform-tracking textarea {
   width: 100%;
@@ -2945,15 +2920,6 @@ header > div button {
   padding-block: 0.7rem;
   border-bottom: 1px solid #c1d3c9;
   overflow-wrap: anywhere;
-}
-.platform-dish-dialog {
-  width: min(600px, calc(100vw - 24px));
-  max-height: var(--visual-viewport-height, 90dvh);
-  overflow: auto;
-  box-sizing: border-box;
-}
-.platform-dish-dialog section {
-  margin-block: 1rem;
 }
 .platform-track-card {
   width: 100%;
@@ -2968,4 +2934,24 @@ header > div button {
   .platform-cart {
     max-height: none;
   }
+}
+
+.preparation-choice {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #bac9bd;
+  border-radius: 8px;
+}
+.preparation-choice button {
+  min-height: 48px;
+}
+.preparation-choice [aria-pressed='true'] {
+  background: #084c3b;
+  color: white;
+  border: 3px solid #084c3b;
+  font-weight: 700;
+}
+.preparation-choice [aria-pressed='false'] {
+  background: white;
+  color: #084c3b;
 }
