@@ -240,3 +240,7 @@ Adds orders.preparation_mode text, nullable only for Counter and existing measur
 The line insert guard requires new platform lines to have null price/subtotal and null serving_mode/amount/unit, with active and available platform references. Their sole stored preparation truth is the parent order. Kitchen/Dispatch/platform DTOs derive serving.mode from that field and expose amount/unit null. Original measured lines remain under the unchanged serving_snapshot constraint and retain every amount/unit/mode. Sealed aggregates cannot append lines. Existing Menu measurement columns remain optional compatibility data and are omitted by the editor; omitted aggregate values are retained.
 
 No new tables, grants, financial views, token allocation, cancellation or lifecycle changes. Existing reference and request uniqueness remain intact. Verification applies 001–021 to disposable schemas and compares every existing row across 021 (excluding only the newly added null field). The restaurant database was not migrated.
+
+## Explicit restaurant menu data import
+
+The one-time `scripts/seed-rudragiri-menu.sql` is data maintenance, never a migration. It uses existing Menu tables plus append-only actor-attributed audits, defaults to rollback, validates the exact 001–021 migration ledger and preserves all existing rows. Temporary staging tables exist only inside its transaction. No permanent table/function, migration replay or schema change is introduced. See [runbook](operations/MENU_IMPORT.md).

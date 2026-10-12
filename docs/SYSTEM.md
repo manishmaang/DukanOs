@@ -115,7 +115,7 @@ A local worker follows rollover with a configurable five-minute default delay, d
 
 On 2026-10-12 the owner reported an operational EC2 deployment with same-host PostgreSQL 16, schema `dukanos` in `dukanos_prod`, 21 applied migrations and an existing OWNER. An authorized read-only Git check verified deployed commit `fdef4f7b41d6a26bb88ef29d30e5e9ec640d70f7`; database/service/recovery readiness was not independently re-audited. Earlier preparation notes below describe the previous milestone, not an assertion that the owner has not deployed since.
 
-The current task is a one-time standalone menu SQL import, with the complete transcription awaiting approval. No import module/API/UI, schema change or production execution is authorized. The owner will run the final reviewed commands personally. See [import checkpoint](checkpoints/bulk-menu-import.md).
+A one-time standalone menu SQL import is prepared with owner-corrected data, default rollback, explicit apply, conflict detection and equivalent menu audit records. No import module/API/UI or schema change was introduced, and production execution is not authorized for the coding agent. The owner will run the final reviewed commands personally. See [import checkpoint](checkpoints/bulk-menu-import.md).
 
 ## AWS pilot preparation checkpoint
 

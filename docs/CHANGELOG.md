@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — Standalone Rudragiri menu SQL
+
+- Applied owner corrections: 15 categories, 118 dishes, 156 variants; Chole and Butter Paneer Masala include Regular/Half/Full, without separate Regular dishes.
+- Added atomic default-rollback SQL import, exact-match repeat safety, schema/owner/conflict validation, equivalent menu audit snapshots and read-only reconciliation. Existing records and platform settings are never overwritten.
+- Added disposable PostgreSQL regression coverage and protected-maintenance-env EC2 instructions. Full check/build passed (36 unit tests), 18 standalone SQL tests and 20 existing Menu/migration tests passed. No application-code changes, migrations or production writes.
+
 ## 2026-10-12 — Rudragiri menu approval draft
 
 - Added the complete 15-category, 120-dish menu-board transcription with eight ambiguity references for owner review. No SQL import or application change is implemented at this stage.
