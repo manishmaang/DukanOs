@@ -151,3 +151,7 @@ See [Responsive UI](../RESPONSIVE_UI.md) for project-wide viewport/touch standar
 ## Manual platform configuration (020)
 
 Zomato/Swiggy channel settings may have no price. Their existing availability flags and ancestor activation control manual entry. The single Save dish editor configures availability and optional platform prices, with no grams/ml controls or required measurements. Omitted legacy measurement fields are preserved server-side, and historical order snapshots never depend on current configuration. New platform orders choose qualitative Normal/Less once at POS review (migration 021). Existing version/conflict/audit behavior and Counter pricing/availability remain unchanged. See [Platform Orders](platform-orders.md).
+
+## Restaurant-specific import review
+
+A one-time Rudragiri SQL import is being prepared separately from application features. The [complete menu approval draft](../../data/menu-import/rudragiri-menu-review.md) contains 15 categories and 120 dish rows, with unresolved readings explicitly marked. No import is implemented or executed yet. After approval, SQL must preserve the existing active-reference, scoped-name, precise-money, shared-lock and actor/audit requirements; skip exact matches and abort conflicts without updating existing items. See the [checkpoint](../checkpoints/bulk-menu-import.md).

@@ -1,6 +1,6 @@
 # AWS supervised pilot preparation
 
-Repository safeguards and templates are prepared; **nothing has been deployed or provisioned in AWS**. Read the historical [readiness audit and follow-up](PRODUCTION_READINESS_AUDIT.md) and [checkpoint](checkpoints/aws-pilot-preparation.md) before opening customer traffic. Automated local tests do not certify AWS recovery, TLS, firewall rules, sizing or uptime.
+This document records the earlier repository preparation milestone. **Update 2026-10-12:** the owner reports a working EC2 deployment; a read-only Git check verified release `fdef4f7b41d6a26bb88ef29d30e5e9ec640d70f7`. The checks and pending infrastructure statements below are historical preparation guidance, not a fresh audit of that host. See the [current import checkpoint](checkpoints/bulk-menu-import.md). No production change is authorized by the menu review task. Read the historical [readiness audit and follow-up](PRODUCTION_READINESS_AUDIT.md) and [checkpoint](checkpoints/aws-pilot-preparation.md) before opening customer traffic. Automated local tests do not certify AWS recovery, TLS, firewall rules, sizing or uptime.
 
 ## One authority and the recommended installation
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — Rudragiri menu approval draft
+
+- Added the complete 15-category, 120-dish menu-board transcription with eight ambiguity references for owner review. No SQL import or application change is implemented at this stage.
+- Recorded the superseding standalone-SQL approach, verified deployed Git reference and pending approval/testing in the import checkpoint. No production data changed.
+
 ## 2026-10-10 — Shared platform POS and qualitative preparation
 
 ### Changed
