@@ -4,7 +4,7 @@ Single-location restaurant POS and kitchen system, with **staff authentication, 
 
 ## Production readiness
 
-Production deployment is not yet approved. Read the [2026-10-07 readiness audit](docs/PRODUCTION_READINESS_AUDIT.md) for historical findings and their hardening follow-up, and the [deployment procedure](docs/DEPLOYMENT.md) for environment variables, local/cloud topology, HTTPS, workers, backups and rollback. No cloud resources or production infrastructure were deployed by this audit.
+The owner reports a working EC2/HTTPS deployment with encrypted S3 backups and an isolated database restore. Read the [AWS cloud handover](docs/operations/AWS_CLOUD_HANDOVER.md) for exact paths, dated evidence, later menu/OWNER updates and pending pilot checks. Alerts, scheduled backup verification, real-device acceptance and full-host recovery remain pending confirmation. This is not certification for live customer traffic. Read the [2026-10-07 readiness audit](docs/PRODUCTION_READINESS_AUDIT.md) for historical findings and their hardening follow-up, and the [deployment procedure](docs/DEPLOYMENT.md) for environment variables, local/cloud topology, HTTPS, workers, backups and rollback. No cloud resources or production infrastructure were deployed by this audit.
 
 ## MVP checkpoint
 

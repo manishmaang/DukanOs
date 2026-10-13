@@ -1,5 +1,7 @@
 # AWS pilot preparation checkpoint
 
+**Historical milestone:** the owner subsequently deployed EC2/HTTPS and configured encrypted S3 backups. Read the [current AWS handover](../operations/AWS_CLOUD_HANDOVER.md) for dated deployment evidence and remaining checks. Statements below describe this preparation task, not the current absence of infrastructure.
+
 Authorized scope: Phase A automatic previous-date order cleanup, then Phase B essential AWS deployment hardening. No AWS resources, deployment or additional business milestones.
 
 Starting main: a190635 (completed readiness audit). Phase A branch: feature/previous-day-order-cleanup; migration 019. Phase A complete: commit `9b8c21a`, merged and pushed as `7ad0d89` on main. Phase B branch `fix/aws-pilot-hardening` was created from that updated main. Phase B implementation, documentation and verification are complete. Delivery uses the separate hardening branch and the authorized merge-commit workflow; Phase B implementation commit: `133cde0` (`Harden AWS pilot startup, database access and full recovery`). The final checkpoint update is a separate documentation commit on the same branch.
