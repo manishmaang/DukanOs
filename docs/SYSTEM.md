@@ -117,6 +117,10 @@ On 2026-10-12 the owner reported an operational EC2 deployment with same-host Po
 
 A one-time standalone menu SQL import is prepared with owner-corrected data, default rollback, explicit apply, conflict detection and equivalent menu audit records. No import module/API/UI or schema change was introduced, and production execution is not authorized for the coding agent. The owner will run the final reviewed commands personally. See [import checkpoint](checkpoints/bulk-menu-import.md).
 
+## One-time platform menu enablement
+
+On 2026-10-13 the owner confirmed production Counter menu import: 15 categories, 118 dishes, 156 priced/available variants and 133 menu audits. Separate maintenance SQL is prepared to add 156 SWIGGY and 156 ZOMATO settings at current Counter prices, available with NULL measured configuration. It defaults to rollback, uses existing item versions and UPDATED before/after audits, rejects conflicts, and requires no TEMPORARY privilege. It has not been executed on production by this task; the owner performs final commands. See [runbook](operations/PLATFORM_MENU.md) and [checkpoint](checkpoints/platform-menu-enablement.md). No ongoing cross-channel price synchronization or provider integration is added.
+
 ## AWS pilot preparation checkpoint
 
 The two-phase preparation assignment (cleanup and essential deployment hardening) is complete. Manual Platform Orders and its qualitative preparation refinement are implemented. See [persistent checkpoint](checkpoints/aws-pilot-preparation.md). AWS resource creation/deployment is not authorized. The intended pilot uses one EC2 application process with same-origin HTTPS and private PostgreSQL; cloud-only operation depends on WAN, and no dual-write/local-cloud synchronization is implemented.

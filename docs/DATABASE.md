@@ -244,3 +244,7 @@ No new tables, grants, financial views, token allocation, cancellation or lifecy
 ## Explicit restaurant menu data import
 
 The one-time `scripts/seed-rudragiri-menu.sql` is data maintenance, never a migration. It uses existing Menu tables plus append-only actor-attributed audits, defaults to rollback, validates the exact 001–021 migration ledger and preserves all existing rows. Temporary staging tables exist only inside its transaction. No permanent table/function, migration replay or schema change is introduced. See [runbook](operations/MENU_IMPORT.md).
+
+## One-time platform menu settings
+
+`scripts/enable-platform-menu.sql` inserts missing SWIGGY/ZOMATO settings for the validated 156 Counter variants and appends complete UPDATED menu snapshots per affected item. Existing child triggers provide parent version/updated_at changes; no Counter or other business records are changed. Matching records skip; conflicts abort atomically. PL/pgSQL variables and transaction-local settings require no TEMP privilege or schema objects. See [runbook](operations/PLATFORM_MENU.md). This data script is not a migration.
