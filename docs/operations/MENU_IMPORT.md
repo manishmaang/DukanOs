@@ -2,6 +2,10 @@
 
 This is restaurant data maintenance, not an application feature or migration. The owner will run production commands personally. No production data was changed during implementation. No new release, build, restart, migration, credential change or AWS resource is needed to execute the reviewed SQL.
 
+## Completed import and next operation
+
+On 2026-10-13 the owner confirmed production import and verification. Do not rerun the seed to enable platforms. Use the separate [platform menu runbook](PLATFORM_MENU.md), whose SQL needs no TEMPORARY privilege. The original import procedure below remains historical/recovery documentation.
+
 ## Reviewed data
 
 [Full menu table](../../data/menu-import/rudragiri-menu-review.md): 15 categories, 118 dishes, 156 variants. Owner corrections on 2026-10-12 resolve all eight ambiguities. CHOLE and BUTTER PANEER MASALA have REGULAR/HALF/FULL; separate Regular dishes are not created. SEV TAMATAR FULL is ₹130. Remaining rows follow HALF/FULL, FULL-only or EXTRA/REFILL rules. SQL stores exact numeric INR values, never floating point. Image corrections override initial readings.

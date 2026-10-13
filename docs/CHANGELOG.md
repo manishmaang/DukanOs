@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13 — One-time platform menu enablement
+
+- Added separate default-rollback SQL to copy all 156 Counter prices into 312 available SWIGGY/ZOMATO settings, without measured fields or TEMPORARY privilege. Existing matches skip; conflicts abort.
+- Preserved IDs, Counter configuration and history; reused item-version triggers and attributable full before/after UPDATED audits. Added read-only verification and exact protected-env operator instructions.
+- New disposable PostgreSQL coverage verifies no-TEMP execution, concurrency, rollback, audit-model equality, existing records and repeat no-op. All 13 new SQL tests, 20 existing Menu/migration integration tests and full check/build (36 unit tests) passed. No production access, seed rerun, migration or application changes.
+
 ## 2026-10-12 — Standalone Rudragiri menu SQL
 
 - Applied owner corrections: 15 categories, 118 dishes, 156 variants; Chole and Butter Paneer Masala include Regular/Half/Full, without separate Regular dishes.
