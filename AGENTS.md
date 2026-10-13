@@ -593,7 +593,7 @@ A Bill is the commercial tab; each child Order is an independent Kitchen prepara
 
 ## Current authorized preparation checkpoint
 
-For the two-phase cleanup/AWS pilot hardening assignment, read [docs/checkpoints/aws-pilot-preparation.md](docs/checkpoints/aws-pilot-preparation.md) alongside SYSTEM.md. Keep phase commits/verification and remaining deployment conditions current there. AWS resource creation and deployment require a later explicit instruction.
+For the two-phase cleanup/AWS pilot hardening assignment, read [docs/checkpoints/aws-pilot-preparation.md](docs/checkpoints/aws-pilot-preparation.md) alongside SYSTEM.md. Keep phase commits/verification and remaining deployment conditions current there. That checkpoint is historical preparation evidence. For AWS work, also read [docs/operations/AWS_CLOUD_HANDOVER.md](docs/operations/AWS_CLOUD_HANDOVER.md): deployment and backup setup have since been reported complete. Further live changes require explicit authorization; never infer deployed code from latest main.
 
 ## Current authorized feature checkpoint
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-13 — AWS operational context reconciliation
+
+- Preserved the owner-provided October 12 deployment/recovery handover with a current reconciliation of completed OWNER/Counter setup and unconfirmed platform apply.
+- Corrected obsolete undeployed/unconfigured claims and linked the canonical AWS context from system, architecture, deployment, README and agent instructions. Kept historical evidence separate from pending alerts, scheduled-backup checks and full-host recovery.
+- Documentation only; no production access, application changes, migrations, credentials or infrastructure changes.
+
 ## 2026-10-13 — One-time platform menu enablement
 
 - Added separate default-rollback SQL to copy all 156 Counter prices into 312 available SWIGGY/ZOMATO settings, without measured fields or TEMPORARY privilege. Existing matches skip; conflicts abort.
