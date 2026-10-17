@@ -24,6 +24,12 @@ This repository copy preserves the owner's **12 October handover evidence** belo
 
 Start with monitoring and verification planning, not another OWNER bootstrap or menu import. No live action is authorized by this context document. The owner executes the reviewed one-time menu commands personally. Repository implementation procedures are in [DEPLOYMENT.md](../DEPLOYMENT.md); historical preparation checks are in [the preparation checkpoint](../checkpoints/aws-pilot-preparation.md).
 
+## Owner inventory update — 17 October 2026
+
+The owner now reports 468 menu channel settings and 251 menu audits, superseding the earlier unconfirmed platform-apply state. Menu remains 15 categories / 118 dishes / 156 variants. An encrypted October 17 backup was created and its S3 object verified, per the owner; scheduled-run/alert delivery and complete replacement-host recovery are still unconfirmed.
+
+Seven October 17 test orders (five Counter, two Zomato), five bills, four collections totaling ₹1,100 and related operational rows were supplied for an independent cleanup review. Seven historical daily reports (October 10–16) and daily number counters must remain. See the [cleanup safety review](TEST_ORDER_CLEANUP_2026-10-17.md). Scripts are prepared/tested locally only; **cleanup has not been executed or authorized for production by this review**. Never assume these counts are current without checking during the separately approved maintenance window.
+
 ## Original dated handover evidence
 
 The following sections describe the 12 October snapshot. Any pre-bootstrap or unconfigured-menu statements are historical and superseded by the reconciliation above. Commands are operator references, not instructions to execute automatically.
