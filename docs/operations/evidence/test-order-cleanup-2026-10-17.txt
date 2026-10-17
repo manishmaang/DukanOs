@@ -1,0 +1,103 @@
+Command: node scripts/test-test-order-cleanup.cjs
+PostgreSQL: 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+Random disposable directory paths normalized and trailing spaces trimmed; all fixture output/results retained.
+
+BEGIN
+SET
+SET
+SET
+SET
+SET
+SET
+ set_config | set_config | set_config
+------------+------------+------------
+ false      |            |
+(1 row)
+
+DO
+ROLLBACK
+CLEANUP_DRY_RUN_ROLLED_BACK
+psql:<disposable-cluster>/cleanup.sql:226: NOTICE:  CLEANUP_REVIEW_FINGERPRINT=732d631ebd2fd5c17a80d88f198ad8684b80d00707bc1bb8fedaa13d6e3ee49a
+psql:<disposable-cluster>/cleanup.sql:226: NOTICE:  CLEANUP_DELETED={"bills": 5, "orders": 7, "payments": 4, "order_items": 9, "kitchen_timers": 1, "order_status_history": 13}
+psql:<disposable-cluster>/cleanup.sql:226: NOTICE:  CLEANUP_PRESERVATION_AND_TRIGGER_CHECKS_PASSED
+
+▶ isolated PostgreSQL 16 test-order cleanup safety
+  ✔ default dry run deletes exact inventory then rolls back every row/trigger (520.880109ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_EXPLICIT_CONFIRMATION_REQUIRED
+  ✔ explicit apply requires confirmation and reviewed fingerprint (340.651166ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+  ✔ changed reviewed fingerprint aborts (470.444246ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_ORDER_BASELINE_CHANGED
+  ✔ mismatched target UUID aborts (380.20359ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_BILL_OR_ORDER_CHILD_BASELINE_CHANGED
+  ✔ unexpected extra bill aborts (1266.398218ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_OTHER_DATABASE_CLIENTS
+  ✔ another database client blocks maintenance (393.769848ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_ORDER_BASELINE_CHANGED
+  ✔ an eighth order is never swept up (1371.124841ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_PAYMENT_BASELINE_CHANGED
+  ✔ an additional collection aborts (1281.479408ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+  ✔ menu edit after reviewed dry-run invalidates apply fingerprint (1706.450122ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_MIGRATION_LEDGER_CHANGED
+  ✔ ledger checksum mismatch aborts (1317.349496ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_CHANGED
+  ✔ foreign-key constraint removal aborts (1266.017136ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNEXPECTED_TRIGGER_OR_EXTERNAL_DEPENDENCY
+  ✔ cross-schema reference aborts even when empty (1362.715688ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_EVENT_DATE_CHANGED
+  ✔ cross-date payment aborts to protect historical report semantics (1346.520184ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_OR_TRIGGER_RESTORE_FAILED
+  ✔ missing trigger restoration aborts and rolls everything back (538.701714ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_CHANGED
+  ✔ unknown schema column aborts (1293.618428ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_CHANGED
+  ✔ disabled protection trigger aborts without changing its preexisting state (1801.796781ms)
+EXPECTED SAFE ABORT: ERROR:  update or delete on table "orders" violates foreign key constraint "order_items_order_id_fkey" on table "order_items"
+  ✔ FKs still reject parent deletion while six application guards are disabled (532.875108ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting kitchen_timers restores all rows and trigger states (500.953906ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting payments restores all rows and trigger states (543.775953ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting order_status_history restores all rows and trigger states (525.931372ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting order_items restores all rows and trigger states (629.860511ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting orders restores all rows and trigger states (624.770775ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting bills restores all rows and trigger states (553.268814ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_PRESERVED_DATA_CHANGED: app_metadata
+  ✔ preservation check catches unrelated update and rolls it back (691.775368ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_OR_NUMBER_IDENTITY_CHANGED
+  ✔ report referring to target in JSON aborts (1751.254542ms)
+BEGIN
+SET
+SET
+SET
+SET
+SET
+SET
+ set_config |                 set_config                  |                            set_config
+------------+---------------------------------------------+------------------------------------------------------------------
+ true       | DELETE_20261017_7_ORDERS_5_BILLS_4_PAYMENTS | e6f33351ba0e301fd2b064563796d13ac79ddb95a6b795892e137a07ab2042bb
+(1 row)
+
+DO
+COMMIT
+CLEANUP_COMMITTED
+psql:<disposable-cluster>/cleanup.sql:226: NOTICE:  CLEANUP_REVIEW_FINGERPRINT=e6f33351ba0e301fd2b064563796d13ac79ddb95a6b795892e137a07ab2042bb
+psql:<disposable-cluster>/cleanup.sql:226: NOTICE:  CLEANUP_DELETED={"bills": 5, "orders": 7, "payments": 4, "order_items": 9, "kitchen_timers": 1, "order_status_history": 13}
+psql:<disposable-cluster>/cleanup.sql:226: NOTICE:  CLEANUP_PRESERVATION_AND_TRIGGER_CHECKS_PASSED
+
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_ORDER_BASELINE_CHANGED
+  ✔ commit deletes only six tables; counters, menu, staff and reports unchanged; repeat safely refuses (1750.184292ms)
+✔ isolated PostgreSQL 16 test-order cleanup safety (27274.058231ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 27281.230702

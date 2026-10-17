@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-17 — Test-order cleanup safety review
+
+- Rejected the incomplete attached draft as unverified; prepared a separate narrowly scoped, default-rollback SQL replacement and read-only verification.
+- Added exact migration/schema/inventory gates, reviewed-data fingerprint confirmation, child-first deletes, active FKs, transactional restoration of six guards and exact preservation checks for every other table.
+- Added a socket-only disposable PostgreSQL test harness (27 passing tests), failure-injection evidence and owner execution/recovery instructions. No production access, application changes or migrations.
+
 ## 2026-10-13 — AWS operational context reconciliation
 
 - Preserved the owner-provided October 12 deployment/recovery handover with a current reconciliation of completed OWNER/Counter setup and unconfirmed platform apply.

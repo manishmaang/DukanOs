@@ -248,3 +248,7 @@ The one-time `scripts/seed-rudragiri-menu.sql` is data maintenance, never a migr
 ## One-time platform menu settings
 
 `scripts/enable-platform-menu.sql` inserts missing SWIGGY/ZOMATO settings for the validated 156 Counter variants and appends complete UPDATED menu snapshots per affected item. Existing child triggers provide parent version/updated_at changes; no Counter or other business records are changed. Matching records skip; conflicts abort atomically. PL/pgSQL variables and transaction-local settings require no TEMP privilege or schema objects. See [runbook](operations/PLATFORM_MENU.md). This data script is not a migration.
+
+## Dated test-only maintenance review — 2026-10-17
+
+The [reviewed cleanup procedure](operations/TEST_ORDER_CLEANUP_2026-10-17.md) prepares an exceptional deletion of exactly seven owner-identified test orders and related rows. It is not a migration or application workflow. Six named non-internal guards are disabled/restored within one locked transaction; all FKs and the three empty amendment/revision/cancellation guards remain enabled. Exact 001–021 ledger/schema checks, scoped deletes/counts, preserved-table equality and an explicit reviewed-data fingerprint gate precede commit. All counters, historical report snapshots, configuration and audits remain. Production execution is separately authorized and has not occurred during this review.

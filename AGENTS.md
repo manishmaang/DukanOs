@@ -598,3 +598,7 @@ For the two-phase cleanup/AWS pilot hardening assignment, read [docs/checkpoints
 ## Current authorized feature checkpoint
 
 For one-time Swiggy/Zomato menu enablement, read [docs/checkpoints/platform-menu-enablement.md](docs/checkpoints/platform-menu-enablement.md). Preserve the completed Counter seed; use only the new standalone enable/verify SQL. No TEMPORARY privilege, migration, application change or production execution is authorized for the coding agent. The owner runs reviewed EC2 commands personally. Previous checkpoint: [bulk menu import](docs/checkpoints/bulk-menu-import.md). Follow the updated-main branch workflow and keep verification status accurate.
+
+## Current maintenance review checkpoint
+
+For the October 17 production test-order cleanup review, read [docs/checkpoints/test-order-cleanup-review.md](docs/checkpoints/test-order-cleanup-review.md) and its linked runbook. The attached draft was truncated; only the separately tested replacement is deliverable. Do not connect to production or execute cleanup based on the review task. Exact target scope, unchanged numbering/reports and separate owner execution authorization are mandatory. This is not a recurring deletion feature.
