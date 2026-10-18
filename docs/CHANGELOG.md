@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-18 — Correct cleanup audit baseline
+
+- Corrected only the standalone cleanup audit-count gate from 251 to the owner-verified 293; preserves all additional 42 audits and every existing safety mechanism. Read-only verification SQL is unchanged.
+- Added attributed before/after audit fixtures, count/content drift and midnight report/counter safety regressions; updated review evidence and staged-file replacement instructions. No production connection, application changes or migrations.
+
 ## 2026-10-17 — Test-order cleanup safety review
 
 - Rejected the incomplete attached draft as unverified; prepared a separate narrowly scoped, default-rollback SQL replacement and read-only verification.

@@ -83,6 +83,10 @@ SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid WHERE c.rel
     }
     migrationSQL += 'COMMIT;';
     const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    // Reuse the reviewed public Menu aggregate shape, without running the import.
+    const menuSnapshotSql = (
+      await readFile('scripts/enable-platform-menu.sql', 'utf8')
+    ).split('$snapshot$')[1];
     let fixture = `SET search_path=dukanos,pg_catalog; BEGIN;
 INSERT INTO users(id,username,name,password_hash) VALUES('${owner}','fixtureowner','Synthetic owner','not-a-real-password-hash');
 INSERT INTO user_roles VALUES('${owner}','OWNER');
@@ -91,6 +95,20 @@ INSERT INTO menu_items(id,category_id,name) SELECT md5('item'||n)::uuid,md5('cat
 INSERT INTO item_variants(id,menu_item_id,name) SELECT md5('variant'||n)::uuid,md5('item'||(1+(n-1)%118))::uuid,'Portion '||n FROM generate_series(1,156) n;
 INSERT INTO variant_channel_settings(variant_id,channel_code,price,available) SELECT id,code,100,true FROM item_variants CROSS JOIN sales_channels;
 INSERT INTO menu_audit(actor_id,item_id,action,after_value) SELECT '${owner}',md5('item'||(1+(n-1)%118))::uuid,CASE WHEN n<=133 THEN 'CREATED' ELSE 'UPDATED' END,'{"fixture":true}' FROM generate_series(1,251)n;
+-- Additional legitimate-format audit records only in the synthetic cluster.
+DO $fixture$ DECLARE n integer; item_id uuid; before_snapshot jsonb; after_snapshot jsonb;
+ snapshot_query text := $snapshot$${menuSnapshotSql}$snapshot$;
+BEGIN
+ FOR n IN 1..42 LOOP
+  item_id:=md5('item'||n)::uuid;
+  EXECUTE snapshot_query INTO before_snapshot USING item_id;
+  UPDATE menu_items SET description='Synthetic audited edit '||n WHERE id=item_id;
+  EXECUTE snapshot_query INTO after_snapshot USING item_id;
+  INSERT INTO menu_audit(actor_id,item_id,action,before_value,after_value,created_at)
+  VALUES('${owner}',item_id,'UPDATED',before_snapshot,after_snapshot,
+    CASE WHEN n<=11 THEN '2026-10-14T10:00:00Z'::timestamptz ELSE '2026-10-15T10:00:00Z'::timestamptz END);
+ END LOOP;
+END $fixture$;
 INSERT INTO order_daily_tokens VALUES('2026-10-17',7); INSERT INTO bill_daily_numbers VALUES('2026-10-17',5);
 INSERT INTO bills(id,business_date,bill_number,service_type,opened_by,opened_at) SELECT md5('bill'||n)::uuid,'2026-10-17',n,'DINE_IN','${owner}','2026-10-17T10:00:00Z' FROM generate_series(1,5)n;
 INSERT INTO daily_reports(id,business_date,version,source,snapshot) SELECT gen_random_uuid(),d::date,1,'AUTOMATIC',jsonb_build_object('schemaVersion',1,'businessDate',d::date,'timezone','Asia/Kolkata','foodSold','0.00','cashReturned','0.00','recordedExpenses','0.00','expenseCategories','[]'::jsonb,'expenseEntries','[]'::jsonb,'bestSeller',null) FROM generate_series('2026-10-10'::timestamp,'2026-10-16'::timestamp,interval '1 day')d;
@@ -163,6 +181,85 @@ INSERT INTO order_status_history VALUES(gen_random_uuid(),'${ids[n - 1]}','DRAFT
         );
         return;
       }
+      await t.test(
+        '293 audits include 42 attributed complete before/after aggregates',
+        async () => {
+          assert.equal(
+            await query('SELECT count(*) FROM dukanos.menu_audit'),
+            '293',
+          );
+          assert.equal(
+            await query(
+              `SELECT count(*) FROM dukanos.menu_audit WHERE before_value IS NOT NULL AND actor_id='${owner}' AND action='UPDATED' AND before_value->>'id'=item_id::text AND after_value->>'id'=item_id::text AND jsonb_typeof(after_value->'variants')='array' AND after_value ?& ARRAY['categoryId','name','description','kitchenName','active','version','image','createdAt','updatedAt','variants','counterVisibility'] AND (after_value->>'version')::int=(before_value->>'version')::int+1 AND after_value->>'description' LIKE 'Synthetic audited edit %'`,
+            ),
+            '42',
+          );
+          assert.equal(
+            await query(
+              "SELECT count(*) FILTER(WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date='2026-10-14')||','||count(*) FILTER(WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date='2026-10-15') FROM dukanos.menu_audit WHERE before_value IS NOT NULL",
+            ),
+            '11,31',
+          );
+        },
+      );
+      for (const count of [292, 294])
+        await t.test('audit count ' + count + ' safely aborts', async () => {
+          if (count === 292)
+            await query(
+              'SET search_path=dukanos,pg_catalog; ALTER TABLE menu_audit DISABLE TRIGGER protect_menu_audit; DELETE FROM menu_audit WHERE id=(SELECT id FROM menu_audit WHERE before_value IS NOT NULL LIMIT 1); ALTER TABLE menu_audit ENABLE TRIGGER protect_menu_audit;',
+            );
+          else
+            await query(
+              'INSERT INTO dukanos.menu_audit(actor_id,item_id,action,before_value,after_value) SELECT actor_id,item_id,action,before_value,after_value FROM dukanos.menu_audit WHERE before_value IS NOT NULL LIMIT 1',
+            );
+          await expectAbort(/CLEANUP_MENU_BASELINE_CHANGED/);
+          await reset();
+        });
+      await t.test(
+        'same audit count but changed content after review aborts',
+        async () => {
+          const r = await cleanup();
+          assert.equal(r.ok, true, r.output);
+          const fingerprint = r.output.match(
+            /CLEANUP_REVIEW_FINGERPRINT=([a-f0-9]{64})/,
+          )[1];
+          // Simulate illicit historical mutation only in this disposable fixture;
+          // restore its immutable trigger before invoking the unchanged cleanup.
+          await query(
+            `SET search_path=dukanos,pg_catalog; ALTER TABLE menu_audit DISABLE TRIGGER protect_menu_audit; UPDATE menu_audit SET after_value=jsonb_set(after_value,'{description}','"Changed after review"') WHERE id=(SELECT id FROM menu_audit WHERE before_value IS NOT NULL LIMIT 1); ALTER TABLE menu_audit ENABLE TRIGGER protect_menu_audit;`,
+          );
+          assert.equal(
+            await query('SELECT count(*) FROM dukanos.menu_audit'),
+            '293',
+          );
+          await expectAbort(/CLEANUP_REVIEW_FINGERPRINT_CHANGED/, {
+            ...apply,
+            expected_fingerprint: fingerprint,
+          });
+          await reset();
+        },
+      );
+      await t.test(
+        'new October 17 daily report after midnight stops cleanup and is preserved',
+        async () => {
+          await query(
+            `INSERT INTO dukanos.daily_reports(id,business_date,version,source,snapshot) SELECT gen_random_uuid(),'2026-10-17',1,'AUTOMATIC',jsonb_set(snapshot,'{businessDate}','"2026-10-17"') FROM dukanos.daily_reports LIMIT 1;`,
+          );
+          await expectAbort(/CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED/);
+          await reset();
+        },
+      );
+      for (const [table, column] of [
+        ['order_daily_tokens', 'last_token'],
+        ['bill_daily_numbers', 'last_number'],
+      ])
+        await t.test('new October 18 ' + table + ' stops cleanup', async () => {
+          await query(
+            `INSERT INTO dukanos.${table}(business_date,${column}) VALUES('2026-10-18',1)`,
+          );
+          await expectAbort(/CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED/);
+          await reset();
+        });
       await t.test(
         'default dry run deletes exact inventory then rolls back every row/trigger',
         async () => {
@@ -397,7 +494,7 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
             await query(
               `SELECT (SELECT count(*) FROM dukanos.orders)||','||(SELECT last_token FROM dukanos.order_daily_tokens)||','||(SELECT last_number FROM dukanos.bill_daily_numbers)||','||(SELECT count(*) FROM dukanos.daily_reports)||','||(SELECT count(*) FROM dukanos.menu_audit);`,
             ),
-            '0,7,5,7,251',
+            '0,7,5,7,293',
           );
           const state = await query(snapshotSql);
           const verification = await readFile(
