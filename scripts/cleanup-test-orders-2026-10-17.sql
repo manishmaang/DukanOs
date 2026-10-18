@@ -129,7 +129,7 @@ BEGIN
      OR (SELECT count(*) FROM menu_items) <> 118
      OR (SELECT count(*) FROM item_variants) <> 156
      OR (SELECT count(*) FROM variant_channel_settings) <> 468
-     OR (SELECT count(*) FROM menu_audit) <> 251 THEN
+     OR (SELECT count(*) FROM menu_audit) <> 293 THEN
     RAISE EXCEPTION 'CLEANUP_MENU_BASELINE_CHANGED';
   END IF;
 

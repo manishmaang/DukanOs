@@ -30,6 +30,10 @@ The owner now reports 468 menu channel settings and 251 menu audits, superseding
 
 Seven October 17 test orders (five Counter, two Zomato), five bills, four collections totaling ₹1,100 and related operational rows were supplied for an independent cleanup review. Seven historical daily reports (October 10–16) and daily number counters must remain. See the [cleanup safety review](TEST_ORDER_CLEANUP_2026-10-17.md). Scripts are prepared/tested locally only; **cleanup has not been executed or authorized for production by this review**. Never assume these counts are current without checking during the separately approved maintenance window.
 
+## Owner baseline correction — 18 October 2026
+
+Read-only production inspection reports **293 menu audits** (133 CREATED, 160 UPDATED), superseding the earlier 251 count. Counts for the seven orders/five bills/four payments/nine lines/thirteen histories/one timer/seven reports and Menu inventory were unchanged at inspection. All nine guards were enabled; disabled triggers and unvalidated FKs were zero. The schema digest matched `6b9ec2c9e9afb656f13677f85606a61ef6a7d0b691edd2d21c2b0c44eca16f72`. The owner restored the app after inspection; cleanup dry run was **not executed**. See the corrected [cleanup runbook](TEST_ORDER_CLEANUP_2026-10-17.md). These are owner-provided observations, not new agent production access; worker activity after restart may invalidate the dated inventory.
+
 ## Original dated handover evidence
 
 The following sections describe the 12 October snapshot. Any pre-bootstrap or unconfigured-menu statements are historical and superseded by the reconciliation above. Commands are operator references, not instructions to execute automatically.
