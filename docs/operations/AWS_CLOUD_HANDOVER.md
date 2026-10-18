@@ -1,3 +1,5 @@
+> **October 18 final maintenance overlay:** Overnight jobs changed the cleanup inventory to five system-cancelled orders, 18 history events, three Counter amendments, two Zomato cancellation records and eight daily reports. The owner authorizes preparation to remove only the same seven test orders/dependencies plus October 17 v1; preserve October 10–16, all 293 menu audits and numbering 7/5. Previous cleanup scripts/runbooks are superseded. See [final runbook](TEST_ORDER_CLEANUP_2026-10-17.md). Production report cursor, no external sends, fresh backup and unchanged inventory remain preflight conditions. No agent production access or action occurred. Transfer, inspection, dry run and commit each await separate owner authorization. Historical observations below are not current deployment verification.
+
 # DukanOS — AWS Cloud Deployment & Recovery Handover
 
 **Snapshot date:** 12 October 2026 (IST)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-18 — Final test-data cleanup revision
+
+- Expanded the standalone reviewed cleanup to the owner-confirmed overnight cancellation records and exactly October 17 daily report v1, retaining October 10–16 reports, all 293 menu audits and counters.
+- Added strict cancellation/report/cursor validation, explicit report identity and external-send attestation, repeatable-read verification and atomic replacement instructions.
+- Extended disposable PostgreSQL coverage to real report/rollover worker startup and catch-up, report preservation, delivery/identity/cursor drift and failure rollback. No production connection, application changes or migrations.
+
 ## 2026-10-18 — Correct cleanup audit baseline
 
 - Corrected only the standalone cleanup audit-count gate from 251 to the owner-verified 293; preserves all additional 42 audits and every existing safety mechanism. Read-only verification SQL is unchanged.

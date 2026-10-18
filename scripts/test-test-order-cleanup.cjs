@@ -19,7 +19,7 @@ const scriptPath = 'scripts/cleanup-test-orders-2026-10-17.sql';
 
 test(
   'isolated PostgreSQL 16 test-order cleanup safety',
-  { timeout: 180000 },
+  { timeout: 300000 },
   async (t) => {
     const dir = await mkdtemp(join(tmpdir(), 'dukanos-cleanup-review-'));
     const data = join(dir, 'pgdata');
@@ -48,6 +48,14 @@ test(
       ).stdout.trim();
     }
     async function cleanup(flags = {}, content = sql) {
+      if (flags.apply === 'true' && flags.confirm)
+        flags = {
+          expected_report_id: await query(
+            "SELECT id FROM dukanos.daily_reports WHERE business_date='2026-10-17' AND version=1",
+          ),
+          external_sends_checked: 'true',
+          ...flags,
+        };
       const path = join(dir, 'cleanup.sql');
       await writeFile(path, content);
       try {
@@ -134,14 +142,107 @@ INSERT INTO order_status_history VALUES(gen_random_uuid(),'${ids[n - 1]}','DRAFT
       ].entries())
         fixture += `INSERT INTO order_status_history VALUES(gen_random_uuid(),'${ids[n - 1]}','${from}','${to}','${owner}','2026-10-17T10:${10 + n}:${10 + i}Z','Synthetic transition');\n`;
     fixture += `INSERT INTO kitchen_timers(id,order_id,label,duration_seconds,started_at,due_at,status,created_by,request_id,request_hash,resolved_by,resolved_at) VALUES('273e996f-81c6-45bd-8bd8-95f836bc3722','${ids[1]}','Synthetic timer',60,'2026-10-17T10:01:00Z','2026-10-17T10:02:00Z','ACKNOWLEDGED','${owner}',gen_random_uuid(),repeat('c',64),'${owner}','2026-10-17T10:03:00Z');`;
+    // Real application workers/services, with ONLY an explicitly injected private
+    // socket pool and synthetic restaurant clock. No DatabaseService/config/env load.
+    async function workerCycle(instant, startup = false) {
+      const { Pool } = require('pg');
+      const {
+        BillRolloverService,
+      } = require('../apps/api/dist/modules/bills/bill-rollover.service');
+      const {
+        DailyWorkerService,
+      } = require('../apps/api/dist/modules/daily-reports/daily-worker.service');
+      const {
+        DailyReportsService,
+      } = require('../apps/api/dist/modules/daily-reports/daily-reports.service');
+      const {
+        ReportsService,
+      } = require('../apps/api/dist/modules/reports/reports.service');
+      const {
+        ExpensesService,
+      } = require('../apps/api/dist/modules/expenses/expenses.service');
+      const pool = new Pool({
+        host: dir,
+        port: 55439,
+        user: 'postgres',
+        database: 'dukanos_prod',
+        options: '-c search_path=dukanos,pg_catalog',
+        max: 2,
+      });
+      const db = {
+        query: (q, v) => pool.query(q, v),
+        transaction: async (work) => {
+          const c = await pool.connect();
+          try {
+            await c.query('BEGIN');
+            const result = await work(c);
+            await c.query('COMMIT');
+            return result;
+          } catch (e) {
+            await c.query('ROLLBACK');
+            throw e;
+          } finally {
+            c.release();
+          }
+        },
+      };
+      const clock = {
+        timezone: 'Asia/Kolkata',
+        read: async (c) =>
+          (
+            await c.query(
+              "SELECT $1::timestamptz AS queued_at,($1::timestamptz AT TIME ZONE 'Asia/Kolkata')::date::text AS business_date,to_char($1::timestamptz AT TIME ZONE 'Asia/Kolkata','HH24:MI:SS') AS local_time",
+              [instant],
+            )
+          ).rows[0],
+      };
+      const email = {
+        configured: false,
+        config: { delay: 5 },
+        send: () => {
+          throw new Error('NETWORK_FORBIDDEN');
+        },
+      };
+      const rollover = new BillRolloverService(db, clock);
+      rollover.cleanupTime = '05:00';
+      const reports = new DailyReportsService(
+        db,
+        clock,
+        new ReportsService(db, clock, new ExpensesService(db, clock, null)),
+        email,
+      );
+      const worker = new DailyWorkerService(
+        db,
+        clock,
+        rollover,
+        reports,
+        email,
+      );
+      try {
+        if (startup) {
+          await rollover.start();
+          worker.start();
+        }
+        await worker.run();
+      } finally {
+        await worker.onModuleDestroy();
+        await rollover.onModuleDestroy();
+        await pool.end();
+      }
+    }
     async function reset() {
       await query(
-        'DROP SCHEMA IF EXISTS dukanos CASCADE;' + migrationSQL + fixture,
+        'DROP SCHEMA IF EXISTS dukanos CASCADE;' +
+          migrationSQL +
+          fixture +
+          "UPDATE daily_report_settings SET start_date='2026-10-10',next_date='2026-10-17' WHERE id;",
       );
+      await workerCycle('2026-10-18T00:06:00+05:30');
+      await workerCycle('2026-10-18T05:01:00+05:30');
     }
     const apply = {
       apply: 'true',
-      confirm: 'DELETE_20261017_7_ORDERS_5_BILLS_4_PAYMENTS',
+      confirm: 'DELETE_20261017_TEST_ORDERS_AND_REPORT_V1',
     };
     async function expectAbort(pattern, flags = {}, altered = sql) {
       const before = await query(snapshotSql);
@@ -181,6 +282,249 @@ INSERT INTO order_status_history VALUES(gen_random_uuid(),'${ids[n - 1]}','DRAFT
         );
         return;
       }
+      await t.test(
+        'real overnight jobs generate report before cutoff, cancel five after cutoff and retain the snapshot',
+        async () => {
+          await query(
+            'DROP SCHEMA dukanos CASCADE;' +
+              migrationSQL +
+              fixture +
+              "UPDATE daily_report_settings SET start_date='2026-10-10',next_date='2026-10-17' WHERE id;",
+          );
+          await workerCycle('2026-10-18T00:06:00+05:30', true);
+          assert.equal(
+            await query(
+              "SELECT count(*) FROM dukanos.orders WHERE status='QUEUED'",
+            ),
+            '5',
+          );
+          assert.equal(
+            await query('SELECT count(*) FROM dukanos.daily_reports'),
+            '8',
+          );
+          const report = await query(
+            "SELECT to_jsonb(r)::text FROM dukanos.daily_reports r WHERE business_date='2026-10-17'",
+          );
+          await expectAbort(/CLEANUP_ORDER_BASELINE_CHANGED/);
+          await workerCycle('2026-10-18T05:01:00+05:30');
+          assert.equal(
+            await query(
+              "SELECT count(*) FROM dukanos.orders WHERE status='CANCELLED'",
+            ),
+            '5',
+          );
+          assert.equal(
+            await query('SELECT count(*) FROM dukanos.order_amendments'),
+            '3',
+          );
+          assert.equal(
+            await query(
+              'SELECT count(*) FROM dukanos.platform_order_cancellations',
+            ),
+            '2',
+          );
+          assert.equal(
+            await query(
+              "SELECT to_jsonb(r)::text FROM dukanos.daily_reports r WHERE business_date='2026-10-17'",
+            ),
+            report,
+          );
+          console.log(
+            'REAL OVERNIGHT JOBS: 00:06 report captured; 05:01 three Counter/two platform cancellations; original report unchanged.',
+          );
+        },
+      );
+      for (const cursor of [
+        'start_date=NULL,next_date=NULL',
+        "next_date='2026-10-17'",
+        "next_date='2026-10-19'",
+      ])
+        await t.test(
+          'unsafe/changed worker cursor aborts: ' + cursor,
+          async () => {
+            await query(
+              'UPDATE dukanos.daily_report_settings SET ' +
+                cursor +
+                ' WHERE id',
+            );
+            await expectAbort(/CLEANUP_REPORT_CURSOR_UNSAFE/);
+            await reset();
+          },
+        );
+      await t.test('incorrect reviewed report UUID aborts', async () => {
+        await expectAbort(/CLEANUP_REPORT_ID_CHANGED/, {
+          expected_report_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        });
+      });
+      await t.test(
+        'commit requires independent external-send review',
+        async () => {
+          await expectAbort(/CLEANUP_EXPLICIT_CONFIRMATION_REQUIRED/, {
+            ...apply,
+            expected_fingerprint: '0'.repeat(64),
+            external_sends_checked: 'false',
+          });
+        },
+      );
+      for (const update of [
+        "business_date='2026-10-19'",
+        "generated_at='2026-10-19T01:00:00+05:30'",
+        "source='MANUAL',generated_by='" +
+          owner +
+          "',request_id=gen_random_uuid(),request_hash=repeat('f',64)",
+      ])
+        await t.test(
+          'unexpected report identity/date/source aborts: ' + update,
+          async () => {
+            await query(
+              'SET search_path=dukanos,pg_catalog; ALTER TABLE daily_reports DISABLE TRIGGER daily_reports_immutable; UPDATE daily_reports SET ' +
+                update +
+                " WHERE business_date='2026-10-17'; ALTER TABLE daily_reports ENABLE TRIGGER daily_reports_immutable;",
+            );
+            await expectAbort(/CLEANUP_REPORT_BASELINE_CHANGED/);
+            await reset();
+          },
+        );
+      await t.test(
+        'extra test-date report version is preserved and blocks cleanup',
+        async () => {
+          await query(
+            `INSERT INTO dukanos.daily_reports(id,business_date,version,source,generated_by,request_id,request_hash,reason,snapshot) SELECT gen_random_uuid(),business_date,2,'MANUAL','${owner}',gen_random_uuid(),repeat('f',64),'Synthetic revision',snapshot FROM dukanos.daily_reports WHERE business_date='2026-10-17';`,
+          );
+          await expectAbort(/CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED/);
+          await reset();
+        },
+      );
+      for (const state of ['PENDING', 'SENT'])
+        await t.test(
+          'report delivery ' +
+            state +
+            ' blocks cleanup without deleting mail history',
+          async () => {
+            await query(
+              `INSERT INTO dukanos.report_deliveries(id,report_id,kind,recipient,status,sent_at) SELECT gen_random_uuid(),id,'AUTOMATIC','synthetic@example.invalid','${state}',${state === 'SENT' ? 'now()' : 'NULL'} FROM dukanos.daily_reports WHERE business_date='2026-10-17';`,
+            );
+            await expectAbort(
+              /CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED/,
+            );
+            await reset();
+          },
+        );
+      for (const [table, guard] of [
+        ['order_amendments', 'protect_amendments'],
+        ['platform_order_cancellations', 'protect_platform_cancellation'],
+      ])
+        await t.test('missing ' + table + ' blocks cleanup', async () => {
+          await query(
+            `SET search_path=dukanos,pg_catalog; ALTER TABLE ${table} DISABLE TRIGGER ${guard}; DELETE FROM ${table} WHERE order_id=(SELECT order_id FROM ${table} LIMIT 1); ALTER TABLE ${table} ENABLE TRIGGER ${guard};`,
+          );
+          await expectAbort(/CLEANUP_DEPENDENT_BASELINE_CHANGED/);
+          await reset();
+        });
+      await t.test(
+        'extra amendment blocks cleanup without removing it',
+        async () => {
+          // Synthetic historical corruption: only this fixture guard is bypassed;
+          // active FK/check/deferred constraints still validate the inserted row.
+          await query(`SET search_path=dukanos,pg_catalog; BEGIN; ALTER TABLE order_amendments DISABLE TRIGGER protect_amendments;
+          INSERT INTO order_amendments SELECT (jsonb_populate_record(NULL::order_amendments,to_jsonb(a)||jsonb_build_object('id',gen_random_uuid(),'order_id','${ids[6]}','request_id',gen_random_uuid()))).* FROM order_amendments a LIMIT 1;
+          SET CONSTRAINTS ALL IMMEDIATE; ALTER TABLE order_amendments ENABLE TRIGGER protect_amendments; COMMIT;`);
+          await expectAbort(/CLEANUP_DEPENDENT_BASELINE_CHANGED/);
+          await reset();
+        },
+      );
+      await t.test('extra platform cancellation blocks cleanup', async () => {
+        await query(`SET search_path=dukanos,pg_catalog; ALTER TABLE platform_order_cancellations DISABLE TRIGGER protect_platform_cancellation;
+          INSERT INTO platform_order_cancellations SELECT order_id,NULL,created_at,reason,cleanup_timezone,cleanup_time FROM order_amendments LIMIT 1;
+          ALTER TABLE platform_order_cancellations ENABLE TRIGGER protect_platform_cancellation;`);
+        await expectAbort(/CLEANUP_DEPENDENT_BASELINE_CHANGED/);
+        await reset();
+      });
+      await t.test('missing test-day report blocks cleanup', async () => {
+        await query(
+          "SET search_path=dukanos,pg_catalog; ALTER TABLE daily_reports DISABLE TRIGGER daily_reports_immutable; DELETE FROM daily_reports WHERE business_date='2026-10-17'; ALTER TABLE daily_reports ENABLE TRIGGER daily_reports_immutable;",
+        );
+        await expectAbort(/CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED/);
+        await reset();
+      });
+      await t.test('changed cancellation details block cleanup', async () => {
+        await query(
+          "SET search_path=dukanos,pg_catalog; ALTER TABLE platform_order_cancellations DISABLE TRIGGER protect_platform_cancellation; UPDATE platform_order_cancellations SET occurred_at='2026-10-19T05:01:00+05:30'; ALTER TABLE platform_order_cancellations ENABLE TRIGGER protect_platform_cancellation;",
+        );
+        await expectAbort(/CLEANUP_CANCELLATION_BASELINE_CHANGED/);
+        await reset();
+      });
+      await t.test(
+        'new October 18 standalone timer is preserved and blocks cleanup',
+        async () => {
+          await query(
+            `INSERT INTO dukanos.kitchen_timers(id,label,duration_seconds,started_at,due_at,created_by,request_id,request_hash) VALUES(gen_random_uuid(),'Later activity',60,'2026-10-18T10:00:00Z','2026-10-18T10:01:00Z','${owner}',gen_random_uuid(),repeat('f',64));`,
+          );
+          await expectAbort(/CLEANUP_DEPENDENT_BASELINE_CHANGED/);
+          await reset();
+        },
+      );
+      for (const table of ['daily_report_settings', 'app_metadata'])
+        await t.test(
+          'changed ' + table + ' after fingerprint review aborts',
+          async () => {
+            const rehearsal = await cleanup();
+            assert.equal(rehearsal.ok, true, rehearsal.output);
+            const fingerprint = rehearsal.output.match(
+              /CLEANUP_REVIEW_FINGERPRINT=([a-f0-9]{64})/,
+            )[1];
+            await query(
+              table === 'daily_report_settings'
+                ? 'UPDATE dukanos.daily_report_settings SET version=version+1'
+                : "UPDATE dukanos.app_metadata SET value='after review'",
+            );
+            await expectAbort(/CLEANUP_REVIEW_FINGERPRINT_CHANGED/, {
+              ...apply,
+              expected_fingerprint: fingerprint,
+            });
+            await reset();
+          },
+        );
+      await t.test(
+        'changed report UUID after fingerprint review aborts',
+        async () => {
+          const rehearsal = await cleanup();
+          assert.equal(rehearsal.ok, true, rehearsal.output);
+          await query(
+            "SET search_path=dukanos,pg_catalog; ALTER TABLE daily_reports DISABLE TRIGGER daily_reports_immutable; UPDATE daily_reports SET id=gen_random_uuid() WHERE business_date='2026-10-17'; ALTER TABLE daily_reports ENABLE TRIGGER daily_reports_immutable;",
+          );
+          await expectAbort(/CLEANUP_REVIEW_FINGERPRINT_CHANGED/, {
+            ...apply,
+            expected_fingerprint: rehearsal.output.match(
+              /CLEANUP_REVIEW_FINGERPRINT=([a-f0-9]{64})/,
+            )[1],
+          });
+          await reset();
+        },
+      );
+      await t.test('report trigger restoration is mandatory', async () => {
+        await expectAbort(
+          /CLEANUP_SCHEMA_OR_TRIGGER_RESTORE_FAILED/,
+          {},
+          sql.replace(
+            'ALTER TABLE daily_reports ENABLE TRIGGER daily_reports_immutable;',
+            '-- omitted restoration',
+          ),
+        );
+      });
+      await t.test(
+        'altering a preserved historical report during cleanup rolls back',
+        async () => {
+          await expectAbort(
+            /CLEANUP_PRESERVED_REPORTS_CHANGED/,
+            {},
+            sql.replace(
+              'ALTER TABLE daily_reports ENABLE TRIGGER daily_reports_immutable;',
+              "UPDATE daily_reports SET snapshot=snapshot||'{\"unexpected\":true}'::jsonb WHERE business_date='2026-10-10'; ALTER TABLE daily_reports ENABLE TRIGGER daily_reports_immutable;",
+            ),
+          );
+        },
+      );
       await t.test(
         '293 audits include 42 attributed complete before/after aggregates',
         async () => {
@@ -240,10 +584,10 @@ INSERT INTO order_status_history VALUES(gen_random_uuid(),'${ids[n - 1]}','DRAFT
         },
       );
       await t.test(
-        'new October 17 daily report after midnight stops cleanup and is preserved',
+        'new October 18 daily report after midnight stops cleanup and is preserved',
         async () => {
           await query(
-            `INSERT INTO dukanos.daily_reports(id,business_date,version,source,snapshot) SELECT gen_random_uuid(),'2026-10-17',1,'AUTOMATIC',jsonb_set(snapshot,'{businessDate}','"2026-10-17"') FROM dukanos.daily_reports LIMIT 1;`,
+            `INSERT INTO dukanos.daily_reports(id,business_date,version,source,snapshot) SELECT gen_random_uuid(),'2026-10-18',1,'AUTOMATIC',jsonb_set(snapshot,'{businessDate}','"2026-10-18"') FROM dukanos.daily_reports LIMIT 1;`,
           );
           await expectAbort(/CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED/);
           await reset();
@@ -319,7 +663,7 @@ INSERT INTO order_status_history VALUES(gen_random_uuid(),'${ids[n - 1]}','DRAFT
       await t.test('an eighth order is never swept up', async () => {
         const extra = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
         await query(`SET search_path=dukanos,pg_catalog; BEGIN;
-INSERT INTO orders SELECT (jsonb_populate_record(NULL::orders,to_jsonb(o)||jsonb_build_object('id','${extra}','token_number',8,'request_id',gen_random_uuid(),'external_reference','EXTRA-8'))).* FROM orders o WHERE id='${ids[6]}';
+INSERT INTO orders SELECT (jsonb_populate_record(NULL::orders,to_jsonb(o)||jsonb_build_object('id','${extra}','status','QUEUED','business_date','2026-10-18','queued_at','2026-10-18T10:00:00Z','token_number',8,'request_id',gen_random_uuid(),'external_reference','EXTRA-8'))).* FROM orders o WHERE id='${ids[6]}';
 INSERT INTO order_items SELECT (jsonb_populate_record(NULL::order_items,to_jsonb(i)||jsonb_build_object('id',gen_random_uuid(),'order_id','${extra}'))).* FROM order_items i WHERE order_id='${ids[6]}';
 INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',confirmed_by,queued_at,'Extra test' FROM orders WHERE id='${extra}'; COMMIT;`);
         await expectAbort(/CLEANUP_ORDER_BASELINE_CHANGED/);
@@ -327,7 +671,7 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
       });
       await t.test('an additional collection aborts', async () => {
         await query(
-          `SET search_path=dukanos,pg_catalog; INSERT INTO payments(id,bill_id,type,method,amount,performed_by,request_id,request_hash) VALUES(gen_random_uuid(),md5('bill5')::uuid,'COLLECTION','CASH',1,'${owner}',gen_random_uuid(),repeat('d',64));`,
+          `SET search_path=dukanos,pg_catalog; ALTER TABLE payments DISABLE TRIGGER protect_payments; INSERT INTO payments(id,bill_id,type,method,amount,performed_by,request_id,request_hash) VALUES(gen_random_uuid(),md5('bill5')::uuid,'COLLECTION','CASH',1,'${owner}',gen_random_uuid(),repeat('d',64)); ALTER TABLE payments ENABLE TRIGGER protect_payments;`,
         );
         await expectAbort(/CLEANUP_PAYMENT_BASELINE_CHANGED/);
         await reset();
@@ -416,7 +760,7 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
         },
       );
       await t.test(
-        'FKs still reject parent deletion while six application guards are disabled',
+        'FKs still reject parent deletion while nine application guards are disabled',
         async () => {
           await expectAbort(
             /violates foreign key constraint/,
@@ -430,6 +774,9 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
       );
       for (const table of [
         'kitchen_timers',
+        'order_amendments',
+        'platform_order_cancellations',
+        'daily_reports',
         'payments',
         'order_status_history',
         'order_items',
@@ -470,7 +817,7 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
         await reset();
       });
       await t.test(
-        'commit deletes only six tables; counters, menu, staff and reports unchanged; repeat safely refuses',
+        'commit deletes nine groups, preserves historical reports/settings, then real worker restart cannot recreate test report',
         async () => {
           const rehearsal = await cleanup();
           assert.equal(rehearsal.ok, true, rehearsal.output);
@@ -479,8 +826,11 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
           )[1];
           const preservedQuery = snapshotSql.replace(
             "WHERE schemaname='dukanos' ORDER BY",
-            "WHERE schemaname='dukanos' AND tablename NOT IN ('orders','bills','payments','order_items','order_status_history','kitchen_timers') ORDER BY",
+            "WHERE schemaname='dukanos' AND tablename NOT IN ('orders','bills','payments','order_items','order_status_history','kitchen_timers','order_amendments','platform_order_cancellations','daily_reports') ORDER BY",
           );
+          const reportPreservedQuery =
+            "SELECT jsonb_agg(to_jsonb(r) ORDER BY business_date)::text FROM dukanos.daily_reports r WHERE business_date<'2026-10-17'";
+          const oldReports = await query(reportPreservedQuery);
           const preservedBefore = await query(preservedQuery);
           const r = await cleanup({
             ...apply,
@@ -489,12 +839,33 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
           assert.equal(await query(preservedQuery), preservedBefore);
           assert.equal(r.ok, true, r.output);
           assert.match(r.output, /CLEANUP_COMMITTED/);
+          assert.equal(await query(reportPreservedQuery), oldReports);
+          const afterCommit = await query(snapshotSql);
+          await workerCycle('2026-10-18T12:00:00+05:30', true);
+          assert.equal(await query(snapshotSql), afterCommit);
+          await workerCycle('2026-10-19T00:06:00+05:30', true);
+          assert.equal(
+            await query(
+              "SELECT count(*) FROM dukanos.daily_reports WHERE business_date='2026-10-17'",
+            ),
+            '0',
+          );
+          assert.equal(await query(reportPreservedQuery), oldReports);
+          assert.equal(
+            await query(
+              "SELECT snapshot->>'foodSold' FROM dukanos.daily_reports WHERE business_date='2026-10-18'",
+            ),
+            '0.00',
+          );
+          console.log(
+            'REAL WORKERS: Oct18 restart unchanged; Oct19 catch-up creates Oct18 zero-activity report, never Oct17.',
+          );
           console.log(r.output);
           assert.equal(
             await query(
               `SELECT (SELECT count(*) FROM dukanos.orders)||','||(SELECT last_token FROM dukanos.order_daily_tokens)||','||(SELECT last_number FROM dukanos.bill_daily_numbers)||','||(SELECT count(*) FROM dukanos.daily_reports)||','||(SELECT count(*) FROM dukanos.menu_audit);`,
             ),
-            '0,7,5,7,293',
+            '0,7,5,8,293',
           );
           const state = await query(snapshotSql);
           const verification = await readFile(
@@ -506,6 +877,9 @@ INSERT INTO order_status_history SELECT gen_random_uuid(),id,'DRAFT','QUEUED',co
           assert.equal(await query(snapshotSql), state);
           await expectAbort(/CLEANUP_ORDER_BASELINE_CHANGED/, {
             ...apply,
+            expected_report_id: rehearsal.output.match(
+              /CLEANUP_TARGET_REPORT_ID=([a-f0-9-]+)/,
+            )[1],
             expected_fingerprint: fingerprint,
           });
         },
