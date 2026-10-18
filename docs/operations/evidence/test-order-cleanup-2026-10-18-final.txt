@@ -1,0 +1,460 @@
+Final October 18 maintenance revision — isolated execution evidence
+PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+Command: node scripts/test-test-order-cleanup.cjs
+All UUIDs/fingerprints below are SYNTHETIC fixture values; never use them for production.
+Random private directory name normalized; trailing whitespace stripped.
+No production access.
+
+{"time":"2026-10-18T15:45:46.830Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:46.910Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:45:46.986Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:46.993Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:45:48.019Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:48.023Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:48.082Z","event":"daily_worker_ok"}
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_ORDER_BASELINE_CHANGED
+{"time":"2026-10-18T15:45:48.766Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:48.773Z","event":"daily_worker_ok"}
+REAL OVERNIGHT JOBS: 00:06 report captured; 05:01 three Counter/two platform cancellations; original report unchanged.
+▶ isolated PostgreSQL 16 test-order cleanup safety
+  ✔ real overnight jobs generate report before cutoff, cancel five after cutoff and retain the snapshot (1893.6541ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_CURSOR_UNSAFE
+{"time":"2026-10-18T15:45:50.487Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:50.534Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:45:50.618Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:50.625Z","event":"daily_worker_ok"}
+  ✔ unsafe/changed worker cursor aborts: start_date=NULL,next_date=NULL (1735.922872ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_CURSOR_UNSAFE
+{"time":"2026-10-18T15:45:52.512Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:52.582Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:45:52.664Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:52.679Z","event":"daily_worker_ok"}
+  ✔ unsafe/changed worker cursor aborts: next_date='2026-10-17' (2052.579774ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_CURSOR_UNSAFE
+{"time":"2026-10-18T15:45:54.477Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:54.528Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:45:54.601Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:54.609Z","event":"daily_worker_ok"}
+  ✔ unsafe/changed worker cursor aborts: next_date='2026-10-19' (1929.341154ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_ID_CHANGED
+  ✔ incorrect reviewed report UUID aborts (530.218728ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_EXPLICIT_CONFIRMATION_REQUIRED
+  ✔ commit requires independent external-send review (480.932977ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_BASELINE_CHANGED
+{"time":"2026-10-18T15:45:57.169Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:57.220Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:45:57.291Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:57.296Z","event":"daily_worker_ok"}
+  ✔ unexpected report identity/date/source aborts: business_date='2026-10-19' (1674.057916ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_BASELINE_CHANGED
+{"time":"2026-10-18T15:45:58.946Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:58.993Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:45:59.057Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:45:59.063Z","event":"daily_worker_ok"}
+  ✔ unexpected report identity/date/source aborts: generated_at='2026-10-19T01:00:00+05:30' (1766.05545ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:00.613Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:00.661Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:00.729Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:00.734Z","event":"daily_worker_ok"}
+  ✔ unexpected report identity/date/source aborts: source='MANUAL',generated_by='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',request_id=gen_random_uuid(),request_hash=repeat('f',64) (1669.980869ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:02.319Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:02.364Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:02.429Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:02.435Z","event":"daily_worker_ok"}
+  ✔ extra test-date report version is preserved and blocks cleanup (1700.333007ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:03.989Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:04.044Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:04.109Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:04.116Z","event":"daily_worker_ok"}
+  ✔ report delivery PENDING blocks cleanup without deleting mail history (1680.36288ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:05.887Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:05.929Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:05.996Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:06.001Z","event":"daily_worker_ok"}
+  ✔ report delivery SENT blocks cleanup without deleting mail history (1884.025342ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_DEPENDENT_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:07.511Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:07.557Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:07.621Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:07.625Z","event":"daily_worker_ok"}
+  ✔ missing order_amendments blocks cleanup (1623.796269ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_DEPENDENT_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:09.463Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:09.512Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:09.588Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:09.595Z","event":"daily_worker_ok"}
+  ✔ missing platform_order_cancellations blocks cleanup (1968.834727ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_DEPENDENT_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:11.543Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:11.599Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:11.667Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:11.673Z","event":"daily_worker_ok"}
+  ✔ extra amendment blocks cleanup without removing it (2078.24079ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_DEPENDENT_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:13.580Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:13.629Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:13.692Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:13.698Z","event":"daily_worker_ok"}
+  ✔ extra platform cancellation blocks cleanup (2024.300446ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:15.422Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:15.477Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:15.548Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:15.553Z","event":"daily_worker_ok"}
+  ✔ missing test-day report blocks cleanup (1854.994628ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_CANCELLATION_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:17.166Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:17.211Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:17.276Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:17.283Z","event":"daily_worker_ok"}
+  ✔ changed cancellation details block cleanup (1728.718386ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_DEPENDENT_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:18.896Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:18.950Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:19.038Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:19.043Z","event":"daily_worker_ok"}
+  ✔ new October 18 standalone timer is preserved and blocks cleanup (1759.791427ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+{"time":"2026-10-18T15:46:21.257Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:21.299Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:21.368Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:21.374Z","event":"daily_worker_ok"}
+  ✔ changed daily_report_settings after fingerprint review aborts (2330.031695ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+{"time":"2026-10-18T15:46:23.466Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:23.508Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:23.572Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:23.577Z","event":"daily_worker_ok"}
+  ✔ changed app_metadata after fingerprint review aborts (2203.71249ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+{"time":"2026-10-18T15:46:25.668Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:25.711Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:25.782Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:25.788Z","event":"daily_worker_ok"}
+  ✔ changed report UUID after fingerprint review aborts (2209.808596ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_OR_TRIGGER_RESTORE_FAILED
+  ✔ report trigger restoration is mandatory (658.881604ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_PRESERVED_REPORTS_CHANGED
+  ✔ altering a preserved historical report during cleanup rolls back (704.733435ms)
+  ✔ 293 audits include 42 attributed complete before/after aggregates (90.741561ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_MENU_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:28.830Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:28.871Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:28.939Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:28.944Z","event":"daily_worker_ok"}
+  ✔ audit count 292 safely aborts (1700.081154ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_MENU_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:30.538Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:30.580Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:30.654Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:30.658Z","event":"daily_worker_ok"}
+  ✔ audit count 294 safely aborts (1713.404443ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+{"time":"2026-10-18T15:46:32.786Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:32.828Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:32.896Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:32.902Z","event":"daily_worker_ok"}
+  ✔ same audit count but changed content after review aborts (2243.580997ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:34.512Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:34.554Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:34.628Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:34.633Z","event":"daily_worker_ok"}
+  ✔ new October 18 daily report after midnight stops cleanup and is preserved (1729.679747ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:36.339Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:36.384Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:36.449Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:36.454Z","event":"daily_worker_ok"}
+  ✔ new October 18 order_daily_tokens stops cleanup (1820.876278ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNRELATED_OR_NUMBERING_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:38.042Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:38.089Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:38.153Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:38.159Z","event":"daily_worker_ok"}
+  ✔ new October 18 bill_daily_numbers stops cleanup (1704.615808ms)
+BEGIN
+SET
+SET
+SET
+SET
+SET
+SET
+ set_config | set_config | set_config | set_config | set_config
+------------+------------+------------+------------+------------
+            | false      | false      |            |
+(1 row)
+
+DO
+ROLLBACK
+CLEANUP_DRY_RUN_ROLLED_BACK
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_TARGET_REPORT_ID=ef0c7ef7-5e5f-4219-ac8f-b1790604c981
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_REVIEW_FINGERPRINT=3651f53ec49b5faff522623cd35739ec533048da15a52e3d49806c9c4c46d484
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_DELETED={"bills": 5, "orders": 7, "payments": 4, "order_items": 9, "daily_reports": 1, "kitchen_timers": 1, "order_amendments": 3, "order_status_history": 18, "platform_order_cancellations": 2}
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_PRESERVATION_AND_TRIGGER_CHECKS_PASSED
+
+  ✔ default dry run deletes exact inventory then rolls back every row/trigger (782.432987ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_EXPLICIT_CONFIRMATION_REQUIRED
+  ✔ explicit apply requires confirmation and reviewed fingerprint (449.505402ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+  ✔ changed reviewed fingerprint aborts (703.115516ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_ORDER_BASELINE_CHANGED
+  ✔ mismatched target UUID aborts (516.456849ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_BILL_OR_ORDER_CHILD_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:42.236Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:42.280Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:42.348Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:42.353Z","event":"daily_worker_ok"}
+  ✔ unexpected extra bill aborts (1740.347577ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_OTHER_DATABASE_CLIENTS
+  ✔ another database client blocks maintenance (516.76927ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_ORDER_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:44.451Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:44.493Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:44.560Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:44.564Z","event":"daily_worker_ok"}
+  ✔ an eighth order is never swept up (1692.995052ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_PAYMENT_BASELINE_CHANGED
+{"time":"2026-10-18T15:46:46.373Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:46.416Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:46.482Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:46.488Z","event":"daily_worker_ok"}
+  ✔ an additional collection aborts (1924.022312ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REVIEW_FINGERPRINT_CHANGED
+{"time":"2026-10-18T15:46:48.730Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:48.774Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:48.840Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:48.846Z","event":"daily_worker_ok"}
+  ✔ menu edit after reviewed dry-run invalidates apply fingerprint (2357.398421ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_MIGRATION_LEDGER_CHANGED
+{"time":"2026-10-18T15:46:50.365Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:50.410Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:50.471Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:50.475Z","event":"daily_worker_ok"}
+  ✔ ledger checksum mismatch aborts (1628.011378ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_CHANGED
+{"time":"2026-10-18T15:46:52.078Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:52.124Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:52.187Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:52.191Z","event":"daily_worker_ok"}
+  ✔ foreign-key constraint removal aborts (1716.862335ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_UNEXPECTED_TRIGGER_OR_EXTERNAL_DEPENDENCY
+{"time":"2026-10-18T15:46:53.754Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:53.814Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:53.878Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:53.883Z","event":"daily_worker_ok"}
+  ✔ cross-schema reference aborts even when empty (1690.756932ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_EVENT_DATE_CHANGED
+{"time":"2026-10-18T15:46:55.439Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:55.485Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:55.560Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:55.565Z","event":"daily_worker_ok"}
+  ✔ cross-date payment aborts to protect historical report semantics (1682.177375ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_OR_TRIGGER_RESTORE_FAILED
+  ✔ missing trigger restoration aborts and rolls everything back (667.600197ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_CHANGED
+{"time":"2026-10-18T15:46:57.829Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:57.870Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:57.937Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:57.942Z","event":"daily_worker_ok"}
+  ✔ unknown schema column aborts (1707.844705ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_SCHEMA_CHANGED
+{"time":"2026-10-18T15:46:59.478Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:59.517Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:46:59.590Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:46:59.595Z","event":"daily_worker_ok"}
+  ✔ disabled protection trigger aborts without changing its preexisting state (1653.202564ms)
+EXPECTED SAFE ABORT: ERROR:  update or delete on table "orders" violates foreign key constraint "order_items_order_id_fkey" on table "order_items"
+  ✔ FKs still reject parent deletion while nine application guards are disabled (645.27832ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting kitchen_timers restores all rows and trigger states (649.409141ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting order_amendments restores all rows and trigger states (696.204801ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting platform_order_cancellations restores all rows and trigger states (761.193887ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting daily_reports restores all rows and trigger states (669.338537ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting payments restores all rows and trigger states (654.662244ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting order_status_history restores all rows and trigger states (703.313211ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting order_items restores all rows and trigger states (663.15069ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting orders restores all rows and trigger states (656.695016ms)
+EXPECTED SAFE ABORT: ERROR:  INJECTED_FAILURE
+  ✔ injected failure after deleting bills restores all rows and trigger states (698.754839ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_PRESERVED_DATA_CHANGED: app_metadata
+  ✔ preservation check catches unrelated update and rolls it back (761.948847ms)
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_REPORT_OR_NUMBER_IDENTITY_CHANGED
+{"time":"2026-10-18T15:47:08.862Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:47:08.906Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:47:08.976Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:47:08.981Z","event":"daily_worker_ok"}
+  ✔ report referring to target in JSON aborts (1819.548029ms)
+{"time":"2026-10-18T15:47:10.431Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:47:10.435Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:47:10.440Z","event":"daily_worker_ok"}
+{"time":"2026-10-18T15:47:10.670Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:47:10.672Z","event":"rollover_ok"}
+{"time":"2026-10-18T15:47:10.709Z","event":"daily_worker_ok"}
+REAL WORKERS: Oct18 restart unchanged; Oct19 catch-up creates Oct18 zero-activity report, never Oct17.
+BEGIN
+SET
+SET
+SET
+SET
+SET
+SET
+              set_config              | set_config | set_config |                set_config                 |                            set_config
+--------------------------------------+------------+------------+-------------------------------------------+------------------------------------------------------------------
+ 17fd08bc-f957-4117-b022-f11586255a55 | true       | true       | DELETE_20261017_TEST_ORDERS_AND_REPORT_V1 | a26cb9f235c187a492e2844d771ebc9f695dbc7ea69de78f6504f4f9e9344630
+(1 row)
+
+DO
+COMMIT
+CLEANUP_COMMITTED
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_TARGET_REPORT_ID=17fd08bc-f957-4117-b022-f11586255a55
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_REVIEW_FINGERPRINT=a26cb9f235c187a492e2844d771ebc9f695dbc7ea69de78f6504f4f9e9344630
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_DELETED={"bills": 5, "orders": 7, "payments": 4, "order_items": 9, "daily_reports": 1, "kitchen_timers": 1, "order_amendments": 3, "order_status_history": 18, "platform_order_cancellations": 2}
+psql:/tmp/dukanos-cleanup-review-<isolated>/cleanup.sql:302: NOTICE:  CLEANUP_PRESERVATION_AND_TRIGGER_CHECKS_PASSED
+
+EXPECTED SAFE ABORT: ERROR:  CLEANUP_ORDER_BASELINE_CHANGED
+  ✔ commit deletes nine groups, preserves historical reports/settings, then real worker restart cannot recreate test report (2927.004188ms)
+✔ isolated PostgreSQL 16 test-order cleanup safety (88563.078731ms)
+ℹ tests 61
+ℹ suites 0
+ℹ pass 61
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 88573.61227
+
+Project command: npm run check
+
+> dukanos@0.1.0 check
+> npm run lint && npm run typecheck && npm test && npm run build && npm run format:check
+
+
+> dukanos@0.1.0 lint
+> eslint .
+
+
+> dukanos@0.1.0 typecheck
+> npm run typecheck --workspaces --if-present
+
+
+> @dukanos/api@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @dukanos/web@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @dukanos/shared-types@0.1.0 typecheck
+> tsc --noEmit
+
+
+> dukanos@0.1.0 test
+> npm run test -w @dukanos/api && node --experimental-strip-types --test apps/web/test/*.test.cjs
+
+
+> @dukanos/api@0.1.0 test
+> npm run build && node --test test/*.test.cjs
+
+
+> @dukanos/api@0.1.0 build
+> tsc -p tsconfig.json
+
+✔ SMTP configuration is optional, bounded, provider-neutral and rejects header injection (9.585667ms)
+✔ version-specific email is structured, escaped, zero-safe and preserves paise (3.923834ms)
+✔ local SMTP 451 recipient failure retries; 550 recipient rejection is permanent (167.180296ms)
+✔ transaction failure preserves original error and releases rolled-back connection (7.218279ms)
+✔ transaction failure preserves original error and discards failed connection (1.140611ms)
+✔ Dispatch READY late configuration is independent, bounded and defaults to five minutes (13.649168ms)
+✔ configuration rejects missing database URL and invalid ports (5.189438ms)
+[Nest] 613167  - 10/18/2026, 9:12:55 PM   ERROR [HttpErrorFilter] Request failed with status 503
+{"time":"2026-10-18T15:42:55.348Z","event":"http_error","requestId":"01bae480-c433-423a-9b2f-283a8e396bf8","status":503,"durationMs":7}
+✔ HTTP health separates liveness from database readiness and sanitizes failures (304.16135ms)
+✔ production preserves source lines and snapshot identity, quantity and earliest urgency (9.60918ms)
+✔ Kitchen threshold has one validated default and configurable source (650.717992ms)
+✔ production separates qualitative modes, sources and historical measurements while retaining associations (2.548179ms)
+✔ exact paise totals, fractional tax half-up and configurable defaults (26.559938ms)
+✔ explicit lifecycle only allows intended transitions (1.907273ms)
+✔ password resets require capability and enforce exclusive privileged actor/target rules (3.995487ms)
+✔ password management shares the existing 12–128 character strength bounds (2.798297ms)
+✔ all 32 subsets permit precisely two exclusive privileged and seven operational combinations (9.087067ms)
+✔ password hashes are salted and verify without accepting incorrect passwords (2045.279931ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3778.742377
+✔ instruction display groups exact whitespace-normalized notes without changing sources (141.744526ms)
+✔ late boundary is inclusive and based on queued age for queued and preparing orders (1.45749ms)
+✔ single-portion draft and exact price display avoid floating-point conversion (6.610553ms)
+✔ draft validation gives dish/portion/channel-specific errors and preserves saved prices (2.760816ms)
+✔ platform availability saves without price or measurements and omits retained legacy measurement fields (1.431042ms)
+✔ locked/muted audio never plays; unlocking discovers overdue alerts without witnessing initial due (185.08714ms)
+✔ payment future/due, poll deduplication, 60s cadence, snooze and settlement (3.355185ms)
+✔ multiple Kitchen timers coalesce, repeat at 20s, acknowledge/cancel and action failure (1.714627ms)
+✔ Kitchen priority serializes sound types and test sound does not acknowledge or trigger poll spam (1.326637ms)
+✔ workspace/permission scope, remount deduplication, logout and failed playback availability (4.62157ms)
+✔ cached deadlines continue without responses; authoritative reconciliation cancels future sound (1.455155ms)
+✔ cancelling before the deadline also suppresses audio during an in-flight request (1.211878ms)
+✔ cart exact estimates and merging preserve customization boundaries (169.123427ms)
+✔ confirmation IDs support LAN HTTP without crypto.randomUUID (18.951059ms)
+✔ multi-portion selection preserves independent notes, excludes zero and sold-out portions, and totals exactly (2.727784ms)
+✔ multi-add is all-or-nothing when a later merge exceeds the line limit (1.354637ms)
+✔ presentation groups by dish without collapsing lines or leaking UI IDs into confirmation (1.994073ms)
+✔ multi-role workspaces follow capabilities, not role names (4.030198ms)
+✔ financial workspaces require reports.read, independent of staff administration (0.758935ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 402.437501
+
+> dukanos@0.1.0 build
+> npm run build -w @dukanos/api && npm run build -w @dukanos/web
+
+
+> @dukanos/api@0.1.0 build
+> tsc -p tsconfig.json
+
+
+> @dukanos/web@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 73 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.44 kB │ gzip:   0.29 kB
+dist/assets/index-DtQ89hxH.css   40.50 kB │ gzip:   8.60 kB
+dist/assets/index-DqZuLDs0.js   788.46 kB │ gzip: 199.60 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 5.14s
+
+> dukanos@0.1.0 format:check
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!

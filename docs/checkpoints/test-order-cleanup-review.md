@@ -1,23 +1,19 @@
 # Production test-order cleanup review checkpoint
 
-Date: 2026-10-17. Branch: `chore/review-test-order-cleanup`, from updated main `d600d8df810084dec878592246c8a36feafcd108`.
+## Current revision — October 18 final scope
 
-Scope: independently review the owner-provided draft; prepare and test standalone replacement SQL, read-only verification, review findings and an owner-run dry-run/apply runbook. No AWS connection, production reads/writes, migration/application changes or deployment. Stop after delivery; execution needs separate authorization.
+Branch `fix/final-test-cleanup-oct18`, created from updated main `16b17262fdba91b1dddb1554d442362b04bd80a0`.
 
-The attached draft is truncated at the menu channel count. No claim is made to have reviewed its missing deletion/trigger/transaction ending. Replacement uses exact seven supplied UUIDs and conservative inventory assumptions from the visible draft; six named deletion guards only, active FKs, all-table locking/preservation, schema/ledger checks, default rollback, commit phrase plus reviewed fingerprint. Repeats safely abort. Historical reports and counters are preserved; old browser retries must be discarded.
+The owner reports overnight system cancellation: 7 exact October 17 test orders (2 COMPLETED / 5 CANCELLED), 5 Bills, 4 collections ₹1,100, 9 original items, 18 history rows, 3 Counter CANCEL amendments, 2 Zomato cancellation rows, 1 acknowledged timer and 8 daily reports. Only October 17 v1 is now additionally approved for deletion. Preserve seven October 10–16 reports, 293 menu audits, all other tables and numbering 7/5. This supersedes the earlier cleanup baseline and confirmation phrase.
 
-See [review/runbook](../operations/TEST_ORDER_CLEANUP_2026-10-17.md) and its actual local test output for verification and unresolved operational conditions. The synthetic fixture uses its own PostgreSQL 16.15 Unix-socket cluster with TCP disabled and no inherited environment/database connection. No production backup or data is used. All production execution remains pending.
+Preparation is limited to standalone SQL, read-only verification, isolated PostgreSQL tests and documentation. No production access, transfer, service changes or cleanup. Owner separately approves each production stage. No runtime logic/migrations changed.
 
-Verification: PostgreSQL 16.15 disposable suite passed 27 tests (26 subtests plus parent), zero failures/skips. Standalone ESLint/format checks passed. Evidence includes default rollback, explicit commit, scope/schema drift, real FK rejection, injected failure after every deletion, failed trigger restoration, preserved-data mutation and safe repeat refusal.
+The SQL captures actual report/amendment identities, requires the real reviewed all-row fingerprint, preserves FKs and restores nine specific deletion guards. Commit additionally needs reviewed report UUID and independent external-send review. Unsafe report cursor, delivery records or changed data abort. Current production cursor and external-send status are not independently verified. Expected initialized cursor: next_date October 18; never edit it to force cleanup. Actual worker tests cover midnight report, 05:00 system cancellations, startup after deletion and next-day catch-up.
 
-Full `npm run check` passed: lint, TypeScript, 17 API + 19 frontend unit tests, both builds and formatting. Existing frontend bundle-size warning remains. No UI changes or browser tests were required for this standalone maintenance review.
+See [runbook and final evidence](../operations/TEST_ORDER_CLEANUP_2026-10-17.md) for exact scope, dependencies, checksums, staging-only replacement commands and pending production conditions. Do not execute old staged copies or reuse fixture fingerprints.
 
-## Audit baseline correction — 2026-10-18
+## Prior reviews (historical only)
 
-Branch `fix/cleanup-menu-audit-baseline` starts from updated main `178d19bfcd4edaac7a3f2463291b3f8312da0eec`. Owner read-only inspection confirms 293 menu audits (133 + 118 + 11 + 31); cleanup dry run was not executed and application was restored. The SQL's only change is 251 → 293. Additional fixture audits use attributed complete Menu before/after aggregates. The production schema digest is unchanged and matches the previously reviewed value; verification SQL is byte-identical.
+Initial independent review: 27 tests, merged at `178d19b`. Audit correction 251 → 293: 34 tests, work commit `4f7119d`, merged at `16b1726`. Neither certifies the expanded final scope. Their evidence files remain unchanged. The prior production read-only inspection restored the application; no cleanup dry run had been executed.
 
-New tests cover the 293 baseline, 292/294 rejection, unchanged-count audit mutation after fingerprint review, a new October 17 daily report and new October 18 token/Bill counters. All earlier tests remain. New records must stop cleanup for review, never be swept up or removed to satisfy the old inventory. No production connection or maintenance initiated. Updated staging-only instructions and file checksums are in the runbook; the owner separately authorizes the next dry run.
-
-Corrected-baseline verification: **34 PostgreSQL tests passed (33 subtests plus parent), zero failures/skips**. This reruns all 27 original tests plus seven audit/rollover cases; independent before/after preservation checks include all 293 audit rows. Evidence is in `docs/operations/evidence/test-order-cleanup-2026-10-18.txt`.
-
-October 18 project checks: `npm run check` passed (lint, types, 17 API + 19 frontend unit tests, builds and formatting). Documentation links and diff checks passed; only the pre-existing frontend chunk-size warning remains. The correction changes no application logic, migrations or verification SQL, and no production action was taken.
+Final verification: **61 PostgreSQL tests passed**, zero failures/skips; real worker startup/catch-up and all nine deletion-stage rollback checks included. `npm run check` passed (17 API + 19 frontend unit tests, lint/types/build/format); final harness lint/format passed. Final evidence and SHA-256 values are linked in the runbook. Production prerequisites remain unverified; no maintenance initiated.

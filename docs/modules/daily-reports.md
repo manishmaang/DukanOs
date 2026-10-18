@@ -97,3 +97,7 @@ The default report delay remains five minutes after midnight, before default 05:
 Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).
 
 Migration 021's qualitative platform preparation adds no Bill, payment or tax record and does not modify stored Daily Reports. Daily snapshot regression coverage checks equality across platform creation, handover and cancellation; no regeneration is triggered by a preparation-mode change.
+
+## One-time test-day maintenance exception
+
+The October 18 [maintenance review](../operations/TEST_ORDER_CLEANUP_2026-10-17.md) prepares deletion of exactly October 17 v1 and no older report. It is not a report API or retention policy. Nine exact maintenance guards include daily_reports_immutable; its state is restored transactionally. Settings, audits and generation cursor remain unchanged. An initialized next_date of October 18 is required; email OFF alone cannot prevent stored report regeneration. Any delivery/attempt/action or uncertain external send blocks execution pending review. Tests invoke real startup/catch-up methods in an isolated database; production execution is not performed or authorized by this documentation.

@@ -14,6 +14,14 @@
 \else
  \set expected_fingerprint ''
 \endif
+\if :{?expected_report_id}
+\else
+ \set expected_report_id ''
+\endif
+\if :{?external_sends_checked}
+\else
+ \set external_sends_checked false
+\endif
 BEGIN;
 SET LOCAL search_path=dukanos,pg_catalog;
 SET LOCAL timezone='UTC';
@@ -21,7 +29,9 @@ SET LOCAL datestyle='ISO, YMD';
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='90s';
 SET LOCAL idle_in_transaction_session_timeout='120s';
-SELECT set_config('cleanup.apply', :'apply', true),
+SELECT set_config('cleanup.expected_report_id', :'expected_report_id', true),
+ set_config('cleanup.external_sends_checked', :'external_sends_checked', true),
+ set_config('cleanup.apply', :'apply', true),
  set_config('cleanup.confirm', :'confirm', true),
  set_config('cleanup.expected_fingerprint', :'expected_fingerprint', true);
 DO $cleanup$
@@ -39,8 +49,8 @@ DECLARE
 )::text,'UTF8')),'hex')$schema$;
  expected_schema constant text := '6b9ec2c9e9afb656f13677f85606a61ef6a7d0b691edd2d21c2b0c44eca16f72';
  schema_before text; schema_after text; fingerprint text;
- bill_ids uuid[]; r record; rowset jsonb; before_rows jsonb := '{}'; after_rows jsonb := '{}';
- affected constant text[] := ARRAY['kitchen_timers','payments','order_status_history','order_items','orders','bills'];
+ report_id uuid; amendment_ids uuid[]; bill_ids uuid[]; r record; rowset jsonb; before_rows jsonb := '{}'; after_rows jsonb := '{}';
+ affected constant text[] := ARRAY['kitchen_timers','payments','order_status_history','order_items','orders','bills','order_amendments','platform_order_cancellations'];
  n integer; deleted jsonb := '{}';
 BEGIN
  IF current_database()<>'dukanos_prod' OR current_schema()<>'dukanos' OR current_user<>'postgres'
@@ -50,7 +60,9 @@ BEGIN
  END IF;
  IF current_setting('cleanup.apply') NOT IN ('true','false') THEN RAISE EXCEPTION 'CLEANUP_INVALID_APPLY_FLAG'; END IF;
  IF current_setting('cleanup.apply')='true' AND
- (current_setting('cleanup.confirm')<>'DELETE_20261017_7_ORDERS_5_BILLS_4_PAYMENTS'
+ (current_setting('cleanup.confirm')<>'DELETE_20261017_TEST_ORDERS_AND_REPORT_V1'
+ OR current_setting('cleanup.external_sends_checked')<>'true'
+ OR current_setting('cleanup.expected_report_id') !~ '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
  OR current_setting('cleanup.expected_fingerprint') !~ '^[a-f0-9]{64}$') THEN
   RAISE EXCEPTION 'CLEANUP_EXPLICIT_CONFIRMATION_REQUIRED';
  END IF;
@@ -81,7 +93,7 @@ BEGIN
      OR (SELECT count(*) FROM orders WHERE source='COUNTER') <> 5
      OR (SELECT count(*) FROM orders WHERE source='ZOMATO') <> 2
      OR (SELECT count(*) FROM orders WHERE status='COMPLETED') <> 2
-     OR (SELECT count(*) FROM orders WHERE status='QUEUED') <> 5 THEN
+     OR (SELECT count(*) FROM orders WHERE status='CANCELLED') <> 5 THEN
     RAISE EXCEPTION 'CLEANUP_ORDER_BASELINE_CHANGED';
   END IF;
   IF (SELECT count(*) FROM bills) <> 5
@@ -89,7 +101,7 @@ BEGIN
      OR (SELECT count(DISTINCT bill_id) FROM orders WHERE source='COUNTER') <> 5
      OR EXISTS (SELECT 1 FROM orders WHERE (source='COUNTER') IS DISTINCT FROM (bill_id IS NOT NULL))
      OR (SELECT count(*) FROM order_items) <> 9
-     OR (SELECT count(*) FROM order_status_history) <> 13 THEN
+     OR (SELECT count(*) FROM order_status_history) <> 18 THEN
     RAISE EXCEPTION 'CLEANUP_BILL_OR_ORDER_CHILD_BASELINE_CHANGED';
   END IF;
   IF (SELECT count(*) FROM payments) <> 4
@@ -107,14 +119,14 @@ BEGIN
           AND order_id='87776115-adf3-4ec9-a62e-829374a47ede'::uuid
           AND order_item_id IS NULL AND status='ACKNOWLEDGED')
      OR (SELECT count(*) FROM bill_reminders) <> 0
-     OR (SELECT count(*) FROM order_amendments) <> 0
+     OR (SELECT count(*) FROM order_amendments) <> 3
      OR (SELECT count(*) FROM order_item_revisions) <> 0
-     OR (SELECT count(*) FROM platform_order_cancellations) <> 0 THEN
+     OR (SELECT count(*) FROM platform_order_cancellations) <> 2 THEN
     RAISE EXCEPTION 'CLEANUP_DEPENDENT_BASELINE_CHANGED';
   END IF;
   -- Do not alter stored historical reports/expenses/email/other business data.
   IF (SELECT count(*) FROM expenses) <> 0
-     OR (SELECT count(*) FROM daily_reports) <> 7
+     OR (SELECT count(*) FROM daily_reports) <> 8
      OR (SELECT count(*) FROM daily_reports WHERE business_date BETWEEN DATE '2026-10-10' AND DATE '2026-10-16') <> 7
      OR (SELECT count(*) FROM report_deliveries) <> 0
      OR (SELECT count(*) FROM report_delivery_attempts) <> 0
@@ -133,8 +145,51 @@ BEGIN
     RAISE EXCEPTION 'CLEANUP_MENU_BASELINE_CHANGED';
   END IF;
 
+  -- Exact system cancellation shape; UUIDs discovered here are bound by the
+  -- all-row reviewed fingerprint, never invented or accepted by date alone.
+  IF (SELECT count(*) FROM orders WHERE source='COUNTER' AND status='CANCELLED')<>3
+   OR (SELECT count(*) FROM orders WHERE source='ZOMATO' AND status='CANCELLED')<>2
+   OR EXISTS(SELECT 1 FROM order_amendments a JOIN orders o ON o.id=a.order_id JOIN bills b ON b.id=a.bill_id
+     WHERE NOT(o.id=ANY(targets)) OR o.source<>'COUNTER' OR o.status<>'CANCELLED'
+      OR a.bill_id<>o.bill_id OR a.kind<>'CANCEL' OR a.revision<>1 OR a.performed_by IS NOT NULL
+      OR a.reason<>'PREVIOUS_BUSINESS_DAY_AUTO_CANCEL' OR a.note<>''
+      OR a.before_total<>o.grand_total OR a.subtotal<>0 OR a.tax_total<>0 OR a.grand_total<>0
+      OR a.cleanup_timezone IS DISTINCT FROM 'Asia/Kolkata' OR a.cleanup_time IS DISTINCT FROM '05:00'
+      OR (a.created_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-18'
+      OR (a.created_at AT TIME ZONE 'Asia/Kolkata')::time<TIME '05:00'
+      OR b.status<>'CLOSED' OR b.closure_reason IS DISTINCT FROM 'BUSINESS_DAY_ROLLOVER'
+      OR NOT EXISTS(SELECT 1 FROM order_status_history h WHERE h.order_id=o.id AND h.to_status='CANCELLED' AND h.occurred_at=a.created_at))
+   OR EXISTS(SELECT 1 FROM platform_order_cancellations c JOIN orders o ON o.id=c.order_id
+     WHERE NOT(o.id=ANY(targets)) OR o.source<>'ZOMATO' OR o.status<>'CANCELLED' OR c.actor_id IS NOT NULL
+      OR c.reason<>'PREVIOUS_BUSINESS_DAY_AUTO_CANCEL'
+      OR c.cleanup_timezone IS DISTINCT FROM 'Asia/Kolkata' OR c.cleanup_time IS DISTINCT FROM '05:00'
+      OR (c.occurred_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-18'
+      OR (c.occurred_at AT TIME ZONE 'Asia/Kolkata')::time<TIME '05:00'
+      OR NOT EXISTS(SELECT 1 FROM order_status_history h WHERE h.order_id=o.id AND h.to_status='CANCELLED' AND h.occurred_at=c.occurred_at))
+   OR (SELECT count(*) FROM order_status_history WHERE to_status='CANCELLED' AND from_status='QUEUED' AND actor_id IS NULL AND reason='PREVIOUS_BUSINESS_DAY_AUTO_CANCEL')<>5
+   OR EXISTS(SELECT 1 FROM orders o WHERE (SELECT count(*) FROM order_status_history h WHERE h.order_id=o.id)<>CASE WHEN o.status='COMPLETED' THEN 4 ELSE 2 END) THEN
+   RAISE EXCEPTION 'CLEANUP_CANCELLATION_BASELINE_CHANGED';
+  END IF;
+  SELECT array_agg(id) INTO amendment_ids FROM order_amendments WHERE order_id=ANY(targets);
+  -- No cursor writes: initialized cursor must already have passed the test day.
+  -- Otherwise catchUp() could recreate v1 even with automatic EMAIL disabled.
+  IF (SELECT count(*) FROM daily_report_settings WHERE id AND start_date IS NOT NULL AND start_date<=DATE '2026-10-17' AND next_date=DATE '2026-10-18')<>1 THEN
+   RAISE EXCEPTION 'CLEANUP_REPORT_CURSOR_UNSAFE';
+  END IF;
+  SELECT id INTO report_id FROM daily_reports WHERE business_date=DATE '2026-10-17' AND version=1;
+  IF current_setting('cleanup.expected_report_id')<>'' AND current_setting('cleanup.expected_report_id') IS DISTINCT FROM report_id::text THEN
+   RAISE EXCEPTION 'CLEANUP_REPORT_ID_CHANGED';
+  END IF;
+  RAISE NOTICE 'CLEANUP_TARGET_REPORT_ID=%',report_id;
+  IF report_id IS NULL OR NOT EXISTS(SELECT 1 FROM daily_reports WHERE id=report_id
+   AND source='AUTOMATIC' AND generated_by IS NULL AND request_id IS NULL AND request_hash IS NULL
+   AND reason='' AND (generated_at AT TIME ZONE 'Asia/Kolkata')::date=DATE '2026-10-18'
+   AND snapshot->>'businessDate'='2026-10-17' AND snapshot->>'timezone'='Asia/Kolkata')
+   OR EXISTS(SELECT 1 FROM daily_reports WHERE version<>1) THEN
+   RAISE EXCEPTION 'CLEANUP_REPORT_BASELINE_CHANGED';
+  END IF;
   -- Reports must cover each historical date once; no hidden reference to deleted IDs.
-  IF (SELECT count(DISTINCT business_date) FROM daily_reports)<>7
+  IF (SELECT count(DISTINCT business_date) FROM daily_reports)<>8
    OR EXISTS(SELECT 1 FROM daily_reports d CROSS JOIN unnest(targets) t(id) WHERE strpos(d.snapshot::text,t.id::text)>0)
    OR NOT EXISTS(SELECT 1 FROM orders WHERE id='87776115-adf3-4ec9-a62e-829374a47ede' AND token_number=2)
    OR (SELECT array_agg(token_number ORDER BY token_number) FROM orders)<>ARRAY[1,2,3,4,5,6,7]
@@ -144,7 +199,7 @@ BEGIN
   IF EXISTS(SELECT 1 FROM orders WHERE timezone<>'Asia/Kolkata' OR (queued_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-17')
    OR EXISTS(SELECT 1 FROM bills WHERE (opened_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-17')
    OR EXISTS(SELECT 1 FROM payments WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-17')
-   OR EXISTS(SELECT 1 FROM order_status_history WHERE (occurred_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-17')
+   OR EXISTS(SELECT 1 FROM order_status_history WHERE (occurred_at AT TIME ZONE 'Asia/Kolkata')::date<>CASE WHEN to_status='CANCELLED' THEN DATE '2026-10-18' ELSE DATE '2026-10-17' END)
    OR EXISTS(SELECT 1 FROM kitchen_timers WHERE (started_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-17' OR (resolved_at AT TIME ZONE 'Asia/Kolkata')::date<>DATE '2026-10-17') THEN
    RAISE EXCEPTION 'CLEANUP_EVENT_DATE_CHANGED';
   END IF;
@@ -166,8 +221,10 @@ BEGIN
   IF current_setting('cleanup.expected_fingerprint')<>'' AND current_setting('cleanup.expected_fingerprint')<>fingerprint THEN
    RAISE EXCEPTION 'CLEANUP_REVIEW_FINGERPRINT_CHANGED';
   END IF;
-  -- Only six non-internal delete guards need disabling. The other three
-  -- (amendments/revision items/platform cancellations) remain enabled and empty.
+  -- Only these nine application deletion guards; revision/FK guards stay active.
+  ALTER TABLE order_amendments DISABLE TRIGGER protect_amendments;
+  ALTER TABLE platform_order_cancellations DISABLE TRIGGER protect_platform_cancellation;
+  ALTER TABLE daily_reports DISABLE TRIGGER daily_reports_immutable;
   ALTER TABLE kitchen_timers DISABLE TRIGGER immutable_kitchen_timer;
   ALTER TABLE payments DISABLE TRIGGER protect_payments;
   ALTER TABLE order_status_history DISABLE TRIGGER immutable_order_history;
@@ -183,9 +240,21 @@ BEGIN
   GET DIAGNOSTICS n=ROW_COUNT;
   IF n<>4 THEN RAISE EXCEPTION 'CLEANUP_PAYMENT_DELETE_COUNT'; END IF;
   deleted:=deleted||jsonb_build_object('payments',n);
+  DELETE FROM order_amendments WHERE id=ANY(amendment_ids) AND order_id=ANY(targets);
+  GET DIAGNOSTICS n=ROW_COUNT;
+  IF n<>3 THEN RAISE EXCEPTION 'CLEANUP_AMENDMENT_DELETE_COUNT'; END IF;
+  deleted:=deleted||jsonb_build_object('order_amendments',n);
+  DELETE FROM platform_order_cancellations WHERE order_id=ANY(targets);
+  GET DIAGNOSTICS n=ROW_COUNT;
+  IF n<>2 THEN RAISE EXCEPTION 'CLEANUP_PLATFORM_DELETE_COUNT'; END IF;
+  deleted:=deleted||jsonb_build_object('platform_order_cancellations',n);
+  DELETE FROM daily_reports WHERE id=report_id AND business_date=DATE '2026-10-17' AND version=1;
+  GET DIAGNOSTICS n=ROW_COUNT;
+  IF n<>1 THEN RAISE EXCEPTION 'CLEANUP_REPORT_DELETE_COUNT'; END IF;
+  deleted:=deleted||jsonb_build_object('daily_reports',n);
   DELETE FROM order_status_history WHERE order_id=ANY(targets);
   GET DIAGNOSTICS n=ROW_COUNT;
-  IF n<>13 THEN RAISE EXCEPTION 'CLEANUP_HISTORY_DELETE_COUNT'; END IF;
+  IF n<>18 THEN RAISE EXCEPTION 'CLEANUP_HISTORY_DELETE_COUNT'; END IF;
   deleted:=deleted||jsonb_build_object('order_status_history',n);
   DELETE FROM order_items WHERE order_id=ANY(targets);
   GET DIAGNOSTICS n=ROW_COUNT;
@@ -200,6 +269,9 @@ BEGIN
   IF n<>5 THEN RAISE EXCEPTION 'CLEANUP_BILL_DELETE_COUNT'; END IF;
   deleted:=deleted||jsonb_build_object('bills',n);
 
+  ALTER TABLE order_amendments ENABLE TRIGGER protect_amendments;
+  ALTER TABLE platform_order_cancellations ENABLE TRIGGER protect_platform_cancellation;
+  ALTER TABLE daily_reports ENABLE TRIGGER daily_reports_immutable;
   ALTER TABLE kitchen_timers ENABLE TRIGGER immutable_kitchen_timer;
   ALTER TABLE payments ENABLE TRIGGER protect_payments;
   ALTER TABLE order_status_history ENABLE TRIGGER immutable_order_history;
@@ -216,6 +288,10 @@ BEGIN
    after_rows:=after_rows||jsonb_build_object(r.relname,rowset);
    IF r.relname=ANY(affected) THEN
     IF rowset<>'[]'::jsonb THEN RAISE EXCEPTION 'CLEANUP_UNEXPECTED_REMAINING_ROWS'; END IF;
+   ELSIF r.relname='daily_reports' THEN
+    IF rowset IS DISTINCT FROM (SELECT coalesce(jsonb_agg(v ORDER BY v::text COLLATE "C"),'[]'::jsonb) FROM jsonb_array_elements(before_rows->'daily_reports') v WHERE v->>'id'<>report_id::text) THEN
+     RAISE EXCEPTION 'CLEANUP_PRESERVED_REPORTS_CHANGED';
+    END IF;
    ELSIF rowset IS DISTINCT FROM before_rows->r.relname THEN
     RAISE EXCEPTION 'CLEANUP_PRESERVED_DATA_CHANGED: %',r.relname;
    END IF;
