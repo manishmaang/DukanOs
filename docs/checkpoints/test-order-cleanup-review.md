@@ -1,5 +1,7 @@
 # Production test-order cleanup review checkpoint
 
+> **Completed in production — owner report received 19 October 2026. Do not rerun.** The owner reports successful dry-run rollback, explicit COMMIT, exact nine-group deletion, preservation checks and service restoration. Seven October 10–16 reports and unrelated data were preserved. Actual shop activity has since occurred. See the [production handoff](../operations/EC2_AUTO_START_STOP_HANDOFF_2026-10-19.md) for supplied evidence. The preparation steps and pending conditions below are historical; this documentation update did not connect to production or independently repeat those checks.
+
 ## Current revision — October 18 final scope
 
 Branch `fix/final-test-cleanup-oct18`, created from updated main `16b17262fdba91b1dddb1554d442362b04bd80a0`.

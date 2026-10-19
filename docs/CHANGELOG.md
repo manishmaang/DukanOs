@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-19 — Production scheduler context
+
+- Recorded owner-reported completed test cleanup, successful real-shop use and unspecified follow-up tweaks; marked old cleanup instructions historical/do-not-rerun.
+- Preserved the paused EC2 scheduling checkpoint: three disabled schedules, SSM listing confirmed but Online/Run Command unverified, guarded 05:45 stop pending, and specific-archive recovery limitations.
+- Reconciled KITCHEN role naming, cloud WAN dependence and existing worker/backup behavior against source. Documentation only; no production access, deployment or scheduler activation.
+
 ## 2026-10-18 — Final test-data cleanup revision
 
 - Expanded the standalone reviewed cleanup to the owner-confirmed overnight cancellation records and exactly October 17 daily report v1, retaining October 10–16 reports, all 293 menu audits and counters.

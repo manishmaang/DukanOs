@@ -1,5 +1,7 @@
 # October 17 test-data cleanup — final October 18 revision
 
+> **Completed in production — owner report received 19 October 2026. Do not rerun.** The owner reports successful dry-run rollback, explicit COMMIT, exact nine-group deletion, preservation checks and service restoration. Seven October 10–16 reports and unrelated data were preserved. Actual shop activity has since occurred. See the [production handoff](EC2_AUTO_START_STOP_HANDOFF_2026-10-19.md) for supplied evidence. The preparation steps and pending conditions below are historical; this documentation update did not connect to production or independently repeat those checks.
+
 ## Scope and authorization
 
 This replaces the obsolete 7-report/13-history/no-cancellation cleanup reviewed at `178d19b` and the audit-count correction merged at `16b1726`. The owner reports normal overnight processing has now produced five cancellations and October 17 report v1. All seven orders and four collections are confirmed test-only, with no real customer money. This is an exceptional administrative deletion, never an application feature or normal financial correction.
