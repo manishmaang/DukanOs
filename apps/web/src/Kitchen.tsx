@@ -1,3 +1,5 @@
+import { serviceLabel } from './service-label';
+import { confirmationId } from './order-cart';
 import { ServingLabel, SourceLabel } from './ServingLabel';
 import { KitchenTimers } from './KitchenTimers';
 import { KitchenAvailability } from './KitchenAvailability';
@@ -13,7 +15,19 @@ function duration(since: string, now: number) {
   const minutes = Math.max(0, Math.floor((now - Date.parse(since)) / 60000));
   return minutes < 1 ? '<1 min' : `${minutes} min`;
 }
-function OrderItems({ order }: { order: KitchenOrder }) {
+function OrderItems({
+  order,
+  enabled,
+  serve,
+}: {
+  order: KitchenOrder;
+  enabled: boolean;
+  serve: (
+    line: KitchenOrder['items'][number],
+    quantity: number,
+    reason: string,
+  ) => void;
+}) {
   const groups = new Map<string, typeof order.items>();
   for (const item of order.items) {
     const key = JSON.stringify([
@@ -31,7 +45,10 @@ function OrderItems({ order }: { order: KitchenOrder }) {
         <div key={key} className="kds-dish">
           <h3>{lines[0]!.kitchenName}</h3>
           {lines.map((line) => (
-            <div key={line.id} className="kds-line">
+            <div
+              key={line.id}
+              className={`kds-line ${line.pendingQuantity === 0 ? 'kds-served' : ''}`}
+            >
               <p>
                 {line.variantName} <strong>×{line.quantity}</strong>
               </p>
@@ -39,11 +56,102 @@ function OrderItems({ order }: { order: KitchenOrder }) {
               {line.instruction && (
                 <p className="kds-instruction">{line.instruction}</p>
               )}
+              {order.serviceType === 'DINE_IN' && (
+                <>
+                  <p>
+                    {line.pendingQuantity === 0
+                      ? 'SERVED'
+                      : `${line.pendingQuantity ?? line.quantity} pending`}{' '}
+                    · {line.servedQuantity ?? 0} served
+                  </p>
+                  {enabled && (
+                    <ServingControls
+                      key={`${line.id}:${line.servedQuantity}`}
+                      line={line}
+                      onServe={(quantity, reason) =>
+                        serve(line, quantity, reason)
+                      }
+                    />
+                  )}
+                </>
+              )}
             </div>
           ))}
         </div>
       ))}
     </div>
+  );
+}
+function ServingControls({
+  line,
+  onServe,
+}: {
+  line: KitchenOrder['items'][number];
+  onServe: (quantity: number, reason: string) => void;
+}) {
+  const remaining = line.pendingQuantity ?? line.quantity;
+  const [quantity, setQuantity] = useState(remaining || 1);
+  const [correct, setCorrect] = useState(false);
+  const [reason, setReason] = useState('');
+  const max = correct ? (line.servedQuantity ?? 0) : remaining;
+  return (
+    <form
+      className="kds-serve-controls"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onServe(correct ? -quantity : quantity, reason);
+      }}
+    >
+      {max > 0 && (
+        <>
+          <label>
+            {correct ? 'Quantity to correct' : 'Quantity to serve'}
+            <input
+              type="number"
+              min={1}
+              max={max}
+              required
+              value={quantity}
+              onChange={(e) => setQuantity(Number(e.target.value))}
+            />
+          </label>
+          {correct && (
+            <label>
+              Correction reason
+              <input
+                required
+                maxLength={500}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+          )}
+          <button
+            type="submit"
+            disabled={
+              !Number.isInteger(quantity) ||
+              quantity < 1 ||
+              quantity > max ||
+              (correct && !reason.trim())
+            }
+          >
+            {correct ? 'Record correction' : 'Serve'}
+          </button>
+        </>
+      )}
+      {!!line.servedQuantity && (
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            setCorrect(!correct);
+            setQuantity(1);
+          }}
+        >
+          {correct ? 'Back to serving' : 'Correct served quantity'}
+        </button>
+      )}
+    </form>
   );
 }
 function Production({
@@ -74,6 +182,18 @@ function Production({
                     {part.instruction || 'Normal'}
                   </span>
                   <strong>×{part.quantity}</strong>
+                </li>
+              ))}
+            </ul>
+            <ul className="kds-production-sources">
+              {g.sources.map((source) => (
+                <li key={`${source.orderId}:${source.lineId}`}>
+                  Token #{source.tokenNumber} ·{' '}
+                  {g.source && g.source !== 'COUNTER'
+                    ? g.source
+                    : serviceLabel(source.serviceType)}
+                  {source.reference ? ` · ${source.reference}` : ''} · ×
+                  {source.quantity}
                 </li>
               ))}
             </ul>
@@ -160,7 +280,12 @@ export function Kitchen({
       document.removeEventListener('visibilitychange', resume);
     };
   }, [refresh]);
-  async function transition(order: KitchenOrder) {
+  async function transition(
+    order: KitchenOrder,
+    line?: KitchenOrder['items'][number],
+    quantity?: number,
+    reason = '',
+  ) {
     if (acting.current) return;
     acting.current = true;
     sequence.current++;
@@ -169,12 +294,23 @@ export function Kitchen({
     setFeedback('');
     try {
       await api(
-        `/kitchen/orders/${order.orderId}/${order.status === 'QUEUED' ? 'start' : 'ready'}`,
+        `/kitchen/orders/${order.orderId}/${line ? `lines/${line.id}/serve` : 'fulfill'}`,
         'POST',
+        {
+          requestId: confirmationId(),
+          expectedRevision: order.revision,
+          ...(line
+            ? {
+                expectedServedQuantity: line.servedQuantity ?? 0,
+                quantity,
+                reason,
+              }
+            : {}),
+        },
       );
       if (mounted.current)
         setFeedback(
-          `Token #${order.tokenNumber} ${order.status === 'QUEUED' ? 'started' : 'ready'}.`,
+          `Token #${order.tokenNumber} ${line ? 'serving updated' : 'handed over'}.`,
         );
     } catch (e) {
       if (mounted.current) setFeedback(errorMessage(e));
@@ -197,7 +333,7 @@ export function Kitchen({
       <div className="kds-toolbar">
         <div>
           <h1>Kitchen</h1>
-          <p>Oldest token starts first</p>
+          <p>Oldest tokens first · Serve food as it is ready</p>
         </div>
         <div className="kds-modes" role="group" aria-label="Kitchen views">
           <button
@@ -223,7 +359,7 @@ export function Kitchen({
         <KitchenTimers
           userId={userId}
           canManage={canManageTimers}
-          orders={[...(state?.queued ?? []), ...(state?.preparing ?? [])]}
+          orders={state?.pending ?? []}
         />
       )}
       {feedback && (
@@ -244,38 +380,30 @@ export function Kitchen({
         (mode === 'production' ? (
           <>
             <p className="kds-help">
-              Quantities follow whole orders. Start and mark ready in Order
-              View.
+              Pending quantities only. Serve or hand over in Order View.
             </p>
             <div className="kds-production-sections">
-              <Production groups={state.production.queued} label="To start" />
               <Production
-                groups={state.production.preparing}
-                label="In preparation"
+                groups={state.production.pending}
+                label="Pending production"
               />
             </div>
           </>
         ) : (
           <div className="kds-columns">
-            {(['QUEUED', 'PREPARING'] as const).map((status) => {
-              const orders =
-                status === 'QUEUED' ? state.queued : state.preparing;
+            {(['PENDING'] as const).map((status) => {
+              const orders = state.pending;
               return (
                 <section
-                  className={`kds-column ${status === 'PREPARING' ? 'kds-preparing' : ''}`}
+                  className="kds-column"
                   key={status}
-                  aria-label={status === 'QUEUED' ? 'Queued' : 'Preparing'}
+                  aria-label="Pending orders"
                 >
                   <h2>
-                    {status === 'QUEUED' ? 'Queued' : 'Preparing'}{' '}
-                    <span>{orders.length}</span>
+                    Pending orders <span>{orders.length}</span>
                   </h2>
                   {!orders.length && (
-                    <p className="kds-empty">
-                      {status === 'QUEUED'
-                        ? 'No orders waiting.'
-                        : 'No orders in preparation.'}
-                    </p>
+                    <p className="kds-empty">No orders waiting.</p>
                   )}
                   <div className="kds-order-grid">
                     {orders.map((order) => {
@@ -287,7 +415,7 @@ export function Kitchen({
                       const showDate =
                         order.businessDate !== state.businessDate ||
                         multipleDates;
-                      const next = state.nextOrderId === order.orderId;
+                      const next = state.pending[0]?.orderId === order.orderId;
                       const fresh =
                         (arrivals.current.get(order.orderId) ?? 0) >
                         performance.now();
@@ -313,13 +441,7 @@ export function Kitchen({
                               </strong>
                             )}
                             <p className="kds-age">
-                              {status === 'QUEUED' ? 'Waiting' : 'Preparing'}{' '}
-                              {duration(
-                                status === 'QUEUED'
-                                  ? order.queuedAt
-                                  : order.preparingAt!,
-                                now,
-                              )}
+                              Waiting {duration(order.queuedAt, now)}
                             </p>
                           </div>
                           {showDate && (
@@ -327,22 +449,30 @@ export function Kitchen({
                               {order.businessDate}
                             </time>
                           )}
-                          <OrderItems order={order} />
-                          {canUpdate && (
+                          {(order.source ?? 'COUNTER') === 'COUNTER' && (
+                            <p className="kds-service">
+                              <strong>{serviceLabel(order.serviceType)}</strong>
+                              {order.reference && (
+                                <span> · {order.reference}</span>
+                              )}
+                            </p>
+                          )}
+                          <OrderItems
+                            order={order}
+                            enabled={canUpdate && !pending}
+                            serve={(line, quantity, reason) =>
+                              void transition(order, line, quantity, reason)
+                            }
+                          />
+                          {canUpdate && order.serviceType !== 'DINE_IN' && (
                             <button
                               className="kds-action"
-                              disabled={
-                                !!pending || (status === 'QUEUED' && !next)
-                              }
+                              disabled={!!pending}
                               onClick={() => void transition(order)}
                             >
                               {pending === order.orderId
                                 ? 'Updating…'
-                                : status === 'PREPARING'
-                                  ? 'Mark Ready'
-                                  : next
-                                    ? 'Start Order'
-                                    : 'Waiting for older token'}
+                                : 'Ready & Handed Over'}
                             </button>
                           )}
                         </article>

@@ -105,6 +105,7 @@ const root = require('node:path').resolve(__dirname, '..');
       process.env.CHROME_BINARY,
       [
         '--no-sandbox',
+        '--headless=new',
         '--remote-debugging-port=0',
         '--user-data-dir=' + profile,
         '--disable-background-networking',
@@ -434,6 +435,9 @@ const root = require('node:path').resolve(__dirname, '..');
         await select('[aria-label="Service type"]', service);
         await c.fill('[aria-label="Table / Reference"]', reference);
       }
+      const previousConfirmation = await c.read(
+        "document.querySelector('.order-confirmed')?.textContent ?? ''",
+      );
       await tap('.confirm-order');
       await c.wait(
         "!!document.querySelector('.payment-review .payment-choices')",
@@ -469,7 +473,9 @@ const root = require('node:path').resolve(__dirname, '..');
           await button('Retry confirmation');
         }
       } else await button('Pay Later');
-      await c.wait("!!document.querySelector('.order-token')");
+      await c.wait(
+        `!!document.querySelector('.order-confirmed') && document.querySelector('.order-confirmed').textContent !== ${JSON.stringify(previousConfirmation)} && !document.querySelector('.payment-review') && !document.querySelector('.cart-line')`,
+      );
       const orders = (await c.http('/orders')).body.orders;
       return orders.at(-1);
     }
@@ -624,20 +630,13 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       await inspect('cash-refund', width, height, true);
       await prepare(cheaper);
-      await go('/dispatch', '.dispatch');
+      await go('/kitchen', '.kds');
       await c.wait(
         `!!document.querySelector('[data-order-id="${cheaper.id}"]')`,
       );
-      assert.ok(
-        await c.read(
-          `document.querySelector('[data-order-id="${cheaper.id}"]').textContent.includes('REFUND 50.00 AT COUNTER')||document.querySelector('[data-order-id="${cheaper.id}"]').textContent.includes('REFUND ₹50')`,
-        ),
-      );
-      assert.equal(
-        await c.read(
-          `document.querySelector('[data-order-id="${cheaper.id}"] .dispatch-action').disabled`,
-        ),
-        true,
+      await button('Ready & Handed Over');
+      await c.wait(
+        "document.body.textContent.includes('Settle the Parcel bill')",
       );
       await navigate(c, '/pos?bill=' + cheaper.billId, '.bill-refund');
       await c.fill('[aria-label="Cash refund amount"]', '30');

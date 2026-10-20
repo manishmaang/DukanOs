@@ -101,3 +101,7 @@ Repeated rollover does not rewrite reminders. Later settlement on a closed tab d
 ## Previous-day cleanup boundary (019)
 
 Previous-day order cleanup cancels attached ACTIVE Kitchen timers with null resolved_by and PREVIOUS_BUSINESS_DAY_AUTO_CANCEL resolution_reason. Standalone timers and prior timer audit are preserved. Authoritative polling removes cancelled timers/audio; cached alarms during an API outage may continue until reconnect. Historical Bill reminders remain paused by existing rollover policy even when financial obligations remain.
+
+## Real-shop fulfillment boundary
+
+Kitchen now completes Dine-In rounds through item serving and Parcel/platform rounds through one-action handover. Round completion does not pay or close a Bill. Parcel still requires both collection due and refund due zero. Any serving history blocks manual amendments; corrections are operational events only and cannot change sale values. At previous-day cleanup, partly served Dine-In rounds complete with their entire effective value preserved; a distinct system completion records why. Actual served quantities remain truthful. Existing midnight Bill rollover and financial settlement rules remain separate. See [Kitchen](kitchen.md).

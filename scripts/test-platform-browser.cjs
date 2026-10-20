@@ -102,6 +102,7 @@ const root = require('node:path').resolve(__dirname, '..');
       process.env.CHROME_BINARY,
       [
         '--no-sandbox',
+        '--headless=new',
         '--remote-debugging-port=0',
         '--user-data-dir=' + profile,
         '--disable-background-networking',
@@ -434,7 +435,7 @@ const root = require('node:path').resolve(__dirname, '..');
         );
       }
       await cashier.wait(
-        "document.querySelector('.platform-cart')?.innerText.includes('TOKEN #')",
+        "document.querySelector('.order-confirmed')?.innerText.includes('Token #')",
       );
       const lookup = await cashier.http('/platform-orders?search=Z-' + width);
       assert.equal(lookup.status, 200);
@@ -471,17 +472,12 @@ const root = require('node:path').resolve(__dirname, '..');
         production.includes('HALF MANCHURIAN') &&
           production.includes('LESS QUANTITY'),
       );
-      assert.ok(!production.includes('#'));
+      assert.ok(production.includes('Token #'));
       fs.writeFileSync(
         `/tmp/dukanos-platform-production-${width}.png`,
         Buffer.from((await cook.send('Page.captureScreenshot')).data, 'base64'),
       );
       await tap(cook, 'Order View');
-      await tap(cook, 'Start Order');
-      await cook.wait(
-        `document.querySelector('[data-order-id="${order.id}"]')?.innerText.includes('Mark Ready')`,
-      );
-      await tap(cook, 'Mark Ready');
       await dispatcher.read("location.hash='/dispatch'");
       await dispatcher.wait(
         `!!document.querySelector('[data-order-id="${order.id}"]')`,
@@ -500,11 +496,16 @@ const root = require('node:path').resolve(__dirname, '..');
           'base64',
         ),
       );
-      await tap(dispatcher, 'Handed Over');
+      await tap(dispatcher, 'Ready & Handed Over');
       await dispatcher.wait(
         `!document.querySelector('[data-order-id="${order.id}"]')`,
       );
-      await tap(cashier, 'New Order');
+      assert.equal(
+        await cashier.read(
+          "document.querySelectorAll('.platform-cart-lines article').length",
+        ),
+        0,
+      );
       await tap(cashier, 'Track platform orders');
       await cashier.wait("!!document.querySelector('.platform-track-card')");
       await cashier.read(
@@ -518,7 +519,7 @@ const root = require('node:path').resolve(__dirname, '..');
           await cashier.read(
             "document.querySelector('.platform-tracking article').innerText",
           )
-        ).includes('Dispatch handed order over'),
+        ).includes('KITCHEN_HANDOVER'),
       );
       const platformMenu = (
         await cashier.http('/platform-orders/menu?source=SWIGGY')
@@ -579,7 +580,7 @@ const root = require('node:path').resolve(__dirname, '..');
       if (mode === 'REDUCED') await tap(cashier, 'LESS QUANTITY');
       await tap(cashier, 'Submit to Kitchen');
       await cashier.wait(
-        "document.querySelector('.platform-cart')?.innerText.includes('TOKEN #')",
+        "document.querySelector('.order-confirmed')?.innerText.includes('Token #')",
       );
       const swiggy = (await cashier.http('/platform-orders?search=S-' + width))
         .body.orders[0];
@@ -587,7 +588,12 @@ const root = require('node:path').resolve(__dirname, '..');
       await ownerCall(`/platform-orders/${swiggy.id}/cancel`, {
         reason: 'Browser fixture complete',
       });
-      await tap(cashier, 'New Order');
+      assert.equal(
+        await cashier.read(
+          "document.querySelectorAll('.platform-cart-lines article').length",
+        ),
+        0,
+      );
       await tap(cashier, 'Counter');
       count++;
     }

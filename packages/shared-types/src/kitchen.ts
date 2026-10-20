@@ -1,5 +1,7 @@
 /** Kitchen-only projections deliberately omit financial data. */
 export interface KitchenLine {
+  servedQuantity?: number;
+  pendingQuantity?: number;
   serving?: import('./platform-orders').ServingSnapshot | null;
   id: string;
   menuItemId: string;
@@ -11,17 +13,22 @@ export interface KitchenLine {
   instruction: string;
 }
 export interface KitchenOrder {
+  revision?: number;
+  serviceType?: import('./bills').ServiceType | null;
+  reference?: string | null;
   source?: import('./platform-orders').OrderSource;
   externalReference?: string | null;
   orderId: string;
   businessDate: string;
   tokenNumber: number;
-  status: 'QUEUED' | 'PREPARING';
+  status: 'QUEUED' | 'PREPARING' | 'READY';
   queuedAt: string;
   preparingAt: string | null;
   items: KitchenLine[];
 }
 export interface ProductionSource {
+  serviceType?: import('./bills').ServiceType | null;
+  reference?: string | null;
   orderId: string;
   lineId: string;
   businessDate: string;
@@ -42,10 +49,12 @@ export interface ProductionGroup {
   sources: ProductionSource[];
 }
 export interface KitchenProduction {
+  pending: ProductionGroup[];
   queued: ProductionGroup[];
   preparing: ProductionGroup[];
 }
 export interface KitchenState {
+  pending: KitchenOrder[];
   serverTime: string;
   businessDate: string;
   lateThresholdMinutes: number;

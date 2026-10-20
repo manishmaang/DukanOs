@@ -140,3 +140,66 @@ test('production separates qualitative modes, sources and historical measurement
   assert.equal(groups[5].serving.amount, '300.00');
   assert.equal(groups[6].serving.amount, '350.00');
 });
+
+test('pending production excludes served food and keeps mixed-service source references', () => {
+  const base = {
+    orderId: 'dine',
+    tokenNumber: 1,
+    businessDate: '2026-10-20',
+    queuedAt: '2026-10-20T10:00:00Z',
+    serviceType: 'DINE_IN',
+    reference: 'Table 4',
+    items: [
+      {
+        id: 'line',
+        menuItemId: 'dish',
+        variantId: 'full',
+        itemName: 'Noodles',
+        kitchenName: 'Noodles',
+        variantName: 'Full',
+        quantity: 3,
+        servedQuantity: 1,
+        pendingQuantity: 2,
+        instruction: 'No onion',
+      },
+    ],
+  };
+  const groups = aggregateProduction([
+    base,
+    {
+      ...base,
+      orderId: 'parcel',
+      tokenNumber: 2,
+      serviceType: 'TAKEAWAY',
+      reference: null,
+      items: [
+        {
+          ...base.items[0],
+          id: 'parcel-line',
+          quantity: 1,
+          servedQuantity: 0,
+          pendingQuantity: 1,
+        },
+      ],
+    },
+    {
+      ...base,
+      orderId: 'served',
+      items: [{ ...base.items[0], pendingQuantity: 0 }],
+    },
+  ]);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].totalQuantity, 3);
+  assert.deepEqual(
+    groups[0].sources.map((s) => [
+      s.orderId,
+      s.quantity,
+      s.serviceType,
+      s.reference,
+    ]),
+    [
+      ['dine', 2, 'DINE_IN', 'Table 4'],
+      ['parcel', 1, 'TAKEAWAY', null],
+    ],
+  );
+});

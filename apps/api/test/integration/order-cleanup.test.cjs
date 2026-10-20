@@ -139,7 +139,35 @@ test(
       const status = async (o) =>
         (await sql.query('SELECT status FROM orders WHERE id=$1', [o.id]))
           .rows[0].status;
+      let upgraded = false;
       async function amend(o, quantity, kind = 'CHANGE') {
+        if (!upgraded) {
+          // Populate the historical 018 schema directly, keeping all its real
+          // constraints/triggers active. Current services require migration 022.
+          const id = randomUUID();
+          await sql.query('BEGIN');
+          try {
+            await sql.query(
+              `INSERT INTO order_amendments(id,order_id,bill_id,revision,kind,performed_by,reason,request_id,request_hash,before_total,subtotal,tax_total,grand_total) SELECT $1,id,bill_id,1,$3,confirmed_by,'CUSTOMER_CHANGE',$1,repeat('a',64),grand_total,$4,0,$4 FROM orders WHERE id=$2`,
+              [id, o.id, kind, (quantity * 100).toFixed(2)],
+            );
+            if (kind === 'CHANGE')
+              await sql.query(
+                `INSERT INTO order_item_revisions SELECT $1,order_id,id,position,menu_item_id,variant_id,item_name_snapshot,kitchen_name_snapshot,variant_name_snapshot,$3::integer,unit_price_snapshot,$3::integer*unit_price_snapshot,instruction FROM order_items WHERE order_id=$2`,
+                [id, o.id, quantity],
+              );
+            else
+              await sql.query(
+                `INSERT INTO order_status_history SELECT $1,id,'QUEUED','CANCELLED',confirmed_by,clock_timestamp(),'CUSTOMER_CHANGE' FROM orders WHERE id=$2`,
+                [randomUUID(), o.id],
+              );
+            await sql.query('COMMIT');
+            return;
+          } catch (e) {
+            await sql.query('ROLLBACK');
+            throw e;
+          }
+        }
         const input = {
           requestId: randomUUID(),
           expectedRevision: 0,
@@ -266,6 +294,7 @@ test(
             );
         },
       );
+      upgraded = true;
       await t.test(
         'strict cleanup configuration accepts bounds and rejects malformed values',
         () => {

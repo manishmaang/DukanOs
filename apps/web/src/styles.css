@@ -934,16 +934,15 @@ small {
   min-width: 0;
 }
 .order-cart {
-  position: sticky;
-  top: 1rem;
+  position: static;
   border: 1px solid #cbd5e1;
   border-radius: 12px;
   background: white;
   display: flex;
   flex-direction: column;
   padding: 0;
-  max-height: var(--cart-available-height, calc(100dvh - 230px));
-  overflow: hidden;
+  max-height: none;
+  overflow: visible;
   min-width: 0;
 }
 .cart-heading {
@@ -968,7 +967,7 @@ small {
   color: #526457;
 }
 .cart-items {
-  overflow-y: auto;
+  overflow: visible;
   min-height: 0;
   padding: 0 18px;
   overscroll-behavior: contain;
@@ -1141,13 +1140,13 @@ small {
   }
   .order-cart {
     position: static;
-    max-height: calc(100dvh - 32px);
+    max-height: none;
     scroll-margin-top: 16px;
   }
 }
 @media (max-height: 650px) {
   .order-cart {
-    max-height: calc(100dvh - 32px);
+    max-height: none;
   }
 }
 @media (max-width: 420px) {
@@ -1678,9 +1677,8 @@ header > div button {
     gap: 14px;
   }
   .order-cart {
-    position: sticky;
-    top: 12px;
-    max-height: var(--cart-available-height, calc(100dvh - 24px));
+    position: static;
+    max-height: none;
   }
   .pos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1783,7 +1781,7 @@ header > div button {
     border: 1px solid #a8b8aa;
     border-radius: 12px;
     color: inherit;
-    overflow: hidden;
+    overflow-y: auto;
     position: fixed;
     top: calc(var(--visual-top, 0px) + 12px);
     bottom: auto;
@@ -1800,14 +1798,14 @@ header > div button {
   }
   .cart-dialog .order-cart {
     position: static;
-    flex: 1;
+    flex: none;
     min-height: 0;
     max-height: none;
     border: 0;
     border-radius: 0;
   }
   .cart-items {
-    flex: 1;
+    flex: none;
   }
   .cart-summary {
     overflow-wrap: anywhere;
@@ -1943,7 +1941,7 @@ header > div button {
   margin: 0 auto;
 }
 .keyboard-open .cart-dialog .order-cart {
-  overflow-y: auto;
+  overflow: visible;
   display: block;
 }
 .keyboard-open .cart-dialog .cart-items {
@@ -1951,7 +1949,7 @@ header > div button {
 }
 @media (max-height: 500px) {
   .cart-dialog .order-cart {
-    overflow-y: auto;
+    overflow: visible;
     display: block;
   }
   .cart-dialog .cart-items {
@@ -2899,8 +2897,8 @@ header > div button {
 }
 .platform-cart {
   padding: 1rem;
-  overflow: auto;
-  max-height: 80dvh;
+  overflow: visible;
+  max-height: none;
 }
 .platform-cart label,
 .platform-tracking label {
@@ -2954,4 +2952,41 @@ header > div button {
 .preparation-choice [aria-pressed='false'] {
   background: white;
   color: #084c3b;
+}
+
+.cart-workspace {
+  min-width: 0;
+}
+.order-confirmed {
+  overflow-wrap: anywhere;
+}
+
+.kds-served {
+  background: #edf1ed;
+  color: #465349;
+}
+.kds-service {
+  overflow-wrap: anywhere;
+  font-size: 1.1rem;
+}
+.kds-serve-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+.kds-serve-controls label {
+  flex: 1 1 130px;
+  min-width: 0;
+}
+.kds-serve-controls input {
+  width: 100%;
+  min-height: 48px;
+}
+.kds-serve-controls button {
+  min-height: 48px;
+}
+.kds-production-sources {
+  padding-left: 20px;
+  overflow-wrap: anywhere;
 }

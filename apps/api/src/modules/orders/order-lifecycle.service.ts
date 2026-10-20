@@ -67,7 +67,11 @@ export class OrderLifecycleService {
           message:
             'Another device already updated this order. The queue will refresh.',
         });
-      if (!canTransition(order.status, to))
+      // Legacy Dispatch clients remain READY-only; new fulfillment uses its own guarded command.
+      if (
+        !canTransition(order.status, to) ||
+        (to === 'COMPLETED' && order.status !== 'READY')
+      )
         throw new ConflictException({
           code: 'INVALID_ORDER_TRANSITION',
           message:
@@ -95,7 +99,7 @@ export class OrderLifecycleService {
           throw new ConflictException({
             code: 'PAYMENT_REQUIRED',
             message:
-              'Settle the Takeaway bill collection or cash refund at Counter before handover.',
+              'Settle the Parcel bill collection or cash refund at Counter before handover.',
           });
       }
       // The database checks the same policy and atomically applies status from history.

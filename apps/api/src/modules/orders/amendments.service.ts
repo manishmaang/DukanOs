@@ -66,6 +66,18 @@ export class AmendmentsService {
         'ORDER_NOT_AMENDABLE',
         'Preparation has started or this order is terminal. Add replacement food as a new Kitchen round.',
       );
+    if (
+      (
+        await c.query(
+          'SELECT 1 FROM order_serving_events WHERE order_id=$1 LIMIT 1',
+          [id],
+        )
+      ).rowCount
+    )
+      this.conflict(
+        'ORDER_HAS_SERVING_HISTORY',
+        'This round has serving history. Add replacement food as a new Kitchen round.',
+      );
     await this.bills.lockForFood(c, o.bill_id);
     if (o.revision !== input.expectedRevision)
       this.conflict(

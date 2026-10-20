@@ -170,6 +170,7 @@ test(
             'bills.reminders.read',
             'expenses.create',
             'expenses.read',
+            'kitchen.fulfill',
             'kitchen.read',
             'kitchen.timers.manage',
             'kitchen.timers.read',

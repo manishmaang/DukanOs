@@ -125,7 +125,7 @@ export class OrdersService {
         throw new BadRequestException({
           code: 'INVALID_BILL_SELECTION',
           message:
-            'Choose Dine In or Takeaway for a new bill, or select an existing bill.',
+            'Choose Dine In or Parcel for a new bill, or select an existing bill.',
         });
       if (input.billId) await this.bills.lockOpen(client, input.billId);
       const menu = await this.menu.counterForConfirmation(client);

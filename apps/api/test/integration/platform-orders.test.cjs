@@ -321,6 +321,9 @@ test(
           }).expect(400);
         },
       );
+      await sql.query(
+        fs.readFileSync('database/migrations/022_kitchen_serving.sql', 'utf8'),
+      );
       const input = (source = 'ZOMATO', reference = randomUUID()) => ({
         requestId: randomUUID(),
         source,

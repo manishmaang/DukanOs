@@ -2,7 +2,6 @@ import { Expenses } from './Expenses';
 import { ReportsWorkspace } from './Reports';
 import { OperationalAudioProvider } from './OperationalAudio';
 import { useVisualViewport } from './useVisualViewport';
-import { Dispatch } from './Dispatch';
 import { Kitchen } from './Kitchen';
 import { MenuAdmin } from './Menu';
 import { Pos as MenuPreview } from './Pos';
@@ -18,6 +17,7 @@ import {
 import { createRoot } from 'react-dom/client';
 import {
   HashRouter,
+  Navigate,
   NavLink,
   Route,
   Routes,
@@ -242,16 +242,6 @@ function App() {
                       />
                     ) : link.path === '/expenses' ? (
                       <Expenses user={user} key={user.id} />
-                    ) : link.path === '/dispatch' ? (
-                      <Dispatch
-                        canCollect={user.permissions.includes(
-                          'payments.collect',
-                        )}
-                        key={user.id}
-                        canComplete={user.permissions.includes(
-                          'dispatch.complete',
-                        )}
-                      />
                     ) : link.path === '/kitchen' ? (
                       <Kitchen
                         userId={user.id}
@@ -262,7 +252,7 @@ function App() {
                           'kitchen.timers.manage',
                         )}
                         key={user.id}
-                        canUpdate={user.permissions.includes('kitchen.update')}
+                        canUpdate={user.permissions.includes('kitchen.fulfill')}
                         canManageAvailability={user.permissions.includes(
                           'menu.availability.manage',
                         )}
@@ -338,6 +328,12 @@ function App() {
                   }
                 />
               ))}
+              {user.permissions.includes('kitchen.read') && (
+                <Route
+                  path="/dispatch"
+                  element={<Navigate to="/kitchen" replace />}
+                />
+              )}
               <Route
                 path="*"
                 element={

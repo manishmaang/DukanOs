@@ -131,3 +131,7 @@ System previous-day cleanup uses CANCEL amendments, so existing effective sales/
 Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).
 
 The qualitative platform preparation refinement (021) changes no financial cohort or calculation. Regression coverage compares daily financial snapshots after platform creation, completion and cancellation; all stay equal. See [verification checkpoint](../checkpoints/platform-pos-refinement.md).
+
+## Kitchen fulfillment impact
+
+Serving events do not enter sales or payment arithmetic. Direct Kitchen completion changes operational status counts only; the same effective order financial snapshots remain authoritative. At prior-day cutoff, partly served Dine-In completes at full value under the owner's explicit rule, rather than receiving a zero-value cancellation revision. Payments, refunds, expenses and existing saved reports are unchanged. Staff-facing TAKEAWAY is labeled Parcel without changing stored report grouping keys.

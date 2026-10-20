@@ -40,8 +40,8 @@ export function orderConfiguration(
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   const next: Record<OrderStatus, OrderStatus[]> = {
     DRAFT: ['QUEUED', 'CANCELLED'],
-    QUEUED: ['PREPARING', 'CANCELLED'],
-    PREPARING: ['READY'],
+    QUEUED: ['PREPARING', 'CANCELLED', 'COMPLETED'],
+    PREPARING: ['READY', 'COMPLETED'],
     READY: ['COMPLETED'],
     COMPLETED: [],
     CANCELLED: [],

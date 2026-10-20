@@ -20,7 +20,7 @@ Migration-020 orders keep preparation_mode null and their original per-line meas
 
 Creation takes restaurant advisory lock 742019323, rechecks the current session/capability, checks creator/request UUID and normalized SHA256 fingerprint, checks source/reference uniqueness, revalidates activation/availability, allocates the token, inserts immutable names/IDs/quantity/note snapshots and the order preparation mode and DRAFT→QUEUED history, and commits. Price and tax configuration are never used. Unavailable food returns ITEM_NOT_AVAILABLE. New creation has no serving-configuration dependency. Menu writes share this lock.
 
-The existing Kitchen START/READY and Dispatch completion own QUEUED→PREPARING→READY→COMPLETED. One FIFO spans all sources, sorted queued_at/id. Platform handover has no settlement prerequisite. Counter Takeaway still requires both collection due and refund due zero. Existing financial order reads and amendment mutation endpoints are Counter-only.
+Kitchen Ready & Handed Over completes pending platform rounds directly. Legacy PREPARING/READY rounds remain actionable and historical transitions are retained. One chronological queue spans all sources, sorted queued_at/id. Platform handover has no settlement prerequisite. Counter Parcel still requires both collection due and refund due zero. Existing financial order reads and amendment mutation endpoints are Counter-only.
 
 Manual cancellation requires platform_orders.cancel and a nonblank reason. QUEUED/PREPARING/READY may cancel; COMPLETED/CANCELLED are terminal. Append-only platform_order_cancellations stores actor/time/reason and same-transaction history drives CANCELLED; attached active timers cancel atomically. Deferred database checks require matching history and resolved timers. No financial revision or ledger record is created. Conflicting lifecycle/cancellation requests serialize and the loser must refresh.
 
@@ -52,6 +52,10 @@ Phone/portrait tablet use the shared single modal cart; landscape/desktop keep m
 
 ## Financial reporting and future integration
 
-Existing financial reports and immutable Daily Reports follow Bills and their effective Counter values; platform orders have no Bill and cannot enter those cohorts. Expenses are independent. Operational source analytics are deferred; existing Reports definitions remain Counter-scoped. Platform progress/history lives in POS and shared Kitchen/Dispatch.
+Existing financial reports and immutable Daily Reports follow Bills and their effective Counter values; platform orders have no Bill and cannot enter those cohorts. Expenses are independent. Operational source analytics are deferred; existing Reports definitions remain Counter-scoped. Platform progress/history lives in POS and shared Kitchen.
 
 Future official adapters must reconcile external reference, internal order UUID and stable menu/variant mappings without creating a second Kitchen token. Provider payloads, payouts/commission/tax and financial reconciliation require separate design and authorization. Historical manual operational orders must not automatically acquire Bills later.
+
+## Continuous entry
+
+After confirmed success, platform POS immediately clears lines, external reference and preparation mode (back to NORMAL), unlocks the menu and shows a nonblocking actual source/token notice. Uncertain requests retain their exact persisted retry identity. Desktop cart grows with the page; mobile uses a single cart-dialog scrolling surface.

@@ -83,7 +83,7 @@ Migration 008 grants KITCHEN orders.read for the Kitchen queue consumer. It does
 
 ## Dispatch capabilities
 
-Existing dispatch.read and dispatch.complete grants now authorize the implemented Dispatch queue and READY→COMPLETED command for OWNER/MANAGER/DISPATCH. No permission migration or role model change is needed. CASHIER-only and KITCHEN-only lack these capabilities; combinations including DISPATCH union them naturally. Backend completion rechecks the live session/capability after locks; workspace visibility is only a convenience. Dispatch does not gain generic orders.read, menu administration or payment access. See [Dispatch](dispatch.md).
+Existing dispatch.read and dispatch.complete grants authorize the legacy Dispatch API and READY→COMPLETED compatibility command for OWNER/MANAGER/DISPATCH. No permission migration or role model change is needed. CASHIER-only and KITCHEN-only lack these capabilities; combinations including DISPATCH union them naturally. Backend completion rechecks the live session/capability after locks; workspace visibility is only a convenience. Dispatch does not gain generic orders.read, menu administration or payment access. See [Dispatch](dispatch.md).
 
 Staff responsibility labels and disclosure summaries have at least 44px touch areas; long names/role lists wrap within bounded forms. Phone/tablet create, access-change reason, role selection and password reset workflows follow [Responsive UI](../RESPONSIVE_UI.md). Authorization semantics are unchanged.
 
@@ -100,3 +100,7 @@ Daily Owner Reports (018): OWNER/MANAGER receive daily_reports.read, daily_repor
 ## Manual platform capabilities (020)
 
 Explicit platform_orders.create/read/cancel grants are added to OWNER/MANAGER/CASHIER. Backend mutation checks revalidate the current session and capability under the restaurant lock. Kitchen and Dispatch retain only their existing respective operational reads/actions; no platform entry/cancellation, financial or Menu administration grant is added to them. Serving configuration remains menu.manage. Multi-role unions and OWNER/MANAGER exclusivity remain unchanged.
+
+## Unified Kitchen fulfillment (migration 022)
+
+OWNER/MANAGER/KITCHEN/DISPATCH receive kitchen.fulfill. DISPATCH additionally receives kitchen.read, with no new money/menu/timer privileges. Dispatch navigation is retired and authorized legacy routes redirect to Kitchen. Serving/handover recheck the live session and capability inside the restaurant transaction lock. Operational role unions and exclusive privileged roles are unchanged.

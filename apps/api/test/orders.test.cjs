@@ -41,6 +41,8 @@ test('explicit lifecycle only allows intended transitions', () => {
     'DRAFT:CANCELLED',
     'QUEUED:PREPARING',
     'QUEUED:CANCELLED',
+    'QUEUED:COMPLETED',
+    'PREPARING:COMPLETED',
     'PREPARING:READY',
     'READY:COMPLETED',
   ];

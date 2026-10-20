@@ -4,6 +4,8 @@ export function aggregateProduction(orders: KitchenOrder[]): ProductionGroup[] {
   const groups = new Map<string, ProductionGroup>();
   for (const order of orders) {
     for (const line of order.items) {
+      const quantity = line.pendingQuantity ?? line.quantity;
+      if (!quantity) continue;
       // IDs separate different products with identical labels. Snapshots separate
       // renamed versions of a product; current Menu data is never consulted.
       const key = JSON.stringify([
@@ -32,13 +34,15 @@ export function aggregateProduction(orders: KitchenOrder[]): ProductionGroup[] {
         };
         groups.set(key, group);
       }
-      group.totalQuantity += line.quantity;
+      group.totalQuantity += quantity;
       group.sources.push({
         orderId: order.orderId,
         lineId: line.id,
         businessDate: order.businessDate,
         tokenNumber: order.tokenNumber,
-        quantity: line.quantity,
+        quantity,
+        serviceType: order.serviceType,
+        reference: order.reference,
         instruction: line.instruction,
         queuedAt: order.queuedAt,
       });
