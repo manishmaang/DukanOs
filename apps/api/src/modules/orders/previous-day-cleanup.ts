@@ -1,6 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 
+export const PREVIOUS_DAY_PART_SERVED_COMPLETE =
+  'PREVIOUS_BUSINESS_DAY_PART_SERVED_COMPLETE';
+
 export const PREVIOUS_DAY_AUTO_CANCEL = 'PREVIOUS_BUSINESS_DAY_AUTO_CANCEL';
 
 // Internal maintenance operation only. Caller owns the restaurant write lock and
@@ -20,6 +23,51 @@ export async function cancelPreviousDayOrders(
     )
   ).rows;
   for (const order of orders) {
+    if (
+      (
+        await c.query(
+          `SELECT 1 FROM bills b JOIN orders o ON o.bill_id=b.id WHERE o.id=$1 AND b.service_type='DINE_IN' AND EXISTS(SELECT 1 FROM order_serving_events WHERE order_id=o.id GROUP BY line_id HAVING sum(quantity)>0)`,
+          [order.id],
+        )
+      ).rowCount
+    ) {
+      const time = (
+        await c.query(
+          'SELECT GREATEST($2::timestamptz,max(occurred_at)) t FROM order_status_history WHERE order_id=$1',
+          [order.id, now.queued_at],
+        )
+      ).rows[0].t;
+      await c.query(
+        `INSERT INTO kitchen_fulfillments(order_id,actor_id,request_id,request_hash,occurred_at,reason,cleanup_timezone,cleanup_time,revision) VALUES($1,NULL,$2,$3,$4,$5,$6,$7,$8)`,
+        [
+          order.id,
+          randomUUID(),
+          createHash('sha256')
+            .update(`${PREVIOUS_DAY_PART_SERVED_COMPLETE}:${order.id}`)
+            .digest('hex'),
+          time,
+          PREVIOUS_DAY_PART_SERVED_COMPLETE,
+          timezone,
+          cleanupTime,
+          order.revision,
+        ],
+      );
+      await c.query(
+        `INSERT INTO order_status_history(id,order_id,from_status,to_status,actor_id,occurred_at,reason) VALUES($1,$2,$3,'COMPLETED',NULL,$4,$5)`,
+        [
+          randomUUID(),
+          order.id,
+          order.status,
+          time,
+          PREVIOUS_DAY_PART_SERVED_COMPLETE,
+        ],
+      );
+      await c.query(
+        `UPDATE kitchen_timers SET status='CANCELLED',resolved_by=NULL,resolved_at=GREATEST($2::timestamptz,started_at),resolution_reason=$3 WHERE order_id=$1 AND status='ACTIVE'`,
+        [order.id, time, PREVIOUS_DAY_PART_SERVED_COMPLETE],
+      );
+      continue;
+    }
     const id = randomUUID();
     if (order.source !== 'COUNTER') {
       const time = (

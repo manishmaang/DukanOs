@@ -1,3 +1,4 @@
+import { serviceLabel } from './service-label';
 import { ConfirmationPayment } from './ConfirmationPayment';
 import { CartSurface } from './CartSurface';
 import type { ReactNode } from 'react';
@@ -102,11 +103,16 @@ export function OrderCart({
         'POST',
         pending.current,
       );
+      sessionStorage.removeItem(storageKey);
       setReview(undefined);
       setConfirmed(order);
       setLines([]);
-      sessionStorage.removeItem(storageKey);
       pending.current = undefined;
+      setLocked(false);
+      onNewBill();
+      setReference('');
+      setServiceType('DINE_IN');
+      setMobileOpen(false);
     } catch (e) {
       setReview(undefined);
       const definitive =
@@ -132,54 +138,34 @@ export function OrderCart({
   }
   function surface(content: ReactNode) {
     return (
-      <CartSurface
-        open={mobileOpen}
-        setOpen={setMobileOpen}
-        summary={
-          confirmed
-            ? `Token #${confirmed.tokenNumber} confirmed`
-            : locked
+      <div className="cart-workspace">
+        {confirmed && (
+          <div className="order-confirmed" role="status">
+            Order confirmed · Token #{confirmed.tokenNumber} · ₹
+            {rupees(confirmed.grandTotal)}
+            <button
+              className="secondary"
+              disabled={locked || busy}
+              onClick={() => onViewBill(confirmed.billId)}
+            >
+              View Bill / Payment
+            </button>
+          </div>
+        )}
+        <CartSurface
+          open={mobileOpen}
+          setOpen={setMobileOpen}
+          summary={
+            locked
               ? 'Confirmation needs checking'
               : `Current Order · ${lines.reduce((n, l) => n + l.quantity, 0)} items · ₹${rupees(cartAmount(subtotal + tax))} estimated`
-        }
-      >
-        {content}
-      </CartSurface>
+          }
+        >
+          {content}
+        </CartSurface>
+      </div>
     );
   }
-  if (confirmed)
-    return surface(
-      <aside className="order-cart order-confirmed" aria-label="Current order">
-        <div role="status">
-          <h2>Order confirmed</h2>
-          <p className="order-token">TOKEN #{confirmed.tokenNumber}</p>
-          <p>₹{rupees(confirmed.grandTotal)}</p>
-          <p>Queued for kitchen · {confirmed.businessDate}</p>
-        </div>
-        <button
-          onClick={() => {
-            onNewBill();
-            setReference('');
-            setMobileOpen(false);
-            setConfirmed(undefined);
-            setLocked(false);
-          }}
-        >
-          New Order
-        </button>
-        <button
-          className="secondary"
-          onClick={() => {
-            setMobileOpen(false);
-            setConfirmed(undefined);
-            setReference('');
-            onViewBill(confirmed.billId);
-          }}
-        >
-          View Bill / Payment
-        </button>
-      </aside>,
-    );
   if (review)
     return surface(
       <>
@@ -213,7 +199,7 @@ export function OrderCart({
             <p>
               Bill #{bill.billNumber} ·{' '}
               {bill.reference ||
-                bill.serviceType?.replace('_', ' ') ||
+                serviceLabel(bill.serviceType) ||
                 'Legacy bill'}
             </p>
           ) : (
@@ -228,7 +214,7 @@ export function OrderCart({
                   }
                 >
                   <option value="DINE_IN">Dine In</option>
-                  <option value="TAKEAWAY">Takeaway</option>
+                  <option value="TAKEAWAY">Parcel</option>
                 </select>
               </label>
               <label>

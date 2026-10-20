@@ -1,71 +1,42 @@
-# Kitchen Display System
+# Kitchen
 
-## Purpose and current implementation
+## Purpose and workflow
 
-Kitchen has an Order View and a read-only Production View at `/#/kitchen`. It consumes effective immutable revision snapshots, enforces FIFO acceptance and performs QUEUED → PREPARING → READY through Orders-owned commands. It needs only the restaurant server, PostgreSQL and LAN, without external assets/services or menu images.
+Kitchen combines preparation, Dine-In serving and Parcel/platform handover. There is no separate operational Dispatch screen. Pending rounds are QUEUED plus legacy PREPARING/READY, ordered by queued_at then UUID. No Start or Mark Ready button is required. FIFO guides visibility, not a restriction on serving food that is ready. Old lifecycle/history records remain valid and readable.
 
-## Order View
+Order cards show authoritative DINE IN / PARCEL plus the Bill reference, or the platform source and external reference. Unknown legacy service is explicitly labeled. Dine-In lines show ordered, served and pending quantities. Served lines remain readable with muted styling and SERVED until the whole round completes. Quantity controls serve a whole remaining line or a smaller quantity. Corrections require a reason, append a negative event, and are allowed only while the round is nonterminal. Completing the last required quantity completes the round, not its Bill; unpaid Dine-In remains supported.
 
-Separate Queued and Preparing sections contain compact responsive order-card grids (three columns at ≥1180px, two at 700–1179px, one below 700px). Tokens remain prominent alongside age/NEXT/LATE indicators, kitchen-name/variant snapshots, quantities and prominent plain-text instructions. Business dates appear only for older-date orders or when active orders span multiple dates. Empty instructions render nothing. Same-dish lines are visually grouped; each portion/customization retains its own line. Kitchen display names fall back to item names at confirmation, not at read time.
+Parcel/platform/unknown legacy rounds use Ready & Handed Over. Parcel requires both amount_due and refund_due zero. Platforms have no DukanOS financial participation. A single real transition goes from the current active state to COMPLETED; no artificial PREPARING/READY history is inserted.
 
-Both lists sort queued_at ASC, order UUID ASC, across all business dates. The oldest QUEUED order is marked NEXT; only its Start Order is enabled. Starting moves the whole order to Preparing and enables the next token, permitting parallel cooking after FIFO acceptance. Mark Ready removes an order from active Kitchen. READY orders enter Dispatch for handover; there is no arbitrary status editor.
+## Persistence and concurrency
 
-Waiting time measures elapsed time since queued_at. Preparing time measures elapsed time since the PREPARING history entry. The browser samples serverTime and advances a monotonic local timer; it does not fetch every second just for the display. New queued arrivals receive an eight-second NEW highlight; initial page loading is not treated as a new arrival. Order arrivals do not trigger sound; optional timer tones are separate. Order actions are at least 48px high; reduced margins and padding increase density without reducing instructions to secondary text.
+Migration 022 adds append-only order_serving_events and kitchen_fulfillments. Events link to the stable original order/line identity and current effective amendment revision, actor, timestamp, signed quantity, expected prior served quantity, correction reason and request identity/hash. PostgreSQL locks serialize restaurant mutations; sum quantities must remain between zero and the effective line quantity. Backend rechecks the live session/capability inside the transaction. Stale revision/quantity returns 409. Replaying an actor/request with identical intent returns the previous result; changed intent returns IDEMPOTENCY_CONFLICT.
 
-## Production View
+Any serving history blocks manual amendments, even after correction to zero. Completed rounds cannot be corrected/reopened. Add replacement food as a new round. No payment/refund or financial snapshot mutation accompanies serving.
 
-The backend derives both views from one repeatable-read snapshot. TO START includes only QUEUED lines; IN PREPARATION includes only PREPARING lines. A transition moves **all** lines of an order between sections. READY/COMPLETED/CANCELLED never contribute. Production has no state-changing buttons; use Order View.
+At configured previous-day cleanup (default 05:00), a Dine-In round with a positive net served quantity completes in full. The owner explicitly chose this rule. Append a system kitchen_fulfillments record and NULL-actor history reason PREVIOUS_BUSINESS_DAY_PART_SERVED_COMPLETE; retain actual serving evidence without pretending remaining food was served. Preserve the full effective sale value and payments. Active linked timers are resolved as cancelled with that system reason. Existing midnight Bill rollover remains independent: this action does not pay or close Bills. Fully unserved rounds retain the existing cancellation policy; corrected-to-zero history may be system-cancelled, but never manually amended.
 
-Aggregate key: menu item UUID + variant UUID + snapshotted item name + snapshotted kitchen name + snapshotted variant name. IDs prevent distinct products with identical labels from collapsing; snapshots keep renamed versions separate. Prices are neither selected nor exposed. Traverse FIFO-ordered orders and position-ordered lines, retaining first-seen group order: earliest source is the primary urgency, order UUID and line position resolve ties. No current Menu lookup is involved.
+## Production
 
-Each group has totalQuantity, earliestQueuedAt and sources containing orderId, lineId, businessDate, tokenNumber, quantity, instruction and queuedAt. Every original line remains a source, even when two lines share the same token/portion. The API retains every original source/token association. The chef-facing Production UI displays no source token numbers or dates. It groups source quantities by instruction after trimming and collapsing whitespace; case and punctuation remain significant, so different wording never silently merges. Original source instructions are unchanged. A Normal row appears only when blank instructions coexist with exceptions; all-normal groups need only the total. Matching exceptions share a quantity row.
-
-To start and In preparation occupy full-width sections with compact production grids: four columns at ≥1400px, three at 1000–1399px, two at 600–999px, one below 600px. Counts mean dish/portion groups. Empty sections reduce to a heading/count, without an empty half-screen panel. The primary Production title is uppercase `{variantName} {itemName}` from immutable human-readable snapshots (for example HALF MANCHURIAN), with the prominent total beside it. Long titles wrap in their own grid column without colliding with the quantity. Order View retains its existing kitchen-name/portion presentation.
+Production uses remaining quantities, retaining the existing item/variant/snapshot/source/preparation grouping keys. Its primary title is uppercase human-readable variant + item name. Totals and instruction breakdowns remain prominent; all-normal groups omit the redundant Normal row. Each group also shows source token, DINE IN/PARCEL/reference or platform label and remaining quantity. A mixed-service aggregate is never assigned a single service label. Served quantities and completed rounds disappear from pending production.
 
 ## APIs and permissions
 
-All routes use `/api`, normal live session authentication, no-store responses and existing permission unions.
+All routes are under /api, authenticated and no-store. Mutations require X-DukanOS-Request: 1 and strict JSON DTOs; UUIDv4 parameters, unexpected fields and query fields are validated/rejected.
 
-| Route                          | Permission     | Contract                                                                                                                            |
-| ------------------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| GET /kitchen/orders            | kitchen.read   | KitchenState: serverTime, businessDate, lateThresholdMinutes, nextOrderId, queued[], preparing[], production {queued[],preparing[]} |
-| GET /kitchen/production        | kitchen.read   | serverTime and queued[]/preparing[] production groups                                                                               |
-| POST /kitchen/orders/:id/start | kitchen.update | QUEUED → PREPARING; 200 KitchenTransitionResult                                                                                     |
-| POST /kitchen/orders/:id/ready | kitchen.update | PREPARING → READY; 200 KitchenTransitionResult                                                                                      |
+- GET /kitchen/orders: kitchen.read; KitchenState adds pending[] and production.pending[], serviceType/reference/revision and per-line servedQuantity/pendingQuantity. Legacy queued/preparing projections remain available.
+- GET /kitchen/production: kitchen.read; pending groups plus legacy grouped projections.
+- POST /kitchen/orders/:id/lines/:line/serve: kitchen.fulfill; requestId, expectedRevision, expectedServedQuantity, signed nonzero quantity (-99..99), optional reason (required for correction, max 500). Returns orderId, lineId, servedQuantity.
+- POST /kitchen/orders/:id/fulfill: kitchen.fulfill; requestId, expectedRevision; returns orderId and COMPLETED.
+- Existing START/READY and Dispatch endpoints remain compatibility commands; normal UI never calls them. A legacy READY Dine-In handover without serving history remains compatible. Once serving events exist, remaining items must be served before completion.
 
-All four routes reject query fields and request bodies, including `{}` on transitions. IDs must be UUIDv4. Mutations require X-DukanOS-Request: 1. Results expose operational snapshots only, no prices, taxes, payment information or request fingerprints. Contracts are in packages/shared-types/src/kitchen.ts.
+Migration 022 grants kitchen.fulfill to OWNER/MANAGER/KITCHEN/DISPATCH and kitchen.read to DISPATCH. It grants no money, menu administration, availability or timer rights to DISPATCH. Existing operational role unions and privileged exclusivity remain unchanged.
 
-Existing grants give OWNER/MANAGER/KITCHEN kitchen.read and kitchen.update. Migration 010 also grants KITCHEN menu.availability.manage, alongside its existing menu.read, without menu.manage. CASHIER alone cannot access Kitchen or transitions; CASHIER+KITCHEN can switch POS/Kitchen without logout. Backend permission/session checks are authoritative; no role-name checks determine actions.
+## Freshness, responsive behavior and limits
 
-## Transactions, FIFO and history
+Visible-page polling remains every two seconds, refreshed on actions/focus/reconnect, with server-clock-based age and static LATE badges (default 15 minutes). Failed reads remove stale actionable cards. Serving survives refresh through PostgreSQL, not browser state. Production remains read-only; serve in Order View. Long references and names wrap; controls are touch-sized. Desktop retains compact three-column order/four-column production grids and responsive reductions. No external service is required when API/PostgreSQL/LAN are available.
 
-KitchenController delegates START/READY to Orders' OrderLifecycleService. Its transaction acquires advisory lock 742019323, then actor user/session locks, then the order lock. It rechecks active session and kitchen.update after waiting, validates the existing state policy and checks the oldest queued ID before START. This is the same serialization boundary as Counter confirmation and menu writes: no earlier uncommitted confirmation can appear behind an already-started token. Transactions stay local and short.
-
-The service inserts one actor/time/reason history entry. Migration 009 independently validates FIFO/current state in a history insert trigger and atomically applies status in an AFTER trigger. A unique order/destination index prevents duplicate lifecycle entries. The order update guard allows only the two implemented transitions backed by history and rejects every other column change. Item/history updates and deletes, late item appends and order deletes remain forbidden. Preparing time is derived from history; no redundant timestamp columns or Kitchen tables are added. Existing records require no backfill/reset.
-
-A stale duplicate START returns ORDER_ALREADY_STARTED; duplicate READY returns ORDER_ALREADY_READY; a wrong state returns INVALID_ORDER_TRANSITION; skipping the next token returns OLDER_ORDER_WAITING (409). Unknown orders return ORDER_NOT_FOUND. Failed transactions roll back both status and history. A retry after a lost success may return a conflict; refetch reveals the committed state without duplicating history. Timestamps never precede the prior order history timestamp, even if server clock correction moves backward.
-
-## Freshness and recovery
-
-There was no existing socket server. This MVP uses non-overlapping two-second visible-page polling of the combined authoritative read model, immediate refresh after every action (including conflicts), and refresh on focus, visibility return and browser online events. Both modes switch immediately within the same snapshot; primary production aggregation remains server-owned, while the browser derives only the instruction quantity display from preserved sources. Local elapsed-time rendering runs independently every second. Response sequencing prevents old reads overwriting a newer action result.
-
-Healthy cross-device propagation is about two seconds plus request time, not guaranteed instantaneous delivery. Requests time out after ten seconds through the shared API helper. On read failure, clear the stale actionable queue, show connection feedback and continue recovery polling. No queued offline writes or automatic transition retries exist. Reconnection always refetches PostgreSQL-backed state; there is no event-replay assumption, event bus, Socket.IO, Redis or cloud service. See decision 012.
-
-## Verification
-
-PostgreSQL tests cover migration of populated Orders Core, FIFO/UUID ties/previous-day work, concurrent START and READY, strict input and RBAC, session revocation during lock waiting, status/history rollback, immutable financials and snapshots, production source totals and independent instructions. Unit coverage tests grouping identity and exception preservation.
-
-`npm run test:kitchen-browser` (CHROME_BINARY required) uses isolated PostgreSQL fixtures and independent Chromium cookie jars. It creates the specified three orders through CASHIER POS, verifies totals 3+3, source instructions, NEXT, START/READY, stale-device conflict, connection loss/recovery, multi-role switching and tablet layout. External requests are blocked. This is local-browser verification, not a physical router-disconnection exercise.
-
-## Current limitations and pending work
-
-Preparation is order-level: no individual line DONE state, partial READY, batch completion, queue override or reprioritization. Production is read-only. Active queues are returned whole for one small restaurant; large-backlog pagination/load testing is future work. Two-second polling has bounded latency and no guaranteed push event delivery. Dispatch completion is implemented separately through Orders; Bills/payment collection are separate modules; printing and post-preparation corrections remain future work.
-
-## Late order attention
-
-`KITCHEN_LATE_THRESHOLD_MINUTES` is validated on API startup: integer 1–1440, default 15. Restart after changing it. KitchenState supplies lateThresholdMinutes and the current restaurant businessDate using the existing RESTAURANT_TIMEZONE. Late means total elapsed age since queuedAt **>= threshold**, for both QUEUED and PREPARING. At 14m59s the default is normal; at 15m00s it is late. Preparing duration never resets the age. The existing local one-second timer updates the badge without extra requests.
-
-Late cards use a red border, light red tint and high-contrast LATE/total-age badge. There is no animation or blinking, including under reduced-motion preference. NEXT, sorting and backend FIFO permission are unchanged.
+No completed-order undo, post-serving commercial amendments, inventory inference, reprioritization or disconnected-browser writes. Existing history plus serving events preserve audit evidence; dedicated completed-serving-history UI remains future work. Deployment and browser verification status is recorded in [the active checkpoint](../checkpoints/real-shop-workflows.md).
 
 ## Counter Availability panel
 
@@ -75,17 +46,17 @@ The panel calls the existing GET /api/menu/counter and PATCH /api/menu/counter/i
 
 The panel refreshes while open on five-second visible polling, focus, online/visibility return and existing menu notifications; sequence checks prevent stale reads overwriting writes. Conflicts refresh for review, without blindly retrying a mutation. Errors hide stale availability controls. Successful writes use the existing menu notification; independent POS devices refetch within their existing five-second window plus request time. Draft carts may retain a newly sold-out portion, but confirmation rejects it with ITEM_NOT_AVAILABLE. No menu administration permission is granted.
 
-Usability coverage adds threshold/configuration boundary tests, instruction grouping without source mutation, Kitchen Counter-only permission/audit tests, and browser density, hidden Production tokens, static reduced-motion late styles, availability search/restore and existing-cart rejection.
+Usability coverage adds threshold/configuration boundary tests, instruction grouping without source mutation, Kitchen Counter-only permission/audit tests, and browser density, remaining Production quantities with source tokens, static reduced-motion late styles, availability search/restore and existing-cart rejection.
 
 ## Dispatch handoff
 
-Mark Ready leaves the active Kitchen queue and appears in Dispatch on its next two-second authoritative refresh. Dispatch exclusively requests READY→COMPLETED with dispatch.complete; kitchen.update alone cannot hand orders over. READY time comes from the existing history row. Migration 011 preserves Kitchen FIFO, production aggregation, instructions and sold-out controls. See [Dispatch](dispatch.md).
+Kitchen now owns normal handover; the legacy Dispatch API remains a compatibility boundary only. See [Dispatch](dispatch.md).
 
 The responsive audit preserves existing Order/Production grid breakpoints and quantities. Availability uses a sticky Close header, phone-sized dynamic/visual-viewport bounds and wrapped long dish/portion names; short viewports retain scrolling access. See [Responsive UI](../RESPONSIVE_UI.md) for touch, keyboard and device requirements.
 
 ## Bills boundary
 
-Orders remain individual preparation rounds when several tokens share a Bill. Kitchen does not manage settlement or display financial data. Migration 012 removes generic orders.read from KITCHEN, preserving kitchen.read/update and operational projections. Dine In serving versus Takeaway settlement gating is enforced by Dispatch/Orders at handover; FIFO, production aggregation, instructions and START/READY are unchanged.
+Orders remain individual preparation rounds when several tokens share a Bill. Kitchen does not manage settlement or display financial data. Migration 012 removes generic orders.read from KITCHEN, preserving kitchen.read/update and operational projections. Dine-In serving and Parcel settlement gating are enforced by fulfillment commands and database guards; no financial data is exposed to Kitchen.
 
 ## Persistent operational timers (013)
 
@@ -95,12 +66,12 @@ Kitchen timer sound is opt-in through Enable Sound / Test sound in the timer str
 
 ## Queued revisions (014)
 
-Kitchen/Production read effective_order_items, so a queued replacement/reduction/removal updates both modes on normal polling without duplicate original quantity. Original order/token/FIFO time remain. START and amendment commits share the restaurant lock; once START wins, changes fail. Active associated timers block amendments; no timer silently changes food. Kitchen has no amendment/refund capability. See [Amendments](amendments.md).
+Kitchen/Production read effective_order_items, so a queued replacement/reduction/removal updates both modes on normal polling without duplicate original quantity. Original order/token/FIFO time remain. Serving/handover and amendment commits share the restaurant lock; serving history or terminal completion blocks later edits. Handover checks expectedRevision so an amended card cannot silently be fulfilled. Legacy START still blocks edits after it wins. Active associated timers block amendments; no timer silently changes food. Kitchen has no amendment/refund capability. See [Amendments](amendments.md).
 
 ## Previous-day cleanup boundary (019)
 
-At/after the configured daily cleanup cutoff, earlier-date QUEUED/PREPARING work is system-cancelled. Existing status-filtered authoritative reads remove it from Order/Production, FIFO/NEXT and late indicators. Attached active timers cancel atomically. START/READY rejects after cancellation; current-day work is unchanged. See Orders for timing and audit.
+At/after the configured daily cleanup cutoff, earlier-date active work is system-cancelled except partly served Dine-In, which completes at full value under migration 022. Existing status-filtered authoritative reads remove it from Order/Production, FIFO/NEXT and late indicators. Attached active timers cancel atomically. START/READY rejects after cancellation; current-day work is unchanged. See Orders for timing and audit.
 
 ## Manual platform preparation (020)
 
-The same FIFO now contains Counter, Zomato and Swiggy. Every Order card shows a text source badge; platform cards include external reference and NORMAL QUANTITY or LESS QUANTITY derived from the immutable order mode for each line; legacy measured lines additionally show their original g/ml snapshots. Production additionally groups by source, mode, amount and unit, keeping Normal/Less, sources, qualitative and materially different historical measurements separate while retaining original source-line/token associations. It shows source/serving labels, ordered portion counts and useful instruction breakdowns; no token numbers are added to Production. Existing START/READY, timers, late age and polling remain. Platform cancellation/cleanup removes active work and resolves linked timers without finances. See Platform Orders.
+The same FIFO now contains Counter, Zomato and Swiggy. Every Order card shows a text source badge; platform cards include external reference and NORMAL QUANTITY or LESS QUANTITY derived from the immutable order mode for each line; legacy measured lines additionally show their original g/ml snapshots. Production additionally groups by source, mode, amount and unit, keeping Normal/Less, sources, qualitative and materially different historical measurements separate while retaining original source-line/token associations. It shows source/serving labels, pending portion counts, useful instruction breakdowns and source-token/service references. Timers, late age and polling remain; no START/READY action is required. Platform cancellation/cleanup removes active work and resolves linked timers without finances. See Platform Orders.

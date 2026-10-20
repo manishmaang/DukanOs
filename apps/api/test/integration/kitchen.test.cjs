@@ -251,7 +251,9 @@ test(
             .set('X-DukanOS-Request', '1')
             .expect(401);
           for (const role of ['CASHIER', 'DISPATCH']) {
-            await call('get', '/kitchen/orders', undefined, role).expect(403);
+            await call('get', '/kitchen/orders', undefined, role).expect(
+              role === 'DISPATCH' ? 200 : 403,
+            );
             await transition(one, 'start', role).expect(403);
           }
           for (const role of ['OWNER', 'MANAGER', 'MULTI'])
@@ -337,7 +339,10 @@ test(
             [two.id],
           );
           assert.equal(s.production.preparing[0].totalQuantity, 2);
-          assert.ok(!JSON.stringify(s).includes(one.id));
+          assert.equal(
+            s.pending.find((o) => o.orderId === one.id).status,
+            'READY',
+          );
           const saved = (
             await call('get', '/orders/' + one.id, undefined, 'CASHIER').expect(
               200,

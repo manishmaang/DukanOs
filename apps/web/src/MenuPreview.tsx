@@ -355,7 +355,12 @@ export function MenuPreview({
           <OrderCart
             canCollect={canCollectPayments}
             bill={selectedBill}
-            onNewBill={() => setSelectedBill(undefined)}
+            onNewBill={() => {
+              setSelectedBill(undefined);
+              setBillId(undefined);
+              setBillView(false);
+              history.replaceState(null, '', '#/pos');
+            }}
             onViewBill={(id) => {
               setSelectedBill(undefined);
               setBillId(id);

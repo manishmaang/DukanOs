@@ -64,6 +64,7 @@ const { UsersService } = require(
       chromeBinary,
       [
         '--no-sandbox',
+        '--headless=new',
         '--remote-debugging-port=0',
         '--user-data-dir=' + profile,
         '--disable-background-networking',
@@ -655,7 +656,7 @@ const { UsersService } = require(
       );
       await click('Pay Later');
       await wait(
-        "document.querySelector('.order-token')?.textContent==='TOKEN #1'",
+        "document.querySelector('.order-confirmed')?.textContent.includes('Token #1 ')",
       );
       const orderRead = async () =>
         evaluate("fetch('/api/orders?status=QUEUED').then(r=>r.json())");
@@ -673,7 +674,10 @@ const { UsersService } = require(
         orderPayloads[0].lines.map((l) => l.instruction),
         ['', 'No onion', ''],
       );
-      await click('New Order');
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
       await openManchurian();
       await click('Confirm Order');
       await wait(
@@ -681,10 +685,13 @@ const { UsersService } = require(
       );
       await click('Pay Later');
       await wait(
-        "document.querySelector('.order-token')?.textContent==='TOKEN #2'",
+        "document.querySelector('.order-confirmed')?.textContent.includes('Token #2 ')",
       );
       assert.equal((await orderRead()).orders.length, 2);
-      await click('New Order');
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
       await openManchurian();
       // A second authenticated manager changes availability after selection.
       const toggled = await read(
@@ -718,13 +725,16 @@ const { UsersService } = require(
       );
       await click('Retry confirmation');
       await wait(
-        "document.querySelector('.order-token')?.textContent==='TOKEN #3'",
+        "document.querySelector('.order-confirmed')?.textContent.includes('Token #3 ')",
       );
       assert.equal((await orderRead()).orders.length, 3);
       console.log(
         'Browser PASS: HTTP-LAN-compatible request UUID, lost confirmation response, page reload and safe retry recover token #3 without duplication.',
       );
-      await click('New Order');
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
       await evaluate(
         "[...document.querySelectorAll('.pos-card')].find(b=>b.textContent.includes('Manchurian')).click()",
       );
@@ -749,7 +759,7 @@ const { UsersService } = require(
       );
       await click('Pay Later');
       await wait(
-        "document.querySelector('.order-token')?.textContent==='TOKEN #4'",
+        "document.querySelector('.order-confirmed')?.textContent.includes('Token #4 ')",
       );
       const independent = (await orderRead()).orders.find(
         (o) => o.tokenNumber === 4,
@@ -775,7 +785,10 @@ const { UsersService } = require(
         { variant_name_snapshot: 'Half', instruction: 'Nothing spicy' },
         { variant_name_snapshot: 'Full', instruction: 'Extra spicy' },
       ]);
-      await click('New Order');
+      assert.equal(
+        await evaluate("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
       console.log(
         'Browser PASS: independent Manchurian Half/Full instructions in actual payload, confirmed API and PostgreSQL; Soya Full-only note leaves Half clean; cart add/edit/remove note changes only its line.',
       );
@@ -985,9 +998,9 @@ const { UsersService } = require(
         "(()=>{const c=document.querySelector('.order-cart'),i=document.querySelector('.cart-items'),b=document.querySelector('.confirm-order');return {width:c.getBoundingClientRect().width,scroll:i.scrollHeight>i.clientHeight,buttonBottom:b.getBoundingClientRect().bottom,viewport:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth};})()",
       );
       assert.ok(cartLayout.width >= 430, JSON.stringify(cartLayout));
-      assert.ok(cartLayout.scroll);
+      assert.equal(cartLayout.scroll, false);
       assert.ok(
-        cartLayout.buttonBottom <= cartLayout.viewport,
+        cartLayout.buttonBottom > cartLayout.viewport,
         JSON.stringify(cartLayout),
       );
       assert.equal(cartLayout.overflow, false);
@@ -1007,6 +1020,9 @@ const { UsersService } = require(
       );
       await evaluate("document.querySelector('.mobile-order-trigger').click()");
       await wait("!!document.querySelector('.cart-dialog:modal')");
+      await evaluate(
+        "document.querySelector('.confirm-order').scrollIntoView({block:'center'})",
+      );
       assert.ok(
         await evaluate(
           "document.querySelector('.confirm-order').getBoundingClientRect().bottom<=innerHeight && document.documentElement.scrollWidth<=innerWidth",
@@ -1018,7 +1034,7 @@ const { UsersService } = require(
         Buffer.from(cartShot.data, 'base64'),
       );
       console.log(
-        'Browser PASS: 12 independent cart lines grouped by dish; desktop cart exceeds 430px, item area scrolls independently and confirmation remains visible on desktop/tablet.',
+        'Browser PASS: 12 independent cart lines grouped by dish; desktop cart exceeds 430px, item area grows without scrolling; whole page/whole mobile dialog reach confirmation.',
       );
       const finalShot = await command('Page.captureScreenshot', {
         format: 'png',

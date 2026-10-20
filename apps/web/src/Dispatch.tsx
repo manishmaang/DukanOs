@@ -1,3 +1,4 @@
+import { serviceLabel } from './service-label';
 import { ServingLabel, SourceLabel } from './ServingLabel';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DispatchOrder, DispatchState } from '@dukanos/shared-types';
@@ -178,7 +179,7 @@ export function Dispatch({
                 />
                 {order.source === 'COUNTER' && (
                   <p>
-                    {order.serviceType?.replace('_', ' ') ??
+                    {serviceLabel(order.serviceType) ??
                       'Legacy · service unknown'}{' '}
                     ·{' '}
                     {order.paymentStatus === 'PAID'

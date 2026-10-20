@@ -566,7 +566,7 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       assert.ok(
         await c.read(
-          "document.body.textContent.includes('Dine In: 2 bills') && document.body.textContent.includes('Takeaway: 1 bills')",
+          "document.body.textContent.includes('Dine In: 2 bills') && document.body.textContent.includes('Parcel: 1 bills')",
         ),
       );
       await inspect('operations', width, height, true);

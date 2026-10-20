@@ -1,66 +1,9 @@
-# Dispatch
+# Dispatch compatibility boundary
 
-## Purpose and current implementation
+The separate Dispatch screen is retired by the real-shop workflow milestone. Navigation and workspace selection omit it; authorized legacy /dispatch hash routes redirect to Kitchen. Kitchen now handles Dine-In serving and Parcel/platform handover. See [Kitchen](kitchen.md).
 
-The Dispatch workspace (`/#/dispatch`) handles physical handover of READY orders. Kitchen owns QUEUED → PREPARING → READY; Dispatch requests READY → COMPLETED through the existing Orders lifecycle service. Completion remains a preparation-round lifecycle event. Dine In can complete unpaid; Takeaway requires current parent-bill amount_due and refund_due both zero. Existing READY orders work immediately after migration 011, without reseeding.
+No Dispatch table/history/permission is dropped. Existing GET /api/dispatch/orders (dispatch.read) and POST /api/dispatch/orders/:id/complete (dispatch.complete) remain compatible for legacy READY work. They continue using Orders history, settlement guards and immutable snapshots. Normal application navigation does not use them. Historical PREPARING/READY/COMPLETED records remain readable.
 
-## Queue and presentation
+Migration 022 gives DISPATCH kitchen.read and kitchen.fulfill, allowing legacy staff assignments to use Kitchen without role edits. It grants no menu, timer, payment or administration capability. KITCHEN obtains kitchen.fulfill explicitly; role unions remain unchanged.
 
-Only READY orders appear, across all business dates, ordered by the unique READY history timestamp ascending, then order UUID ascending. Token numbers identify orders to staff but do not determine sorting. A compact responsive grid shows three cards on wide desktops, two at 651–1100px and one at ≤650px. Each card has a prominent token, READY age, snapshot dish names with portions/quantities, optional secondary plain-text notes, and a minimum 48px Handed Over button. Dish grouping uses menu item ID plus item-name snapshot; distinct lines and instructions remain separate. Dates appear for older-day or mixed-date work to disambiguate repeated tokens. Counter source is implicit; other future source labels can be displayed without provider-specific behavior.
-
-READY age measures time since READY, never time since confirmation. The API supplies serverTime, restaurant businessDate and lateThresholdMinutes; the browser advances a monotonic local timer. DISPATCH_LATE_THRESHOLD_MINUTES is a server environment integer 1–1440, default 5 (restart after changing). At or above the threshold, static orange/red styling and a LATE label draw attention without changing order. New arrivals after initial load show NEW and a static outline for eight seconds. No animation, alarm, payment ledger, Kitchen controls or internal identifiers appear; concise service/payment status is shown.
-
-Completed orders disappear after the authoritative action refresh; brief feedback identifies the handed-over token. Empty queues show “No orders waiting for dispatch.” No completed-history dashboard or daily count is implemented.
-
-## APIs and permissions
-
-All paths have the `/api` prefix, live session guards, no-store responses and normal mutation-header requirements.
-
-| Route                              | Capability        | Result                                                                  |
-| ---------------------------------- | ----------------- | ----------------------------------------------------------------------- |
-| GET /dispatch/orders               | dispatch.read     | DispatchState: serverTime, businessDate, lateThresholdMinutes, orders[] |
-| POST /dispatch/orders/:id/complete | dispatch.complete | OrderTransitionResult: orderId, status COMPLETED, occurredAt            |
-
-Orders contain orderId, billId, serviceType, amountDue, refundDue, paymentStatus, businessDate, tokenNumber, source, readyAt and position-ordered items (id, menuItemId, itemName, variantName, quantity, instruction). All names/instructions are sale snapshots. No current Menu joins, unit prices, taxes, full payment history, staff credentials or persistence models are returned. Shared contracts live in packages/shared-types/src/dispatch.ts and orders.ts.
-
-Both endpoints reject all body/query fields; even `{}` is rejected on completion. IDs must be UUIDv4. OWNER, MANAGER and DISPATCH already have dispatch.read/dispatch.complete from migration 002; no grants change. CASHIER-only and KITCHEN-only cannot read or complete. Operational role unions permit CASHIER+DISPATCH, KITCHEN+DISPATCH and all three, with direct workspace switching and no logout. Dispatch does not gain generic orders.read or menu capabilities.
-
-## Transaction, history and concurrency
-
-Orders-owned OrderLifecycleService takes the existing restaurant advisory lock 742019323, share-locks the actor, rechecks the live session and target-specific capability, then locks the order. Only current READY may complete. Inserting one append-only READY→COMPLETED history record with authenticated actor, nondecreasing timestamp and “Dispatch handed order over” reason atomically drives the status update through database triggers. Sale data remains immutable.
-
-Migration 011 extends the existing guards, retaining Kitchen FIFO and all previous invariants. Unique (order_id,to_status) protects history from duplicates. No direct completed_at column is added: the unique COMPLETED history row reliably supplies completion time and actor without duplicated metadata. A partial READY history index supports oldest-ready queue reads. No new tables or existing data rewrites occur.
-
-Concurrent/stale duplicate completion returns 409 ORDER_ALREADY_COMPLETED; a different current status returns 409 INVALID_ORDER_TRANSITION. Unknown IDs return 404 ORDER_NOT_FOUND. Session/capability failures use existing 401/403 errors. Failed writes roll back history and status together. A lost success response may yield a conflict on a later attempt; authoritative refetch reveals the result. There is no automatic mutation retry, arbitrary status PATCH or COMPLETED→READY undo.
-
-## Freshness and LAN behavior
-
-Reuse Kitchen's two-second nonoverlapping visible-page polling, local one-second timer and immediate action/conflict/focus/online/visibility refetch. Request sequencing prevents older reads from replacing newer state. A failed read removes stale actionable cards and displays recovery feedback. The next successful read restores authoritative state. Kitchen READY appears within about two seconds plus request latency while visible; no guaranteed push delivery exists. Every operation uses the local server and PostgreSQL; no external service, event bus or cloud connection is required.
-
-## Verification and limitations
-
-PostgreSQL coverage includes populated migration preservation, preexisting READY orders, ready-time ordering/UUID ties, snapshot names/notes, strict input, all role boundaries, full lifecycle/actor history, concurrent/stale completion, rollback, immutable data and session revocation while waiting for a lock. The Chromium script creates three orders through POS, starts/readies them in Kitchen and completes them on separate Dispatch devices; it verifies conflict/refetch, reconnect/reload, role restrictions, multi-role switching, notes, responsive layout and historical READY-age late styling with external requests blocked. All automated fixtures are isolated from restaurant data.
-
-No partial handover, undo/correction, sounds, printing, riders, completed-history UI, reports, refund recording, amendment controls or external providers. Active queues are unpaginated for a single small restaurant. LAN/server/database/power must remain available; disconnected-browser writes and cloud synchronization are unsupported. Production TLS, backup/restore and large-backlog validation remain deployment work.
-
-## Bill settlement gating (012)
-
-Cards display DINE IN/TAKEAWAY (or legacy unknown service) and PAID/DUE. TAKEAWAY due >0 disables handover and backend completion returns 409 PAYMENT_REQUIRED; a PostgreSQL trigger independently enforces the same rule. Dine In may be served unpaid and its Bill remains open for more rounds. Legacy service is unknown and is not guessed into a payment restriction. Pure DISPATCH cannot collect or read full bill details. A payments.collect-capable cashier/dispatch combination gets Collect Payment linking to the touch-friendly POS Bill settlement screen. After collection, the usual authoritative poll/refetch enables handover. Closing the settled bill remains an explicit cashier action after every child round completes. Refunds never belong in Dispatch.
-
-## Confirmation payment compatibility (013)
-
-A Cash/UPI receipt captured with POS confirmation is the same bill ledger used by handover gating. Pay Later remains allowed for Takeaway creation, but backend/database still reject handover until current bill due is zero. Dine In serving remains independent of settlement. Dispatch does not display or manage payment reminders or Kitchen timers; operational role unions can switch to the authorized workspace. No Dispatch lifecycle or grid change was made.
-
-Migration 014 reads effective items and blocks Takeaway completion for REFUND_DUE as well as collection due, in both Orders and the database. The card displays REFUND ₹… AT COUNTER and disables handover until settled. Dine In may serve with either due. Cashier+Dispatch may navigate to Counter settlement; pure Dispatch cannot record refunds.
-
-## Historical session rollover
-
-CLOSED means the ordering session ended, not handover or settlement. Existing READY rounds remain in Dispatch. Takeaway still requires amount_due == 0 AND refund_due == 0 under existing transaction/database checks; rollover never bypasses this. Dine In/legacy behavior is unchanged. Counter can settle rollover-closed Bills before handover. No Dispatch refund workflow is added.
-
-## Previous-day cleanup boundary (019)
-
-Earlier-date READY rounds can now be system-cancelled at/after the daily cleanup cutoff. They leave authoritative Dispatch reads and completion rejects once cancellation wins. Before cleanup, historical rounds can still complete under existing Takeaway settlement rules. No frontend cancellation action or refund authority was added.
-
-## Manual platform handover (020)
-
-READY Zomato/Swiggy tokens share the existing ready-time/id queue and Handed Over command. Cards show source, external reference and immutable Normal/Less instructions (and measured amounts for legacy records). Their billId/amountDue/refundDue/paymentStatus are NULL and no Counter financial controls appear. They complete without settlement; Counter Takeaway retains both due/refund gates. Actor/time comes from the same history record. Concurrent cancellation/cleanup/handover serialize on the existing restaurant lock; COMPLETED remains terminal.
+Parcel (internal TAKEAWAY) requires zero amount_due and refund_due for handover. Dine-In serving completion does not pay or close its Bill. Serving history prevents a legacy completion command from bypassing unserved Dine-In lines. Backend compatibility commands are retained deliberately, not a second supported staff workflow.

@@ -346,7 +346,7 @@ function ItemList({ items }: { items: ReportItem[] }) {
 function ServiceTypes({ sales }: { sales: SalesReport }) {
   return (
     <section className="report-panel">
-      <h2>Dine In vs Takeaway</h2>
+      <h2>Dine In vs Parcel</h2>
       {sales.serviceTypes.length ? (
         <dl className="report-money-grid">
           {sales.serviceTypes.map((s) => (
@@ -356,7 +356,7 @@ function ServiceTypes({ sales }: { sales: SalesReport }) {
                   ? 'Unknown / Legacy'
                   : s.serviceType === 'DINE_IN'
                     ? 'Dine In'
-                    : 'Takeaway'}
+                    : 'Parcel'}
               </dt>
               <dd>{money(s.salesValue)}</dd>
               <small>{s.billCount} bills</small>
@@ -403,7 +403,7 @@ function Operations({ o }: { o: OperationsReport }) {
               ? 'Unknown / Legacy'
               : s.serviceType === 'DINE_IN'
                 ? 'Dine In'
-                : 'Takeaway'}
+                : 'Parcel'}
             : {s.billCount} bills
           </li>
         ))}

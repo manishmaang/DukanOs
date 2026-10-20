@@ -385,7 +385,7 @@ test(
           );
           await assert.rejects(
             sql.query(
-              "INSERT INTO order_status_history VALUES($1,$2,'PREPARING','COMPLETED',$3,clock_timestamp(),'Invalid jump')",
+              "INSERT INTO order_status_history VALUES($1,$2,'QUEUED','COMPLETED',$3,clock_timestamp(),'Wrong source state')",
               [randomUUID(), three.id, owner.id],
             ),
             (e) => e.code === '23514',

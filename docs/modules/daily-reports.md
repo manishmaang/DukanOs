@@ -101,3 +101,7 @@ Migration 021's qualitative platform preparation adds no Bill, payment or tax re
 ## One-time test-day maintenance exception
 
 The October 18 [maintenance review](../operations/TEST_ORDER_CLEANUP_2026-10-17.md) prepares deletion of exactly October 17 v1 and no older report. It is not a report API or retention policy. Nine exact maintenance guards include daily_reports_immutable; its state is restored transactionally. Settings, audits and generation cursor remain unchanged. An initialized next_date of October 18 is required; email OFF alone cannot prevent stored report regeneration. Any delivery/attempt/action or uncertain external send blocks execution pending review. Tests invoke real startup/catch-up methods in an isolated database; production execution is not performed or authorized by this documentation.
+
+## Full-value completion of partly served Dine-In
+
+Migration 022's previous-day system completion retains the entire effective order value and actual payment ledger. It records operational completion without fabricating serving or payment transactions. Existing immutable Daily Report versions are never rewritten by this operation. Operational counts may differ from an earlier saved snapshot; use the existing explicit regeneration/versioning workflow if a revised report is required.

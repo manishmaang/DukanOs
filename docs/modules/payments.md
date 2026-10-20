@@ -20,7 +20,7 @@ Bill totals aggregate effective child-order grand totals, including their own ta
 
 ## Permissions and LAN operation
 
-OWNER/MANAGER/CASHIER receive payments.read/collect. KITCHEN cannot access financial details. Pure DISPATCH sees limited settlement status only and cannot collect; CASHIER+DISPATCH naturally combines capabilities and can open settlement from Dispatch. All operations use the local API/PostgreSQL and work with WAN down while LAN/server/database remain available. A UPI entry records the cashier's observation of receipt; it makes no claim of gateway verification.
+OWNER/MANAGER/CASHIER receive payments.read/collect. KITCHEN cannot access financial details. Pure DISPATCH cannot collect; CASHIER+DISPATCH naturally combines capabilities and can open settlement from Counter Bill details. Kitchen handover returns a meaningful settlement-required error without exposing payment controls. All operations use the local API/PostgreSQL and work with WAN down while LAN/server/database remain available. A UPI entry records the cashier's observation of receipt; it makes no claim of gateway verification.
 
 ## Cash refunds
 
@@ -34,7 +34,7 @@ Each positive ledger row retains actor/time and an optional confirmation_order_i
 
 ## Session closure is not settlement
 
-Migration 016 permits late reconciliation on BUSINESS_DAY_ROLLOVER closures through the same locks, permissions, amount checks, immutable ledger and idempotency. Closure posts no payment/refund and preserves both dues. Later collection/refund does not reopen the tab or reactivate its reminder. Manual close and Takeaway still require both dues zero. Historical receipts appear in event-date Money Received; food remains on the Bill date.
+Migration 016 permits late reconciliation on BUSINESS_DAY_ROLLOVER closures through the same locks, permissions, amount checks, immutable ledger and idempotency. Closure posts no payment/refund and preserves both dues. Later collection/refund does not reopen the tab or reactivate its reminder. Manual close and Parcel still require both dues zero. Historical receipts appear in event-date Money Received; food remains on the Bill date.
 
 ## Previous-day cleanup boundary (019)
 
@@ -43,3 +43,7 @@ System previous-day cancellation appends zero-valued effective order revisions w
 ## Manual platform isolation (020)
 
 Manual Zomato/Swiggy orders have no Bill, monetary/tax snapshots, payment, refund or financial amendment. Existing Counter Bill cohorts and customer ledger definitions remain unchanged; platform food cannot enter financial/live/Daily Report totals. Platform cancellation and previous-day cleanup are operational only. Immutable existing report versions are not rewritten. See [Platform Orders](platform-orders.md).
+
+## Real-shop fulfillment boundary
+
+Kitchen now completes Dine-In rounds through item serving and Parcel/platform rounds through one-action handover. Round completion does not pay or close a Bill. Parcel still requires both collection due and refund due zero. Any serving history blocks manual amendments; corrections are operational events only and cannot change sale values. At previous-day cleanup, partly served Dine-In rounds complete with their entire effective value preserved; a distinct system completion records why. Actual served quantities remain truthful. Existing midnight Bill rollover and financial settlement rules remain separate. See [Kitchen](kitchen.md).

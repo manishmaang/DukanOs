@@ -1,3 +1,4 @@
+import { serviceLabel } from './service-label';
 import { OrderAmendment } from './OrderAmendment';
 import { useOperationalAudio } from './OperationalAudio';
 import { ReminderSetting } from './PaymentReminders';
@@ -291,7 +292,7 @@ export function Bills({
                   {b.businessDate < b.currentBusinessDate && '· HISTORICAL'}
                 </p>
                 <p>
-                  {b.serviceType?.replace('_', ' ') ??
+                  {serviceLabel(b.serviceType) ??
                     'Legacy · service unknown'}{' '}
                 </p>
                 <p>
@@ -340,8 +341,8 @@ export function Bills({
           <h2>{bill.reference || `Bill #${bill.billNumber}`}</h2>
           <p>
             Bill #{bill.billNumber} · {bill.businessDate} ·{' '}
-            {bill.serviceType?.replace('_', ' ') ?? 'Legacy · service unknown'}{' '}
-            · {bill.status}
+            {serviceLabel(bill.serviceType) ?? 'Legacy · service unknown'} ·{' '}
+            {bill.status}
           </p>
           {bill.businessDate !== bill.currentBusinessDate && (
             <p className="bill-historical">

@@ -105,6 +105,7 @@ const root = require('node:path').resolve(__dirname, '..');
       process.env.CHROME_BINARY,
       [
         '--no-sandbox',
+        '--headless=new',
         '--remote-debugging-port=0',
         '--user-data-dir=' + profile,
         '--disable-background-networking',
@@ -410,7 +411,9 @@ const root = require('node:path').resolve(__dirname, '..');
         "!!document.querySelector('.payment-review .payment-choices')",
       );
       await button('Pay Later');
-      await c.wait("!!document.querySelector('.order-token')");
+      await c.wait(
+        "!!document.querySelector('.order-confirmed') && !document.querySelector('.cart-line')",
+      );
       const orders = (await c.http('/orders')).body.orders;
       return orders.at(-1);
     }
@@ -432,16 +435,28 @@ const root = require('node:path').resolve(__dirname, '..');
       await go('/pos', '.pos-card');
       const reference = 'Table 4 ' + width;
       const first = await addRound(width, 'DINE_IN', reference, true);
-      await button('New Order');
+      assert.equal(
+        await c.read("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
       await prepare(first);
-      await go('/dispatch', '.dispatch-card');
+      await go('/kitchen', '.kds-card');
       assert.ok(
         await c.read(
-          "document.querySelector('.dispatch-card').textContent.includes('DUE')",
+          "document.querySelector('.kds-card').textContent.includes('DINE IN')",
         ),
       );
-      await button('Handed Over');
-      await c.wait("!document.querySelector('.dispatch-card')");
+      while (
+        await c.read(
+          "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Serve')",
+        )
+      ) {
+        await button('Serve');
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      if (await c.read("!!document.querySelector('.kds-action')"))
+        await button('Ready & Handed Over');
+      await c.wait("!document.querySelector('.kds-card')");
       await go('/pos', '.pos-card');
       await openBill(reference);
       await inspect('open-dine-bill', width, height, true);
@@ -461,11 +476,23 @@ const root = require('node:path').resolve(__dirname, '..');
       assert.equal(second.items[0].itemName, 'Soya Chaap Gravy');
       assert.equal(second.billId, first.billId);
       assert.notEqual(first.tokenNumber, second.tokenNumber);
-      await button('New Order');
+      assert.equal(
+        await c.read("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
       await prepare(second);
-      await go('/dispatch', '.dispatch-card');
-      await button('Handed Over');
-      await c.wait("!document.querySelector('.dispatch-card')");
+      await go('/kitchen', '.kds-card');
+      while (
+        await c.read(
+          "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Serve')",
+        )
+      ) {
+        await button('Serve');
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      if (await c.read("!!document.querySelector('.kds-action')"))
+        await button('Ready & Handed Over');
+      await c.wait("!document.querySelector('.kds-card')");
       await go('/pos', '.pos-card');
       await openBill(reference);
       assert.equal(
@@ -523,12 +550,15 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       await button('Back to POS');
       const takeaway = await addRound(width, 'TAKEAWAY', 'Takeaway ' + width);
-      await button('New Order');
-      await prepare(takeaway);
-      await go('/dispatch', '.dispatch-card');
       assert.equal(
-        await c.read("document.querySelector('.dispatch-action').disabled"),
-        true,
+        await c.read("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
+      await prepare(takeaway);
+      await go('/kitchen', '.kds-card');
+      assert.equal(
+        await c.read("document.querySelector('.kds-action').disabled"),
+        false,
       );
       await inspect('takeaway-payment-required', width, height, true);
       const denied = await c.http(
@@ -540,16 +570,14 @@ const root = require('node:path').resolve(__dirname, '..');
       if (width === 390) {
         const pure = await device('dispatcher');
         await pure.read("location.hash='/dispatch'");
-        await pure.wait("!!document.querySelector('.dispatch-card')");
+        await pure.wait("!!document.querySelector('.kds-card')");
         assert.equal(
           await pure.read("!!document.querySelector('.bill-collect-link')"),
           false,
         );
         assert.equal(
-          await pure.read(
-            "document.querySelector('.dispatch-action').disabled",
-          ),
-          true,
+          await pure.read("document.querySelector('.kds-action').disabled"),
+          false,
         );
         assert.equal(
           (await pure.http('/bills/' + takeaway.billId)).status,
@@ -557,7 +585,8 @@ const root = require('node:path').resolve(__dirname, '..');
         );
         await c.send('Page.bringToFront');
       }
-      await tap('.bill-collect-link');
+      await go('/pos', '.pos-card');
+      await openBill('Takeaway ' + width);
       await c.wait("!!document.querySelector('.bill-payment')");
       await c.fill('[aria-label="Payment amount"]', '100');
       await select('[aria-label="Payment method"]', 'UPI');
@@ -565,9 +594,18 @@ const root = require('node:path').resolve(__dirname, '..');
       await c.wait(
         "document.querySelector('.bill-payment-status')?.textContent==='PAID'",
       );
-      await go('/dispatch', '.dispatch-card');
-      await button('Handed Over');
-      await c.wait("!document.querySelector('.dispatch-card')");
+      await go('/kitchen', '.kds-card');
+      while (
+        await c.read(
+          "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Serve')",
+        )
+      ) {
+        await button('Serve');
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      if (await c.read("!!document.querySelector('.kds-action')"))
+        await button('Ready & Handed Over');
+      await c.wait("!document.querySelector('.kds-card')");
       await go('/pos', '.pos-card');
       await openBill('Takeaway ' + width);
       await button('Close Bill');

@@ -70,11 +70,11 @@ Migration 010 grants menu.availability.manage to KITCHEN through role_permission
 
 ## Dispatch capabilities
 
-Existing dispatch.read and dispatch.complete grants now authorize the implemented Dispatch queue and READY→COMPLETED command for OWNER/MANAGER/DISPATCH. No permission migration or role model change is needed. CASHIER-only and KITCHEN-only lack these capabilities; combinations including DISPATCH union them naturally. Backend completion rechecks the live session/capability after locks; workspace visibility is only a convenience. Dispatch does not gain generic orders.read, menu administration or payment access. See [Dispatch](dispatch.md).
+Existing dispatch.read and dispatch.complete grants authorize the legacy Dispatch API and READY→COMPLETED compatibility command for OWNER/MANAGER/DISPATCH. No permission migration or role model change is needed. CASHIER-only and KITCHEN-only lack these capabilities; combinations including DISPATCH union them naturally. Backend completion rechecks the live session/capability after locks; workspace visibility is only a convenience. Dispatch does not gain generic orders.read, menu administration or payment access. See [Dispatch](dispatch.md).
 
 ## Bills and financial permissions
 
-Migration 012 grants bills.read/manage and payments.read/collect to OWNER/MANAGER/CASHIER. It removes generic financial orders.read from KITCHEN, which keeps dedicated kitchen.read/update. Pure DISPATCH sees limited due/service/status through Dispatch only. Operational unions provide collection + handover to CASHIER+DISPATCH. No role-name bypass is added; Bill/payment mutations recheck live session and capability under the transaction lock.
+Migration 012 grants bills.read/manage and payments.read/collect to OWNER/MANAGER/CASHIER. It removes generic financial orders.read from KITCHEN, which keeps dedicated kitchen.read/update. The legacy Dispatch API exposes limited due/service/status to DISPATCH; its current workspace is Kitchen under migration 022. Operational unions provide collection + handover to CASHIER+DISPATCH. No role-name bypass is added; Bill/payment mutations recheck live session and capability under the transaction lock.
 
 ## Reminder and timer capabilities (013)
 
@@ -97,3 +97,7 @@ Production must use scripts/start-production.cjs with NODE_ENV=production; inval
 ## Manual platform capabilities (020)
 
 Explicit platform_orders.create/read/cancel grants are added to OWNER/MANAGER/CASHIER. Backend mutation checks revalidate the current session and capability under the restaurant lock. Kitchen and Dispatch retain only their existing respective operational reads/actions; no platform entry/cancellation, financial or Menu administration grant is added to them. Serving configuration remains menu.manage. Multi-role unions and OWNER/MANAGER exclusivity remain unchanged.
+
+## Unified Kitchen fulfillment (migration 022)
+
+OWNER/MANAGER/KITCHEN/DISPATCH receive kitchen.fulfill. DISPATCH additionally receives kitchen.read, with no new money/menu/timer privileges. Dispatch navigation is retired and authorized legacy routes redirect to Kitchen. Serving/handover recheck the live session and capability inside the restaurant transaction lock. Operational role unions and exclusive privileged roles are unchanged.

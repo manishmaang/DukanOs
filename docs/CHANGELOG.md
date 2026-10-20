@@ -453,3 +453,11 @@
 - Daily Reports browser workflows and eight-size/short-height boundaries passed, including long dish names, regenerated versions, test/send/resend and HTML email layouts. Existing Reports, Expenses and full operational responsive browser regressions passed with external traffic blocked.
 - Migration 018 and actual local startup preserved fingerprints for all 29 existing source tables (28 Bills, 31 orders, 25 payment/refund records) and all 3 upload files. Added three capabilities/six grants; startup generated one previous-day snapshot with zero email jobs because delivery remains OFF.
 - Corrected a responsive regression harness race: Admin also has username/password fields, so login checks now await signed-out navigation state before filling credentials. No authentication behavior changed.
+
+## 2026-10-20 — Real-shop workflows
+
+- Unified Kitchen serving/handover, service/reference labels, remaining production with token breakdown, and auditable partial Dine-In quantities/corrections.
+- Retired Dispatch navigation; retained compatibility APIs/history and explicit legacy staff capability mapping.
+- Added forward-only migration 022 and full-value system completion of partly served prior-day Dine-In at the owner's request.
+- POS naturally grows on desktop, uses a single mobile dialog scroll surface, and resets immediately after confirmed success. Staff-facing Parcel replaces Takeaway labels; stored TAKEAWAY remains unchanged.
+- Passed full project checks (37 unit tests), 244 PostgreSQL tests (one optional Nginx fixture skipped), targeted serving/timer tests and responsive real-shop, platform, Menu, Bills, alerts/audio, amendments and Reports browser regressions. Details and limitations: [checkpoint](checkpoints/real-shop-workflows.md). No deployment performed.

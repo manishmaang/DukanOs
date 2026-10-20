@@ -176,7 +176,8 @@ export function PlatformPos({
       setLines([]);
       setReference('');
       setReview(false);
-      setOpen(true);
+      setPreparationMode('NORMAL');
+      setOpen(false);
     } catch (e) {
       setNotice(errorMessage(e));
       if (
@@ -196,26 +197,9 @@ export function PlatformPos({
   }
   const cart = (
     <section className="order-cart platform-cart">
-      <h2>{confirmed ? 'Order confirmed' : 'Current platform order'}</h2>
+      <h2>Current platform order</h2>
       {notice && <p role="status">{notice}</p>}
-      {confirmed ? (
-        <>
-          <SourceLabel
-            source={confirmed.source}
-            reference={confirmed.externalReference}
-          />
-          <h2>TOKEN #{confirmed.tokenNumber}</h2>
-          <p>Sent to Kitchen · No DukanOS bill or payment</p>
-          <button
-            onClick={() => {
-              clear();
-              setOpen(false);
-            }}
-          >
-            New Order
-          </button>
-        </>
-      ) : pending ? (
+      {pending ? (
         <>
           <p>
             Submission is awaiting confirmation. Retry this same request; do not
@@ -357,6 +341,11 @@ export function PlatformPos({
   );
   return (
     <>
+      {confirmed && (
+        <div className="order-confirmed" role="status">
+          Order confirmed · {confirmed.source} · Token #{confirmed.tokenNumber}
+        </div>
+      )}
       <div className="bill-toolbar">
         {canRead && (
           <button onClick={() => setTracking(!tracking)}>
@@ -534,7 +523,7 @@ export function PlatformPos({
                         <button
                           className="pos-card pos-dish-card"
                           key={i.id}
-                          disabled={!!pending || !!confirmed}
+                          disabled={!!pending}
                           onClick={() => {
                             setDishId(i.id);
                             setReview(false);
@@ -576,7 +565,7 @@ export function PlatformPos({
           dish={dish}
           canCreateOrders
           canManageAvailability={false}
-          locked={!!pending || !!confirmed}
+          locked={!!pending}
           busy={busy}
           actionError=""
           onAvailability={() => {}}

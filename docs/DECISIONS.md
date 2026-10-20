@@ -485,3 +485,11 @@ Date: 2026-10-09.
 **Reason:** one authoritative mode, no guessed food quantities, no history rewrite and no conflation with external discounts. Share Counter's existing DishSelection component and responsive CSS; keep Counter and platform submission/payment flows separate.
 
 **Consequences:** Production retains source/mode/amount/unit identity so new qualitative, legacy measured and different-source work stay separate. Original financial constraints, FIFO, token/reference/request uniqueness, cancellation, timers and Dispatch payment gates remain. Mixed modes on new orders are deferred. Matching code/schema rollout requires a separately authorized upgrade; no live migration or AWS deployment occurs here.
+
+## 2026-10-20 — Unified Kitchen serving and overnight completion
+
+Context: the same staff cook, serve and hand over; separate START/READY/Dispatch actions slow real-shop work. Dine-In dishes arrive separately, and retaining QUEUED alone previously allowed unsafe amendments after food was served.
+
+Options: simulate old transitions; add an entire new status machine; or preserve legacy states and append serving/fulfillment evidence with direct completion. Chosen: direct actual active→COMPLETED, append-only quantity events pinned to effective line/revision, stale-quantity checks and actor/request idempotency under the existing PostgreSQL restaurant lock. Manual amendments stop after serving evidence. Corrections remain possible only before terminal completion, with reason.
+
+Owner explicitly chose full-order completion and full financial inclusion for partly served prior-day Dine-In at cleanup. Record a system completion with cutoff/timezone; never fabricate remaining serving events or payment. Fully unserved rounds retain cancellation. Bill rollover remains independent. Consequences: operational history distinguishes automatic completion from actual staff serving; later commercial corrections require a separate authorized design. Legacy READY handover without serving evidence remains compatible; the normal UI uses line serving.

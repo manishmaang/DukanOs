@@ -33,6 +33,7 @@ export type PermissionCode =
   | 'bills.manage'
   | 'payments.read'
   | 'payments.collect'
+  | 'kitchen.fulfill'
   | 'kitchen.read'
   | 'kitchen.update'
   | 'dispatch.read'

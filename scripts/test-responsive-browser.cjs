@@ -103,6 +103,7 @@ const root = require('node:path').resolve(__dirname, '..');
       process.env.CHROME_BINARY,
       [
         '--no-sandbox',
+        '--headless=new',
         '--remote-debugging-port=0',
         '--user-data-dir=' + profile,
         '--disable-background-networking',
@@ -369,7 +370,6 @@ const root = require('node:path').resolve(__dirname, '..');
         ['/pos', '.pos-card'],
         ['/menu', '.dish-link'],
         ['/kitchen', '.kds-columns'],
-        ['/dispatch', '.dispatch'],
         ['/admin', 'input[name=username]'],
       ]) {
         await go(route, selector);
@@ -561,10 +561,13 @@ const root = require('node:path').resolve(__dirname, '..');
       await button('Pay Later');
       token++;
       await c.wait(
-        `document.querySelector('.order-token')?.textContent==='TOKEN #${token}'`,
+        `document.querySelector('.order-confirmed')?.textContent.includes('Token #${token} ')`,
       );
       await inspect('token', width, height, true);
-      await button('New Order');
+      assert.equal(
+        await c.read("document.querySelectorAll('.cart-line').length"),
+        0,
+      );
       // Kitchen actual transition, production, search and availability round-trip.
       await go('/kitchen', '.kds-card');
       await inspect('kitchen-orders', width, height, true);
@@ -583,16 +586,10 @@ const root = require('node:path').resolve(__dirname, '..');
         '!!document.querySelector(\'button[aria-label="Manchurian / Half: Mark sold out"]\')',
       );
       await button('Close');
-      await button('Start Order');
-      await c.wait("!!document.querySelector('.kds-preparing .kds-card')");
-      await button('Mark Ready');
+      await button('Serve');
       await c.wait("!document.querySelector('.kds-card')");
-      await go('/dispatch', '.dispatch-card');
-      await inspect('dispatch-ready', width, height, true);
-      await button('Handed Over');
-      await c.wait(
-        "document.querySelector('.dispatch')?.textContent.includes('No orders waiting')",
-      );
+      await go('/kitchen', '.kds');
+      assert.equal(await c.read('location.hash'), '#/kitchen');
       // Staff create, operational role union, access reason and reset password.
       await go('/admin', 'input[name=username]');
       await c.fill(
@@ -739,7 +736,7 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       await button('Production View');
       await inspect('long-production', width, height, true);
-      assert.doesNotMatch(
+      assert.match(
         await c.read(
           "document.querySelector('.kds-production-sections').innerText",
         ),
@@ -754,16 +751,13 @@ const root = require('node:path').resolve(__dirname, '..');
     await resize(390, 844);
     await go('/kitchen', '.kds');
     await button('Order View');
-    await button('Start Order');
-    await c.wait("!!document.querySelector('.kds-preparing .kds-card')");
-    await button('Mark Ready');
-    await c.wait("!document.querySelector('.kds-preparing .kds-card')");
-    await go('/dispatch', '.dispatch-card');
-    await inspect('long-dispatch', 390, 844, true);
-    await button('Handed Over');
-    await c.wait(
-      "document.querySelector('.dispatch')?.textContent.includes('No orders waiting')",
-    );
+    while (await c.read("!!document.querySelector('.kds-card')")) {
+      const count = await c.read(
+        "document.querySelectorAll('.kds-card').length",
+      );
+      await button('Serve');
+      await c.wait(`document.querySelectorAll('.kds-card').length < ${count}`);
+    }
     await c.read("location.hash='/unavailable-fixture'");
     await c.wait(
       "document.querySelector('main h1')?.textContent==='Workspace unavailable'",
@@ -791,7 +785,7 @@ const root = require('node:path').resolve(__dirname, '..');
     assert.deepEqual(external, []);
     assert.deepEqual(failures, []);
     console.log(
-      'Responsive PASS: all eight requested sizes; touch login/navigation, Menu prices/availability/image save, multi-variant notes/cart/edit/confirm/token, orientation, Kitchen production/START/READY/availability, Dispatch, staff create/role/access/reset, password validation and constrained-height forms. No page overflow or undersized visible targets; local traffic only.',
+      'Responsive PASS: all eight requested sizes; touch login/navigation, Menu prices/availability/image save, multi-variant notes/cart/edit/confirm/token, orientation, Kitchen production/serving/availability, legacy redirect, staff create/role/access/reset, password validation and constrained-height forms. No page overflow or undersized visible targets; local traffic only.',
     );
   } finally {
     for (const c of clients) c.socket.close();

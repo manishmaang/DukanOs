@@ -15,7 +15,7 @@ test('multi-role workspaces follow capabilities, not role names', () => {
   user.permissions.push('dispatch.read');
   assert.deepEqual(
     allowedWorkspaces(user).map((x) => x.label),
-    ['POS', 'Kitchen', 'Dispatch'],
+    ['POS', 'Kitchen'],
   );
   user.roles = ['OWNER'];
   user.permissions = [];

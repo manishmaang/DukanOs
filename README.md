@@ -1,12 +1,12 @@
 # DukanOS
 
-Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen Display System, Dispatch handover, Bills/Tabs, Cash/UPI payments and Owner Dashboard/Reports V1** implemented.
+Single-location restaurant POS and kitchen system, with **staff authentication, multi-role access, menu management, Counter order creation, Kitchen serving and handover, Bills/Tabs, Cash/UPI payments and Owner Dashboard/Reports V1** implemented.
 
 ## Production readiness
 
 The owner reports a working EC2/HTTPS deployment with encrypted S3 backups and an isolated database restore. Read the [AWS cloud handover](docs/operations/AWS_CLOUD_HANDOVER.md) for exact paths, dated evidence, later menu/OWNER updates and pending pilot checks. Alerts, scheduled backup verification, broader real-device/load acceptance and full-host recovery remain pending confirmation. This is not certification for live customer traffic. Read the [2026-10-07 readiness audit](docs/PRODUCTION_READINESS_AUDIT.md) for historical findings and their hardening follow-up, and the [deployment procedure](docs/DEPLOYMENT.md) for environment variables, local/cloud topology, HTTPS, workers, backups and rollback. No cloud resources or production infrastructure were deployed by this audit.
 
-The [October 19 production/scheduler handoff](docs/operations/EC2_AUTO_START_STOP_HANDOFF_2026-10-19.md) records owner-confirmed test-data cleanup and successful real-shop use. Do not rerun cleanup. Shop feedback details are pending. EC2 scheduling is paused with all three created schedules disabled; the guarded morning stop is unimplemented. SSM Online/Run Command and recovery of the specific pre-cleanup backup still need verification. These are owner-reported updates, not a fresh production audit.
+The [October 19 production/scheduler handoff](docs/operations/EC2_AUTO_START_STOP_HANDOFF_2026-10-19.md) records owner-confirmed test-data cleanup and successful real-shop use. Do not rerun cleanup. Real-shop workflow changes are being verified on the feature branch; see the [checkpoint](docs/checkpoints/real-shop-workflows.md). EC2 scheduling is paused with all three created schedules disabled; the guarded morning stop is unimplemented. SSM Online/Run Command and recovery of the specific pre-cleanup backup still need verification. These are owner-reported updates, not a fresh production audit.
 
 ## MVP checkpoint
 
@@ -48,7 +48,7 @@ npm start
 
 After pulling or building backend changes, stop the existing `npm start` process with Ctrl+C and run `npm start` again. A build updates files on disk; it does not reload an already running API. Otherwise new frontend assets can call routes missing from the old process.
 
-With PostgreSQL running and `.env` configured, visit `http://localhost:3000`. NestJS serves compiled web assets from `apps/web/dist`, including hash routes such as `/#/kitchen`. Run through the root npm scripts to preserve documented environment paths. No external fonts, scripts, or CDNs are used at runtime. Production process supervision, TLS, backups, and restore drills remain to be completed before real shop use.
+With PostgreSQL running and `.env` configured, visit `http://localhost:3000`. NestJS serves compiled web assets from `apps/web/dist`, including hash routes such as `/#/kitchen`. Run through the root npm scripts to preserve documented environment paths. No external fonts, scripts, or CDNs are used at runtime. Follow the AWS handover for reported deployment/backup status; further production changes require explicit authorization.
 
 ## Checks
 
@@ -75,7 +75,7 @@ Read [AGENTS.md](AGENTS.md), [system state](docs/SYSTEM.md), and the relevant mo
 
 ## Internet outages and hosting
 
-Hosting remains undecided. Running the built application and database on a shop server permits LAN access without internet; power and the local network must remain available. Cloud-only hosting needs additional offline execution/synchronization to meet the requirement. Counter ordering and Kitchen use local services only; disconnected-browser writes and cloud synchronization are not implemented. Hardware, electricity, maintenance and backups determine the eventual cost comparison.
+The owner reports an AWS EC2 deployment. Running the built application and database on a shop server permits LAN access without internet; power and the local network must remain available. Cloud-only hosting needs additional offline execution/synchronization to meet the requirement. Counter ordering and Kitchen use local services only; disconnected-browser writes and cloud synchronization are not implemented. Hardware, electricity, maintenance and backups determine the eventual cost comparison.
 
 ## First owner and staff access
 
@@ -155,7 +155,7 @@ The [API validation audit](docs/API_VALIDATION.md) documents every current endpo
 
 ## Counter ordering
 
-Apply `npm run db:migrate`, build/start the application, and sign in as CASHIER, MANAGER or OWNER. Open POS, tap a dish, choose an available portion, quantity and optional kitchen instruction, then **Add to Order**. Edit quantities/notes or remove lines in Current Order. **Confirm Order** stores the order as QUEUED and shows its daily token and authoritative total. **New Order** starts the next cart. No payment is collected. Kitchen staff receive the order through the Kitchen workspace.
+Apply `npm run db:migrate`, build/start the application, and sign in as CASHIER, MANAGER or OWNER. Open POS, tap a dish, choose an available portion, quantity and optional kitchen instruction, then **Add to Order**. Edit quantities/notes or remove lines in Current Order. **Confirm Order** stores the order as QUEUED and shows its daily token and authoritative total. The next independent cart opens immediately. Payment review supports real Cash/UPI collection or Pay Later. Kitchen staff receive the order through the Kitchen workspace.
 
 Prices and sellability are rechecked at confirmation. If a portion was sold out, review the identified line. After a network timeout, use **Retry confirmation**: it reuses the stored request identity and cannot create a second order. Keep that tab open until the result is resolved. Ordinary unsent carts are not persisted. To inspect confirmed data, use authenticated `/api/orders?status=QUEUED`, `/api/orders/:id` or `/api/orders/tokens/YYYY-MM-DD/47`.
 
@@ -171,11 +171,11 @@ Tokens reset by local calendar date at midnight. Tax is a configurable exclusive
 
 ## Kitchen Display System
 
-Apply `npm run db:migrate` (009 preserves existing orders/menu/users/images), then build and restart the API. Sign in as KITCHEN, OWNER, MANAGER or staff with a combined KITCHEN role. Open **Kitchen**. **Order View** shows queued tokens oldest first with NEXT; **Start Order** accepts only that token. Multiple accepted orders can cook in parallel. **Mark Ready** removes an order from active Kitchen; Dispatch handles READY → COMPLETED handover. Tokens show their business date because daily numbers repeat.
+Kitchen Order View shows all pending rounds oldest first, including legacy PREPARING/READY work. Service type and Table / Reference are prominent. Dine-In lines support partial serving and reasoned corrections before completion; the round completes when all quantities are served without closing its Bill. Parcel/platform rounds use **Ready & Handed Over**. Parcel requires both collection and refund dues to be zero. No START or READY action is required.
 
-**Production View** shows To start and In preparation separately, with compact dish/portion totals and aggregated instruction quantities. Source tokens remain in the API but are hidden from Production UI. Preparation state belongs to the whole order. Notes remain independent per order line; prices/payment data are absent. Devices refresh automatically about every two seconds plus request time, and refetch after actions or reconnect. A connection failure pauses actions until a successful read. The server, LAN and PostgreSQL must remain available; internet is not required. See [Kitchen](docs/modules/kitchen.md) for endpoints and limits.
+Production View shows remaining quantities with instruction and token/service/reference breakdowns. Devices refresh about every two seconds and refetch after actions/reconnect. Connection failures pause actions. See [Kitchen](docs/modules/kitchen.md) and the [coordinated migration 022 deployment review](docs/operations/REAL_SHOP_WORKFLOWS_DEPLOYMENT.md); no production deployment is authorized here.
 
-Run `npm run check` and `npm run test:integration`. For real Chromium verification, set CHROME_BINARY to your local executable and run `npm run test:kitchen-browser`. The script creates three orders through POS in an isolated schema, verifies production totals/source notes, FIFO, START/READY, independent-device conflicts/recovery and tablet layout, and removes its fixtures. Screenshots: `/tmp/dukanos-kitchen-orders.png`, `/tmp/dukanos-kitchen-production.png`, `/tmp/dukanos-kitchen-tablet.png`. It does not modify restaurant orders.
+Run `npm run test:real-shop-browser` with local CHROME_BINARY for isolated continuous-ordering, serving, source breakdown, redirect and responsive regression coverage. The existing kitchen/dispatch browser commands delegate to this unified suite. Legacy backend transitions retain PostgreSQL regression coverage.
 
 ## Compact Kitchen, late orders and availability
 
@@ -185,13 +185,9 @@ Set optional `KITCHEN_LATE_THRESHOLD_MINUTES=15` in the server environment (inte
 
 Kitchen → **Availability** opens search and whole-dish/per-portion sold-out/restore controls. A pure KITCHEN user gains only menu.availability.manage, not menu.manage. Changes affect Counter only and use existing version checks/audit. POS updates in its normal five-second refresh window; a sold-out portion already in a draft fails confirmation clearly. Existing confirmed orders remain unchanged.
 
-## Dispatch handover
+## Legacy Dispatch compatibility
 
-Apply migration 011 with `npm run db:migrate`, then build/restart the API. Existing READY orders remain intact. Sign in as DISPATCH, OWNER, MANAGER or operational staff whose roles include DISPATCH, then open **Dispatch** (`/#/dispatch`). READY orders appear oldest-ready first with token, READY age, dish/portion quantities and optional notes. After handing food over, press **Handed Over**. The order becomes COMPLETED and leaves the queue. Dine In may be served unpaid; Takeaway requires the current Bill due to be zero. This action does not record payment and has no undo.
-
-Set optional `DISPATCH_LATE_THRESHOLD_MINUTES=5` (integer 1–1440; restart required) for static late highlighting based on time since READY. Kitchen READY arrivals and other devices' handovers refresh in about two seconds plus request latency. Conflicts and reconnects refetch authoritative state; unavailable connections hide stale actions. CASHIER/KITCHEN alone cannot complete; combined operational roles switch workspaces without logout.
-
-See [Dispatch](docs/modules/dispatch.md) for APIs, history/concurrency and limitations. Run `npm run check`, `npm run test:integration` and, with local CHROME_BINARY configured, `npm run test:dispatch-browser`. Browser fixtures exercise three POS orders through Kitchen and handover on independent devices, with no external traffic or restaurant-data changes. Screenshots are written to `/tmp/dukanos-dispatch-desktop.png` and `/tmp/dukanos-dispatch-tablet.png`. Existing `test:menu-browser` and `test:kitchen-browser` cover regressions.
+Dispatch navigation is retired. Authorized `/#/dispatch` links redirect to Kitchen. DISPATCH staff receive kitchen.read and kitchen.fulfill; no payment, menu administration or timer capability is added. Existing backend handover/history contracts remain for compatibility. Staff collect payments and legitimate cash refunds through authorized Counter Bill workflows. See [Dispatch compatibility](docs/modules/dispatch.md).
 
 ## Responsive and touch support
 
@@ -199,14 +195,14 @@ Phone, tablet portrait/landscape and desktop support is a core requirement; see 
 
 Set CHROME_BINARY to local Chromium and run `npm run test:responsive-browser` for all eight documented sizes and representative touch workflows. Fixtures use temporary PostgreSQL schemas/uploads and block external browser traffic. Screenshots/report are written under `/tmp/dukanos-responsive-*`. Run existing Menu/Kitchen/Dispatch browser suites for regressions. Emulation does not replace physical Android/iOS keyboard and browser testing.
 
-## Bills, Dine In/Takeaway and payments
+## Bills, Dine In/Parcel and payments
 
 Apply migration 012 using `npm run db:migrate`, then build/restart the API. Existing orders become marked legacy bills; no service type or historical payment is invented. Review legacy financial history before collecting any displayed balance.
 
-1. In POS, add dishes, choose **Dine In** or **Takeaway** in Current Order, and optionally enter **Table / Reference** (for example Table 4). Confirm creates a Bill and first Kitchen token atomically.
+1. In POS, add dishes, choose **Dine In** or **Parcel** in Current Order, and optionally enter **Table / Reference** (for example Table 4). Confirm creates a Bill and first Kitchen token atomically.
 2. Use **View Bill / Payment**, or **Open Bills** to find a tab. **Add Items** creates another token only for an OPEN bill on the current restaurant business date; prior tokens stay unchanged.
 3. Record money received using **Cash** or **UPI**, including partial amounts. The system records receipt; it does not verify UPI or generate QR codes. Bill history shows actor/time and immutable collections.
-4. Dine In tokens may be served unpaid. Takeaway handover is blocked until its whole current bill due is zero. CASHIER+DISPATCH can use **Collect Payment** from Dispatch; pure DISPATCH cannot collect.
+4. Dine In tokens may be served unpaid. Parcel handover is blocked until its whole current bill due is zero. Authorized staff collect from Counter Bill details; pure DISPATCH cannot collect.
 5. After every round completes and balance settles, explicitly **Close Bill**. Payment alone leaves a tab open. Closed bills reject more food/collections.
 
 If a payment response is uncertain, **Retry payment** checks the exact same request; do not take the money again. Reloading the same tab restores recovery at the bill URL. Closing the tab loses this recovery data, so inspect payment history before submitting a replacement.
@@ -217,7 +213,7 @@ All settlement APIs and assets run locally with no internet dependency. Payment 
 
 ### Confirmation payments, payment reminders and Kitchen timers
 
-After adding food, **Confirm Order** opens a server-priced payment review. Choose full Cash, full UPI, Partial / Split (either field or both), or Pay Later. Record only money actually received; UPI is not verified externally. Existing bill due is included with the new round. A changed payable amount requires reviewing again; retries recover the same order and receipts. Takeaway cannot be handed over while due remains.
+After adding food, **Confirm Order** opens a server-priced payment review. Choose full Cash, full UPI, Partial / Split (either field or both), or Pay Later. Record only money actually received; UPI is not verified externally. Existing bill due is included with the new round. A changed payable amount requires reviewing again; retries recover the same order and receipts. Parcel cannot be handed over while due remains.
 
 **View Bill / Payment** shows the actual food in each round. On an unpaid open Dine In bill, expand **Payment reminder**, choose 5/10/15/custom minutes and **Set reminder**. The POS tray shows due alerts; **Snooze** persists for all devices. Full payment hides it everywhere after polling. A later unpaid round resumes the saved interval while the bill remains open.
 
@@ -265,7 +261,7 @@ This 404 can mean the frontend has been updated while the API process still runs
 
 Run migrations, build and restart API. Startup catches up older OPEN Bills, then checks every 60 seconds with PostgreSQL time and RESTAURANT_TIMEZONE (default Asia/Kolkata). No internet dependency. BUSINESS_DAY_ROLLOVER records actual processing time and null system actor. It creates no payment/refund and preserves food, money and audit history.
 
-Search older bills or select dates to inspect CLOSED/HISTORICAL tabs with UNPAID or REFUND DUE. Authorized Counter staff can record genuine settlement/refunds. No new food. Kitchen tickets continue; Takeaway requires both dues zero. Manual close still requires settled money and terminal rounds. Reminders stop at next successful poll; offline clients learn closure after reconnect.
+Search older bills or select dates to inspect CLOSED/HISTORICAL tabs with UNPAID or REFUND DUE. Authorized Counter staff can record genuine settlement/refunds. No new food. Kitchen tickets continue; Parcel requires both dues zero. Manual close still requires settled money and terminal rounds. Reminders stop at next successful poll; offline clients learn closure after reconnect.
 
 Dashboard = simplified operational overview. Reports = detailed financial/operational analysis. Net Money Received is not profit. Customer Ledger/Khata remains unimplemented.
 
@@ -289,7 +285,7 @@ Historical corrections change live Reports, never stored v1. Regenerate with a r
 
 ## Previous-day order cleanup
 
-Configure PREVIOUS_DAY_ORDER_CLEANUP_TIME in the actual environment (default 05:00; strict HH:MM in RESTAURANT_TIMEZONE). After today's cutoff, startup/periodic maintenance cancels earlier-date QUEUED/PREPARING/READY orders, preserving completed work and all receipts. Apply migration 019 before startup. Paid cancellations create refund due for explicit Counter cash refunds. Daily Reports already generated stay fixed; explicitly regenerate/send a revised version after review. See [Orders](docs/modules/orders.md) and the [pilot preparation checkpoint](docs/checkpoints/aws-pilot-preparation.md).
+Configure PREVIOUS_DAY_ORDER_CLEANUP_TIME in the actual environment (default 05:00; strict HH:MM in RESTAURANT_TIMEZONE). After today's cutoff, startup/periodic maintenance cancels fully unserved earlier-date QUEUED/PREPARING/READY orders. Under migration 022, partly served Dine-In instead completes in full, preserving its complete sale value, actual serving evidence and all receipts. Paid cancellations create refund due for explicit Counter cash refunds. Daily Reports already generated stay fixed; explicitly regenerate/send a revised version after review. See [Orders](docs/modules/orders.md) and the [pilot preparation checkpoint](docs/checkpoints/aws-pilot-preparation.md).
 
 ## Supervised AWS pilot preparation
 
@@ -303,6 +299,16 @@ The integration suite additionally needs PostgreSQL database/role creation privi
 
 After an authorized upgrade through migration 021, OWNER/MANAGER opens Menu, selects a dish/portion, enables Zomato/Swiggy availability and saves. No serving weights or volumes are needed. Platform prices are optional and never used as sale values. This milestone did not migrate the restaurant database; take a coordinated backup and perform the upgrade separately.
 
-In POS, select Zomato or Swiggy, tap a dish, use the shared Counter-style portion steppers and optional notes, then Add Items. At review, enter the external reference and choose NORMAL QUANTITY (default) or LESS QUANTITY for the entire order, then Submit to Kitchen. No discount input, measurements, prices or payment controls appear. Original measured history remains readable; discounts never determine preparation. The resulting token follows shared Kitchen/Dispatch. Track platform orders provides search/status/history and authorized local cancellation. No Bill/payment/refund/invoice is created. A cancelled reference cannot be reused or edited in V1; see [full behavior and limits](docs/modules/platform-orders.md).
+In POS, select Zomato or Swiggy, tap a dish, use the shared Counter-style portion steppers and optional notes, then Add Items. At review, enter the external reference and choose NORMAL QUANTITY (default) or LESS QUANTITY for the entire order, then Submit to Kitchen. No discount input, measurements, prices or payment controls appear. Original measured history remains readable; discounts never determine preparation. The resulting token follows shared Kitchen fulfillment. Track platform orders provides search/status/history and authorized local cancellation. No Bill/payment/refund/invoice is created. A cancelled reference cannot be reused or edited in V1; see [full behavior and limits](docs/modules/platform-orders.md).
 
 `CHROME_BINARY=/path/to/chrome npm run test:platform-browser` runs isolated responsive platform workflows; use a headless launcher when needed. Existing check/integration/browser suites remain required. No live migration or AWS deployment is implied by running tests.
+
+## Real-shop Kitchen and POS workflow
+
+Dine-In lines can be served partially and corrected with a reason before the round completes. Parcel/platform orders use Ready & Handed Over in Kitchen. Dispatch navigation is retired; legacy roles/routes remain compatible. Production shows remaining quantities with token/service/reference breakdowns. No visible START/PREPARING/READY step is required. Stored TAKEAWAY remains the internal enum; staff see Parcel.
+
+Successful POS checkout immediately starts a fresh independent cart, with a nonblocking actual token and View Bill. Desktop cart contents grow with the page; mobile uses a single dialog scrolling surface. Failed/uncertain confirmation retains the draft and retry identity. At prior-day cleanup, partly served Dine-In completes with its full financial value preserved, as explicitly requested by the owner.
+
+Migration 022 and updated runtime grants are required. See [deployment review](docs/operations/REAL_SHOP_WORKFLOWS_DEPLOYMENT.md), [Kitchen contracts](docs/modules/kitchen.md) and [verification checkpoint](docs/checkpoints/real-shop-workflows.md). Do not deploy automatically or rerun historical cleanup.
+
+Local responsive coverage: `CHROME_BINARY=/path/to/chrome npm run test:real-shop-browser` with a disposable DATABASE_URL configured. The script creates/drops an isolated schema and blocks external browser requests.
