@@ -49,31 +49,34 @@ function OrderItems({
               key={line.id}
               className={`kds-line ${line.pendingQuantity === 0 ? 'kds-served' : ''}`}
             >
-              <p>
-                {line.variantName} <strong>×{line.quantity}</strong>
-              </p>
+              <div className="kds-line-summary">
+                <div className="kds-line-counts">
+                  <p>
+                    {line.variantName} <strong>×{line.quantity}</strong>
+                  </p>
+                  {order.serviceType === 'DINE_IN' && (
+                    <p className="kds-quantity-state">
+                      {line.pendingQuantity === 0
+                        ? 'SERVED'
+                        : `${line.pendingQuantity ?? line.quantity} pending`}
+                      {' · '}
+                      {line.servedQuantity ?? 0} served
+                    </p>
+                  )}
+                </div>
+                {order.serviceType === 'DINE_IN' && enabled && (
+                  <ServingControls
+                    key={`${line.id}:${line.servedQuantity}`}
+                    line={line}
+                    onServe={(quantity, reason) =>
+                      serve(line, quantity, reason)
+                    }
+                  />
+                )}
+              </div>
               <ServingLabel serving={line.serving} />
               {line.instruction && (
                 <p className="kds-instruction">{line.instruction}</p>
-              )}
-              {order.serviceType === 'DINE_IN' && (
-                <>
-                  <p>
-                    {line.pendingQuantity === 0
-                      ? 'SERVED'
-                      : `${line.pendingQuantity ?? line.quantity} pending`}{' '}
-                    · {line.servedQuantity ?? 0} served
-                  </p>
-                  {enabled && (
-                    <ServingControls
-                      key={`${line.id}:${line.servedQuantity}`}
-                      line={line}
-                      onServe={(quantity, reason) =>
-                        serve(line, quantity, reason)
-                      }
-                    />
-                  )}
-                </>
               )}
             </div>
           ))}
@@ -104,21 +107,27 @@ function ServingControls({
     >
       {max > 0 && (
         <>
-          <label>
-            {correct ? 'Quantity to correct' : 'Quantity to serve'}
-            <input
-              type="number"
-              min={1}
-              max={max}
-              required
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-            />
-          </label>
+          {(correct || remaining > 1) && (
+            <label className="kds-serving-quantity">
+              {correct ? 'Quantity to correct' : 'Qty'}
+              <input
+                aria-label={
+                  correct ? 'Quantity to correct' : 'Quantity to serve'
+                }
+                type="number"
+                min={1}
+                max={max}
+                required
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+              />
+            </label>
+          )}
           {correct && (
-            <label>
+            <label className="kds-correction-reason">
               Correction reason
               <input
+                type="text"
                 required
                 maxLength={500}
                 value={reason}
@@ -135,7 +144,11 @@ function ServingControls({
               (correct && !reason.trim())
             }
           >
-            {correct ? 'Record correction' : 'Serve'}
+            {correct
+              ? 'Record correction'
+              : remaining === 1
+                ? 'Serve 1'
+                : 'Serve'}
           </button>
         </>
       )}
@@ -157,10 +170,15 @@ function ServingControls({
 function Production({
   groups,
   label,
+  orders,
 }: {
   groups: ProductionGroup[];
   label: string;
+  orders: KitchenOrder[];
 }) {
+  const platformReferences = new Map(
+    orders.map((order) => [order.orderId, order.externalReference]),
+  );
   return (
     <section className="kds-column kds-production-section" aria-label={label}>
       <h2>
@@ -192,8 +210,15 @@ function Production({
                   {g.source && g.source !== 'COUNTER'
                     ? g.source
                     : serviceLabel(source.serviceType)}
-                  {source.reference ? ` · ${source.reference}` : ''} · ×
-                  {source.quantity}
+                  {source.reference
+                    ? ` · ${source.reference}`
+                    : platformReferences.get(source.orderId)
+                      ? ` · Platform #${platformReferences.get(source.orderId)}`
+                      : ''}{' '}
+                  · ×{source.quantity}
+                  {source.instruction && (
+                    <p className="kds-instruction">{source.instruction}</p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -385,6 +410,7 @@ export function Kitchen({
             <div className="kds-production-sections">
               <Production
                 groups={state.production.pending}
+                orders={state.pending}
                 label="Pending production"
               />
             </div>
@@ -425,38 +451,46 @@ export function Kitchen({
                           key={order.orderId}
                           data-order-id={order.orderId}
                         >
-                          <SourceLabel
-                            source={order.source ?? 'COUNTER'}
-                            reference={order.externalReference}
-                          />
-                          <div className="kds-token-row">
-                            <h3 className="kds-token">#{order.tokenNumber}</h3>
-                            {next && (
-                              <strong className="kds-badge">NEXT</strong>
-                            )}
-                            {fresh && <span className="kds-badge">NEW</span>}
-                            {late && (
-                              <strong className="kds-late-badge">
-                                LATE · {duration(order.queuedAt, now)}
-                              </strong>
-                            )}
-                            <p className="kds-age">
-                              Waiting {duration(order.queuedAt, now)}
-                            </p>
-                          </div>
-                          {showDate && (
-                            <time className="kds-date">
-                              {order.businessDate}
-                            </time>
-                          )}
-                          {(order.source ?? 'COUNTER') === 'COUNTER' && (
-                            <p className="kds-service">
-                              <strong>{serviceLabel(order.serviceType)}</strong>
-                              {order.reference && (
-                                <span> · {order.reference}</span>
+                          <div className="kds-order-header">
+                            <SourceLabel
+                              source={order.source ?? 'COUNTER'}
+                              reference={order.externalReference}
+                            />
+                            <div className="kds-token-row">
+                              <h3 className="kds-token">
+                                #{order.tokenNumber}
+                              </h3>
+                              {next && (
+                                <strong className="kds-badge">NEXT</strong>
                               )}
-                            </p>
-                          )}
+                              {fresh && <span className="kds-badge">NEW</span>}
+                              {late && (
+                                <strong className="kds-late-badge">
+                                  LATE · {duration(order.queuedAt, now)}
+                                </strong>
+                              )}
+                              {!late && (
+                                <p className="kds-age">
+                                  Waiting {duration(order.queuedAt, now)}
+                                </p>
+                              )}
+                            </div>
+                            {showDate && (
+                              <time className="kds-date">
+                                {order.businessDate}
+                              </time>
+                            )}
+                            {(order.source ?? 'COUNTER') === 'COUNTER' && (
+                              <p className="kds-service">
+                                <strong>
+                                  {serviceLabel(order.serviceType)}
+                                </strong>
+                                {order.reference && (
+                                  <span> · {order.reference}</span>
+                                )}
+                              </p>
+                            )}
+                          </div>
                           <OrderItems
                             order={order}
                             enabled={canUpdate && !pending}

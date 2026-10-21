@@ -39,7 +39,8 @@
     "test:daily-reports-browser": "npm run build && node --env-file=.env scripts/test-daily-reports-browser.cjs",
     "test:platform-browser": "npm run build && node --env-file=.env scripts/test-platform-browser.cjs",
     "start:production": "node scripts/start-production.cjs",
-    "test:real-shop-browser": "npm run build && node --env-file=.env scripts/test-real-shop-browser.cjs"
+    "test:real-shop-browser": "npm run build && node --env-file=.env scripts/test-real-shop-browser.cjs",
+    "test:kitchen-layout-browser": "npm run build && node --env-file=.env scripts/test-kitchen-layout-browser.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

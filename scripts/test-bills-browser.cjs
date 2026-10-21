@@ -302,7 +302,7 @@ const root = require('node:path').resolve(__dirname, '..');
     }
     async function button(text) {
       await c.read(
-        `(()=>{document.querySelectorAll('[data-touch-target]').forEach(e=>e.removeAttribute('data-touch-target'));const e=[...document.querySelectorAll('button')].find(e=>e.textContent.trim()===${JSON.stringify(text)}&&e.getClientRects().length&&!e.closest('details:not([open])'));if(!e)throw Error('Missing button '+${JSON.stringify(text)});e.dataset.touchTarget='1';})()`,
+        `(()=>{document.querySelectorAll('[data-touch-target]').forEach(e=>e.removeAttribute('data-touch-target'));const e=[...document.querySelectorAll('button')].find(e=>(e.textContent.trim()===${JSON.stringify(text)}||(${JSON.stringify(text)}==='Serve'&&e.textContent.trim()==='Serve 1'))&&e.getClientRects().length&&!e.closest('details:not([open])'));if(!e)throw Error('Missing button '+${JSON.stringify(text)});e.dataset.touchTarget='1';})()`,
       );
       await tap('[data-touch-target]');
     }
@@ -448,7 +448,7 @@ const root = require('node:path').resolve(__dirname, '..');
       );
       while (
         await c.read(
-          "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Serve')",
+          "[...document.querySelectorAll('button')].some(b=>/^Serve(?: 1)?$/.test(b.textContent.trim()))",
         )
       ) {
         await button('Serve');
@@ -484,7 +484,7 @@ const root = require('node:path').resolve(__dirname, '..');
       await go('/kitchen', '.kds-card');
       while (
         await c.read(
-          "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Serve')",
+          "[...document.querySelectorAll('button')].some(b=>/^Serve(?: 1)?$/.test(b.textContent.trim()))",
         )
       ) {
         await button('Serve');
@@ -597,7 +597,7 @@ const root = require('node:path').resolve(__dirname, '..');
       await go('/kitchen', '.kds-card');
       while (
         await c.read(
-          "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Serve')",
+          "[...document.querySelectorAll('button')].some(b=>/^Serve(?: 1)?$/.test(b.textContent.trim()))",
         )
       ) {
         await button('Serve');

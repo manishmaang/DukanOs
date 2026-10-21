@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-21 — Compact Kitchen Order View
+
+- Fixed grid-stretched order cards and oversized serving form spacing; short cards now retain natural heights without changing FIFO placement.
+- Added compact headers/line controls and Serve 1 for single remaining portions, preserving explicit partial serving and corrections.
+- Show exact instructions beneath each Production source token, with platform references from the existing response. No backend, schema or financial changes.
+- Verification evidence and before/after measurements: [checkpoint](checkpoints/kitchen-compact-ui.md).
+
 ## 2026-10-19 — Production scheduler context
 
 - Recorded owner-reported completed test cleanup, successful real-shop use and unspecified follow-up tweaks; marked old cleanup instructions historical/do-not-rerun.

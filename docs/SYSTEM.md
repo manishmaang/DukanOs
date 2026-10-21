@@ -79,7 +79,7 @@ Kitchen displays DINE IN/PARCEL and Bill reference or platform source/reference.
 
 The owner chose full-value automatic completion at the configured previous-day cleanup cutoff for partly served Dine-In rounds. A distinct system event preserves the full sale and actual serving quantities; it does not invent payment or serving evidence. Fully unserved orders retain prior cancellation behavior. Existing Bill rollover is independent.
 
-POS resets to a clean independent cart only after authoritative confirmation/payment success. Actual token confirmation and View Bill remain nonblocking; uncertain submissions retain exact retry identity. Old Bill/reference/preparation context is cleared after success. See the [active verification/deployment checkpoint](checkpoints/real-shop-workflows.md); these local changes are not deployed.
+POS resets to a clean independent cart only after authoritative confirmation/payment success. Actual token confirmation and View Bill remain nonblocking; uncertain submissions retain exact retry identity. Old Bill/reference/preparation context is cleared after success. See the [completed implementation/deployment checkpoint](checkpoints/real-shop-workflows.md); no deployment was performed by that task.
 
 ## Responsive and touch requirement
 
@@ -133,8 +133,12 @@ Manual Zomato/Swiggy entry uses bill-less operational Orders, immutable order-wi
 
 The owner reports the October 17 test-data cleanup committed successfully, verification passed and services were restored. Only the seven specified test orders/dependencies and October 17 report v1 were deleted. Seven October 10–16 reports, all 293 menu audits, menu/images, users, settings and numbering were preserved. **Do not rerun the cleanup**: its dated inventory is historical and genuine shop activity has since occurred. See the [cleanup checkpoint](checkpoints/test-order-cleanup-review.md).
 
-The owner reports successful actual restaurant use on October 19; the subsequently authorized real-shop Kitchen/POS improvements are being verified in the [active checkpoint](checkpoints/real-shop-workflows.md). Production observations come from the owner handoff, not a new agent inspection or deployment.
+The owner reports successful actual restaurant use on October 19; the subsequently authorized real-shop Kitchen/POS improvements passed local verification and merged at 76bad69; see the [completed checkpoint](checkpoints/real-shop-workflows.md). Production observations come from the owner handoff, not a new agent inspection or deployment.
 
 EC2 cost scheduling is partially prepared and paused: daily 01:30 STOP, 04:45 START and 11:30 START schedules are all DISABLED. The required guarded 05:45 stop after the enabled 05:15 backup is not built. SSM managed-node listing is confirmed; Ping Online and Run Command remain unverified. Resume only on request at Step 15. Shop hours are noon–01:00 daily, Asia/Kolkata. Keep the server running if the morning backup is missing, stale, failed or unverified. See [scheduler handoff](operations/EC2_AUTO_START_STOP_HANDOFF_2026-10-19.md) for identifiers, IAM, evidence and pending acceptance checks. No automatic stop/start cycle is verified; no production changes are authorized by this context update.
 
 The specific pre-cleanup S3 archive checksum was verified according to the owner; off-instance decryption-key access and restore of that archive remain unconfirmed. Earlier restore evidence does not establish current recovery readiness. Cloud-only operation still depends on WAN; no local fallback or customer self-order website is implemented.
+
+## Compact Kitchen presentation
+
+Order View uses natural-height, top-aligned cards in FIFO row order, compact token/service/reference headers and inline serving controls. A single remaining portion uses Serve 1; partial quantities and reasoned corrections remain explicit. Instructions stay visible under their own lines and Production source rows. Backend serving, fulfillment, financial and aggregation semantics are unchanged. See [compact UI checkpoint](checkpoints/kitchen-compact-ui.md) for validation and deployment status.
