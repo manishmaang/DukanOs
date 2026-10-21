@@ -1241,6 +1241,7 @@ small {
 }
 .kds-order-grid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
@@ -1333,7 +1334,7 @@ small {
 .kds-action {
   width: 100%;
   min-height: 48px;
-  margin-top: auto;
+  margin-top: 4px;
   padding: 8px;
   font-size: 1.05rem;
   font-weight: 700;
@@ -2965,26 +2966,78 @@ header > div button {
   background: #edf1ed;
   color: #465349;
 }
+.kds-order-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.kds-order-header .kds-token-row {
+  order: -1;
+  width: 100%;
+}
+.kds-order-header .order-source {
+  margin: 0;
+  align-items: center;
+}
 .kds-service {
   overflow-wrap: anywhere;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  margin: 0;
+}
+.kds-line {
+  padding-block: 4px;
+}
+.kds-line-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.kds-line-counts {
+  flex: 1 1 100px;
+  min-width: 0;
+}
+.kds-line-counts p {
+  margin: 0;
+  line-height: 1.35;
+}
+.kds-quantity-state {
+  font-size: 0.9rem;
 }
 .kds-serve-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  align-items: end;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
 }
-.kds-serve-controls label {
-  flex: 1 1 130px;
+.kds-serve-controls .kds-serving-quantity {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+.kds-serve-controls .kds-serving-quantity input {
+  width: 4rem;
+  min-height: 48px;
+  padding: 8px;
+}
+.kds-serve-controls .kds-correction-reason {
+  flex: 1 1 100%;
   min-width: 0;
 }
+.kds-serve-controls button,
 .kds-serve-controls input {
-  width: 100%;
   min-height: 48px;
 }
 .kds-serve-controls button {
-  min-height: 48px;
+  padding: 8px 10px;
+}
+.kds-production-sources > li + li {
+  margin-top: 8px;
 }
 .kds-production-sources {
   padding-left: 20px;

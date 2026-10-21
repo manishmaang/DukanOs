@@ -480,7 +480,7 @@ const root = require('node:path').resolve(__dirname, '..');
       await tap(cook, 'Order View');
       await dispatcher.read("location.hash='/dispatch'");
       await dispatcher.wait(
-        `!!document.querySelector('[data-order-id="${order.id}"]')`,
+        `location.hash==='#/kitchen' && !!document.querySelector('[data-order-id="${order.id}"]')`,
       );
       const dispatch = await dispatcher.read(
         `document.querySelector('[data-order-id="${order.id}"]').innerText`,
